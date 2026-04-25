@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Add Debtor | LQD Tracking Management System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "surface": "#F0F7FF",
+                    "surface-container": "#FFFFFF",
+                    "primary": "#2D3282",
+                    "primary-muted": "#3F45B5",
+                    "primary-dark": "#1e2a6e",
+                    "secondary": "#6366F1",
+                    "accent-coral": "#FF5F5F",
+                    "electric-blue": "#00D1FF",
+                    "on-surface": "#1E293B",
+                    "outline": "#E2E8F0"
+                },
+                borderRadius: {
+                    "DEFAULT": "0.75rem",
+                    "lg": "1rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+                },
+                fontFamily: {
+                    "headline": ["Kanit"],
+                    "body": ["Kanit"],
+                    "kanit": ["Kanit"],
+                    "sans": ["Kanit", "sans-serif"]
+                }
+            },
+        }
+    }
+</script>
+<style type="text/tailwindcss">
+    body { font-family: 'Kanit', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .form-input-styled {
+        @apply bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 w-full text-sm transition-all text-slate-800;
+    }
+    .form-input-styled:focus {
+        @apply outline-none bg-white border-blue-500 ring-4 ring-blue-500/10;
+    }
+    .form-input-styled.error {
+        @apply border-red-400 bg-red-50/30 ring-4 ring-red-400/10;
+    }
+    .form-label-styled {
+        @apply text-[12px] font-bold text-slate-500 mb-1 block uppercase tracking-wider;
+    }
+    .dashboard-card {
+        @apply bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col;
+    }
+    .dashboard-card-header {
+        @apply py-3 px-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/20;
+    }
+    .dashboard-card-content { @apply p-4 flex-1; }
+    .hero-gradient { background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%); }
+    .admin-only { display: none; }
+    /* ===== Custom Date Picker ===== */
+    .dp-wrap { position: relative; }
+    .dp-input-row { display: flex; align-items: center; }
+    .dp-input {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 0.5rem 2.5rem 0.5rem 1rem;
+        width: 100%;
+        font-family: 'Kanit', sans-serif;
+        font-size: 0.875rem;
+        color: #1e293b;
+        cursor: pointer;
+        transition: all 0.2s;
+        outline: none;
+    }
+    .dp-input:focus, .dp-input.open {
+        background: #fff;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+    }
+    .dp-input.error {
+        border-color: #f87171;
+        background: rgba(254,242,242,0.3);
+    }
+    .dp-icon {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+        font-size: 18px;
+    }
+    .dp-popup {
+        display: none;
+        position: fixed;
+        z-index: 99999;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        box-shadow: 0 20px 40px rgba(15,23,42,0.12);
+        width: 288px;
+        padding: 1rem;
+        font-family: 'Kanit', sans-serif;
+    }
+    .dp-popup.open { display: block; }
+    .dp-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    .dp-nav-btn {
+        width: 32px; height: 32px;
+        border-radius: 0.5rem;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        color: #64748b;
+        transition: all 0.15s;
+        font-size: 18px;
+    }
+    .dp-nav-btn:hover { background: #2D3282; color: #fff; border-color: #2D3282; }
+    .dp-month-year {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+        cursor: pointer;
+        padding: 4px 10px;
+        border-radius: 0.5rem;
+        transition: background 0.15s;
+    }
+    .dp-month-year:hover { background: #f1f5f9; }
+    .dp-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        margin-bottom: 4px;
+    }
+    .dp-weekday {
+        text-align: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #94a3b8;
+        padding: 4px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .dp-days {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+    }
+    .dp-day {
+        aspect-ratio: 1;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        color: #1e293b;
+        transition: all 0.15s;
+        font-weight: 400;
+    }
+    .dp-day:hover:not(.dp-day-disabled):not(.dp-day-selected) {
+        background: #EEF2FF;
+        color: #2D3282;
+        font-weight: 600;
+    }
+    .dp-day-other { color: #cbd5e1; }
+    .dp-day-today {
+        font-weight: 700;
+        color: #2D3282;
+        border: 1.5px solid #2D3282;
+    }
+    .dp-day-selected {
+        background: #2D3282 !important;
+        color: #fff !important;
+        font-weight: 700;
+    }
+    .dp-day-disabled {
+        color: #e2e8f0;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .dp-footer {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #f1f5f9;
+        gap: 0.5rem;
+    }
+    .dp-btn-clear {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #94a3b8;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px 10px;
+        border-radius: 0.5rem;
+        transition: color 0.15s;
+        font-family: 'Kanit', sans-serif;
+    }
+    .dp-btn-clear:hover { color: #ef4444; }
+    .dp-btn-today {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #2D3282;
+        background: #EEF2FF;
+        border: none;
+        cursor: pointer;
+        padding: 4px 12px;
+        border-radius: 0.5rem;
+        transition: all 0.15s;
+        font-family: 'Kanit', sans-serif;
+    }
+    .dp-btn-today:hover { background: #2D3282; color: #fff; }
+    /* Month/Year picker overlay */
+    .dp-my-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        padding: 4px 0;
+    }
+    .dp-my-item {
+        text-align: center;
+        padding: 8px 4px;
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        color: #1e293b;
+        transition: all 0.15s;
+    }
+    .dp-my-item:hover { background: #EEF2FF; color: #2D3282; font-weight: 700; }
+    .dp-my-item.active { background: #2D3282; color: #fff; font-weight: 700; }
+    .dp-my-item.disabled { color: #e2e8f0; cursor: not-allowed; pointer-events: none; }
+    .dp-year-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary">
+
+<!-- Navbar -->
+<nav class="fixed top-0 w-full z-50 bg-white border-b border-blue-100 flex justify-between items-center px-8 h-16 shadow-sm">
+    <div class="flex items-center gap-8">
+        <span class="text-xl tracking-tight text-primary font-headline flex items-center font-bold">
+            <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200 mr-3">
+                <span class="material-symbols-outlined text-white text-2xl font-normal" style='font-variation-settings: "FILL" 1;'>shield</span>
+            </div>
+            LQD Tracking Management System
+        </span>
+    </div>
+    <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="text-right hidden sm:block">
+                <p class="text-[10px] text-indigo-400 uppercase tracking-widest leading-none mb-1 font-bold">System Role</p>
+                <!-- แสดง role จาก sessionStorage -->
+                <p id="nav-role" class="text-xs text-indigo-900 font-semibold">-</p>
+            </div>
+            <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold border border-blue-100">
+                <span id="nav-avatar">-</span>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Sidebar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-white border-r border-blue-100 flex flex-col p-4 gap-2 pt-20 hidden md:flex">
+    <div class="px-4 py-4 mb-4 bg-blue-50/50 rounded-xl border border-blue-50">
+        <h2 class="font-headline text-primary text-base font-bold">LQD Debt Overview</h2>
+        <p id="sidebar-role-label" class="text-[10px] text-indigo-400 uppercase tracking-widest font-bold">-</p>
+    </div>
+
+    <nav class="flex-1 space-y-1">
+        <!-- User + Admin เห็น -->
+        <a class="flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/customer-list">
+            <span class="material-symbols-outlined font-normal text-slate-400">gavel</span>
+            <span class="text-sm">Customer List</span>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/payment-record">
+            <span class="material-symbols-outlined font-normal text-slate-400">history</span>
+            <span class="text-sm">Payment Record</span>
+        </a>
+
+        <!-- Admin เท่านั้นที่เห็น -->
+        <a id="menu-import" class="admin-only flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/data-import">
+            <span class="material-symbols-outlined font-normal text-slate-400">upload_file</span>
+            <span class="text-sm">Data Import Center</span>
+        </a>
+        <a id="menu-report" class="admin-only flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/report">
+            <span class="material-symbols-outlined font-normal text-slate-400">assessment</span>
+            <span class="text-sm">Report Center</span>
+        </a>
+    </nav>
+
+    <div class="mt-auto pt-4 border-t border-blue-50">
+        <a onclick="handleLogout()" class="flex items-center gap-3 px-4 py-3 text-accent-coral text-sm hover:bg-red-50 rounded-lg transition-all font-bold cursor-pointer">
+            <span class="material-symbols-outlined font-normal">logout</span>
+            <span>Log out</span>
+        </a>
+    </div>
+</aside>
+
+<!-- Main -->
+<main class="md:ml-64 pt-16 min-h-screen pb-24">
+
+    <!-- Hero bar -->
+    <section class="hero-gradient px-8 py-4 sticky top-16 z-30 shadow-lg border-b border-white/10">
+        <div class="max-w-[1600px] mx-auto flex items-center gap-4">
+            <a href="/customer-list" class="text-blue-300 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-xl">arrow_back</span>
+            </a>
+            <h1 class="font-headline text-lg tracking-tight text-white font-bold">เพิ่มข้อมูลลูกหนี้ใหม่</h1>
+            <div class="h-5 w-px bg-white/20"></div>
+            <p class="text-blue-200 text-xs hidden lg:block">กรอกข้อมูลให้ครบถ้วนก่อนบันทึก</p>
+        </div>
+    </section>
+
+    <!-- Error banner -->
+    <div id="error-banner" class="hidden mx-6 mt-4 max-w-[1600px] bg-red-50 border border-red-200 rounded-xl px-5 py-3 flex items-center gap-3">
+        <span class="material-symbols-outlined text-red-500 flex-shrink-0" style='font-variation-settings: "FILL" 1;'>error</span>
+        <p id="error-text" class="text-sm text-red-700 font-medium flex-1"></p>
+        <button onclick="hideError()" class="text-red-400 hover:text-red-600">
+            <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+    </div>
+
+    <div class="p-6">
+        <div class="max-w-[1600px] mx-auto grid grid-cols-12 gap-4 items-stretch">
+
+            <!-- Account Details -->
+            <div class="col-span-12">
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-primary">
+                                <span class="material-symbols-outlined text-lg" style='font-variation-settings: "FILL" 1;'>account_balance_wallet</span>
+                            </div>
+                            <h3 class="font-bold text-sm text-slate-800">รายละเอียดบัญชี</h3>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-200">
+                            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">New Case Mode</span>
+                        </div>
+                    </div>
+                    <div class="dashboard-card-content">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="form-label-styled">หมายเลขบัญชี <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <input id="account-no" class="form-input-styled pr-16" type="text" placeholder="เช่น 400299812234" maxlength="12" inputmode="numeric" autocomplete="off">
+                                    <span id="account-no-counter" class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-300 pointer-events-none font-mono">0/12</span>
+                                </div>
+                                <p id="warn-account-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-account-no-msg">กรุณากรอกตัวเลขเท่านั้น</span></p>
+                            </div>
+                            <div>
+                                <label class="form-label-styled">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>
+                                <input id="customer-name" class="form-input-styled" type="text" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" autocomplete="off">
+                                <p id="warn-customer-name" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-customer-name-msg">ไม่อนุญาตให้ใช้อักขระพิเศษ</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filing Date -->
+            <div class="col-span-12">
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
+                                <span class="material-symbols-outlined text-lg">gavel</span>
+                            </div>
+                            <h3 class="font-bold text-sm text-slate-800">วันที่ยื่นฟ้อง</h3>
+                        </div>
+                    </div>
+                    <div class="dashboard-card-content">
+                        <div class="max-w-xs">
+                            <label class="form-label-styled">วันที่ยื่นฟ้อง <span class="text-red-500">*</span></label>
+                            <div class="dp-wrap" id="dp-wrap-filing-date">
+                                <div class="dp-input-row relative">
+                                    <input type="hidden" id="filing-date">
+                                    <div class="dp-input" id="dp-display-filing-date" tabindex="0" onclick="dpOpen('filing-date')" onkeydown="if(event.key===\'Enter\'||event.key===' ')dpOpen('filing-date')">
+                                        <span id="dp-text-filing-date" class="text-slate-400">เลือกวันที่ยื่นฟ้อง</span>
+                                    </div>
+                                    <span class="material-symbols-outlined dp-icon">calendar_today</span>
+                                </div>
+                                <div class="dp-popup" id="dp-popup-filing-date">
+                                    <div class="dp-header">
+                                        <button class="dp-nav-btn" onclick="dpNavMonth('filing-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
+                                        <span class="dp-month-year" id="dp-title-filing-date" onclick="dpToggleMyPicker('filing-date')"></span>
+                                        <button class="dp-nav-btn" onclick="dpNavMonth('filing-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+                                    </div>
+                                    <div id="dp-my-filing-date" class="hidden">
+                                        <div class="dp-year-header">
+                                            <button class="dp-nav-btn" onclick="dpNavYear('filing-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
+                                            <span id="dp-year-label-filing-date" class="font-bold text-sm text-slate-700"></span>
+                                            <button class="dp-nav-btn" onclick="dpNavYear('filing-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+                                        </div>
+                                        <div class="dp-my-grid" id="dp-months-filing-date"></div>
+                                    </div>
+                                    <div id="dp-cal-filing-date">
+                                        <div class="dp-weekdays">
+                                            <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
+                                            <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                                        </div>
+                                        <div class="dp-days" id="dp-days-filing-date"></div>
+                                    </div>
+                                    <div class="dp-footer">
+                                        <button class="dp-btn-clear" onclick="dpClear('filing-date')" type="button">ล้างค่า</button>
+                                        <button class="dp-btn-today" onclick="dpSelectToday('filing-date')" type="button">วันนี้</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</main>
+
+
+
+<!-- Confirm Review Modal -->
+<div id="confirm-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-[4px]"></div>
+    <div class="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-primary text-xl" style='font-variation-settings:"FILL" 1'>fact_check</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base">ตรวจสอบข้อมูลก่อนบันทึก</h3>
+                    <p class="text-[11px] text-slate-400 uppercase tracking-wider">Review & Confirm</p>
+                </div>
+            </div>
+            <button onclick="closeConfirmModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-all">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="overflow-y-auto flex-1 p-6 space-y-4">
+
+            <!-- รายละเอียดบัญชี -->
+            <div class="rounded-xl border border-slate-100 overflow-hidden">
+                <div class="bg-blue-50/50 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-base" style='font-variation-settings:"FILL" 1'>account_balance_wallet</span>
+                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">รายละเอียดบัญชี</span>
+                </div>
+                <div class="grid grid-cols-2 divide-x divide-slate-50">
+                    <div class="px-4 py-3 bg-white">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">หมายเลขบัญชี</p>
+                        <p id="rv-account-no" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
+                    <div class="px-4 py-3 bg-white">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ชื่อ-นามสกุล</p>
+                        <p id="rv-customer-name" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- วันที่ยื่นฟ้อง -->
+            <div class="rounded-xl border border-slate-100 overflow-hidden">
+                <div class="bg-indigo-50/50 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-indigo-600 text-base">gavel</span>
+                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">วันที่ยื่นฟ้อง</span>
+                </div>
+                <div class="px-4 py-3 bg-white">
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันที่ยื่นฟ้อง</p>
+                    <p id="rv-filing-date" class="text-sm font-semibold text-slate-800">-</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
+            <p class="text-[11px] text-slate-400">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmModal()" class="px-5 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all text-sm border border-slate-200">
+                    แก้ไข
+                </button>
+                <button onclick="doSubmit()" id="confirm-submit-btn" class="px-8 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-900/10 hover:bg-primary-dark transition-all text-sm flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">save</span>
+                    ยืนยันบันทึก
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div id="alert-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-[3px]" onclick="closeAlert()"></div>
+    <div class="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+        <div class="p-7 flex flex-col items-center text-center">
+            <div id="alert-icon-wrap" class="w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <span id="alert-icon" class="material-symbols-outlined text-3xl"></span>
+            </div>
+            <h3 id="alert-title" class="text-lg font-bold text-slate-800 mb-2"></h3>
+            <p id="alert-message" class="text-sm text-slate-500 leading-relaxed mb-6"></p>
+            <button onclick="closeAlert()" class="w-full py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-all text-sm">
+                รับทราบ
+            </button>
+        </div>
+        <button onclick="closeAlert()" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1">
+            <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+    </div>
+</div>
+
+<!-- Footer actions -->
+<footer class="fixed bottom-0 left-0 md:left-64 right-0 z-50 px-8 py-3 bg-white border-t border-slate-100">
+    <div class="max-w-[1600px] mx-auto flex justify-between items-center">
+        <div></div>
+        <div class="flex gap-4">
+            <button onclick="handleCancel()" class="px-5 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-50 transition-all text-sm border border-slate-200">
+                Cancel
+            </button>
+            <button id="submit-btn" onclick="handleSubmit()" class="px-8 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-900/10 hover:bg-primary-dark transition-all text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                <span id="btn-default" class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">save</span>
+                    บันทึกข้อมูล
+                </span>
+                <span id="btn-loading" class="hidden flex items-center gap-2">
+                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                    กำลังบันทึก...
+                </span>
+            </button>
+        </div>
+    </div>
+</footer>
+
+<script>
+    const role        = sessionStorage.getItem('role') || '';
+    const displayName = sessionStorage.getItem('display_name') || '';
+
+    function setupUI() {
+        if (!role) { window.location.href = '/login'; return; }
+        const roleLabels = { 'user': 'User', 'admin': 'Admin', 'superadmin': 'Super Admin' };
+        const label = roleLabels[role] || role;
+        document.getElementById('nav-role').textContent           = label;
+        document.getElementById('sidebar-role-label').textContent = label + ' Terminal';
+        document.getElementById('nav-avatar').textContent         = displayName.charAt(0) || '-';
+        if (role === 'admin' || role === 'superadmin') {
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
+        }
+    }
+
+    function showError(msg) {
+        const banner = document.getElementById('error-banner');
+        document.getElementById('error-text').textContent = msg;
+        banner.classList.remove('hidden');
+        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function hideError() {
+        document.getElementById('error-banner').classList.add('hidden');
+    }
+
+    // ---- Account No validation ----
+    function handleAccountNoInput() {
+        const el      = document.getElementById('account-no');
+        const counter = document.getElementById('account-no-counter');
+        const pos     = el.selectionStart;
+        const cleaned = el.value.replace(/[^0-9]/g, '');
+        const hadInvalid = cleaned !== el.value;
+        el.value = cleaned;
+        if (hadInvalid) {
+            try { el.setSelectionRange(pos - 1, pos - 1); } catch(e) {}
+            showFieldWarn('account-no', 'กรุณากรอกตัวเลขเท่านั้น ไม่อนุญาตให้ใช้ตัวอักษรหรืออักขระพิเศษ');
+        } else {
+            hideFieldWarn('account-no');
+        }
+        const len = el.value.length;
+        counter.textContent = len + '/12';
+        counter.className = 'absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none font-mono '
+            + (len === 12 ? 'text-emerald-500' : len > 0 ? 'text-amber-400' : 'text-slate-300');
+    }
+
+    function handleAccountNoKeydown(e) {
+        const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
+        if (allowed.includes(e.key)) return;
+        if (e.ctrlKey || e.metaKey) return;
+        if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+            showFieldWarn('account-no', 'กรุณากรอกตัวเลขเท่านั้น ไม่อนุญาตให้ใช้ตัวอักษรหรืออักขระพิเศษ');
+        }
+    }
+
+    function handleAccountNoBlur() {
+        const el  = document.getElementById('account-no');
+        const len = el.value.length;
+        if (len > 0 && len < 12) {
+            showFieldWarn('account-no', 'เลขที่บัญชีต้องมี 12 หลักเท่านั้น (ปัจจุบัน ' + len + ' หลัก)');
+            el.classList.add('error');
+        } else if (len === 12) {
+            hideFieldWarn('account-no');
+            el.classList.remove('error');
+        }
+    }
+
+    // ---- Customer Name validation ----
+    function handleCustomerNameInput() {
+        const el  = document.getElementById('customer-name');
+        const val = el.value;
+        const hasSpecial = /[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(val);
+        if (hasSpecial) {
+            showFieldWarn('customer-name', 'ไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลขในชื่อ-นามสกุล');
+        } else {
+            hideFieldWarn('customer-name');
+        }
+    }
+
+    function handleCustomerNameBlur() {
+        const el  = document.getElementById('customer-name');
+        const val = el.value;
+        if (!val) return;
+        const trimmed = val.trim();
+        if (trimmed !== val) {
+            el.value = trimmed;
+            showFieldWarn('customer-name', 'ไม่อนุญาตให้มีช่องว่างหน้าสุดหรือหลังสุด');
+            return;
+        }
+        if (/\s{2,}/.test(val)) {
+            showFieldWarn('customer-name', 'ไม่อนุญาตให้มีช่องว่างติดกันหลายช่อง');
+            return;
+        }
+        hideFieldWarn('customer-name');
+        el.classList.remove('error');
+    }
+
+    function setLoading(isLoading) {
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = isLoading;
+        document.getElementById('btn-default').classList.toggle('hidden', isLoading);
+        document.getElementById('btn-loading').classList.toggle('hidden', !isLoading);
+    }
+
+
+    // ============================================================
+    // Validation & Formatting Helpers
+    // ============================================================
+
+    function parseNumber(val) {
+        return parseFloat(val.replace(/,/g, '')) || 0;
+    }
+
+    function formatNumber(val) {
+        const n = parseFloat(val.replace(/,/g, ''));
+        if (isNaN(n)) return val;
+        return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function showFieldWarn(id, msg) {
+        const el = document.getElementById('warn-' + id);
+        if (!el) return;
+        if (msg) {
+            const span = el.querySelector('span:last-child');
+            if (span) span.textContent = msg;
+        }
+        el.classList.remove('hidden');
+    }
+
+    function hideFieldWarn(id) {
+        const el = document.getElementById('warn-' + id);
+        if (el) el.classList.add('hidden');
+    }
+
+    function isValidDecimal(val) {
+        return /^[\d,]*\.?\d*$/.test(val.replace(/,/g, ''));
+    }
+
+    function isValidInteger(val) {
+        return /^\d+$/.test(val.trim());
+    }
+
+    // ---- Date constraint ----
+    function updateDateConstraints() {
+        const filingVal   = dpGetValue('filing-date');
+        const judgmentVal = dpGetValue('judgment-date');
+        if (filingVal)   dpSetMin('judgment-date', filingVal);
+        if (judgmentVal) dpSetMin('first-due-date', judgmentVal);
+    }
+
+    // ---- Money field handler (auto format + warn) ----
+    function handleMoneyInput(id) {
+        const el  = document.getElementById(id);
+        const raw = el.value.replace(/,/g, '');
+        if (raw === '' || raw === '.') { hideFieldWarn(id); return; }
+        if (!/^[\d]*\.?\d*$/.test(raw)) {
+            showFieldWarn(id, 'กรุณากรอกตัวเลขเท่านั้น');
+            el.value = el.value.replace(/[^\d.,]/g, '');
+            return;
+        }
+        hideFieldWarn(id);
+        const parts = raw.split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        el.value = parts.join('.');
+    }
+
+    function handleMoneyBlur(id) {
+        const el  = document.getElementById(id);
+        const raw = el.value.replace(/,/g, '');
+        if (!raw || isNaN(parseFloat(raw))) { el.value = ''; return; }
+        el.value = parseFloat(raw).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        hideFieldWarn(id);
+    }
+
+    // ---- Interest rate handler ----
+    function handleInterestInput() {
+        const el  = document.getElementById('interest-rate');
+        const raw = el.value.replace('%', '').trim();
+        if (raw === '') { hideFieldWarn('interest-rate'); return; }
+        if (!/^[\d]*\.?\d*$/.test(raw)) {
+            showFieldWarn('interest-rate', 'กรุณากรอกตัวเลขเท่านั้น');
+            el.value = raw.replace(/[^\d.]/g, '');
+            return;
+        }
+        hideFieldWarn('interest-rate');
+    }
+
+    function handleInterestBlur() {
+        const el  = document.getElementById('interest-rate');
+        const raw = el.value.replace('%', '').trim();
+        if (raw === '') { el.value = '0'; hideFieldWarn('interest-rate'); return; }
+        if (isNaN(parseFloat(raw))) { el.value = '0'; return; }
+        el.value = parseFloat(raw).toString();
+        hideFieldWarn('interest-rate');
+    }
+
+    // ---- Default interest rate handler ----
+    function handleDefaultInterestInput() {
+        const el  = document.getElementById('default-interest-rate');
+        const raw = el.value.replace('%', '').trim();
+        if (raw === '') { hideFieldWarn('default-interest-rate'); return; }
+        if (!/^[\d]*\.?\d*$/.test(raw)) {
+            showFieldWarn('default-interest-rate', 'กรุณากรอกตัวเลขเท่านั้น');
+            el.value = raw.replace(/[^\d.]/g, '');
+            return;
+        }
+        hideFieldWarn('default-interest-rate');
+    }
+
+    function handleDefaultInterestBlur() {
+        const el       = document.getElementById('default-interest-rate');
+        const intRate  = parseFloat(document.getElementById('interest-rate').value) || -1;
+        const raw      = el.value.replace('%', '').trim();
+
+        if (raw === '') {
+            if (intRate === 0) {
+                showFieldWarn('default-interest-rate', 'ดอกเบี้ยปกติเป็น 0% กรุณากรอกดอกเบี้ยผิดนัด (กรอก 0 ถ้าไม่มี)');
+            }
+            el.value = '0';
+            return;
+        }
+        hideFieldWarn('default-interest-rate');
+    }
+
+    // ---- Installment count handler ----
+    function handleInstallmentCountInput() {
+        const el  = document.getElementById('installment-count');
+        const raw = el.value.trim();
+        if (raw === '') { hideFieldWarn('installment-count'); return; }
+        if (!/^\d+$/.test(raw)) {
+            showFieldWarn('installment-count', 'กรุณากรอกตัวเลขจำนวนเต็มเท่านั้น');
+            el.value = raw.replace(/\D/g, '');
+            return;
+        }
+        hideFieldWarn('installment-count');
+    }
+
+    // ---- calculateDiff ----
+    function calculateDiff() {
+        const courtFee  = parseNumber(document.getElementById('court-fee').value);
+        const lawyerFee = parseNumber(document.getElementById('lawyer-fee').value);
+        const totalDebt = parseNumber(document.getElementById('total-debt').value);
+        const principal = parseNumber(document.getElementById('principal').value);
+        const total     = (courtFee + lawyerFee + totalDebt) - principal;
+        const field     = document.getElementById('diff-debt');
+        field.value     = total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        field.style.color = total > 0 ? '#2D3282' : total < 0 ? '#ef4444' : '';
+    }
+
+    function calculateLastDueDate() {
+        const firstDue = dpGetValue('first-due-date');
+        const count    = parseInt((document.getElementById('installment-count').value || '').replace(/[^0-9]/g,'')) || 0;
+        if (!firstDue || count < 1) { dpClear('last-due-date'); return; }
+        const date = new Date(firstDue + 'T00:00:00');
+        date.setMonth(date.getMonth() + count - 1);
+        const str  = dpDateStr(date);
+        dpSetValue('last-due-date', str);
+        const disp = document.getElementById('dp-text-last-due-date');
+        disp.textContent = dpFormatDisplay(str);
+        disp.classList.remove('text-slate-400');
+        disp.classList.add('text-slate-800');
+    }
+
+    function validate() {
+        const required = [
+            { id: 'account-no',    label: 'หมายเลขบัญชี' },
+            { id: 'customer-name', label: 'ชื่อ-นามสกุล' },
+            { id: 'filing-date',   label: 'วันที่ยื่นฟ้อง' },
+        ];
+
+        document.querySelectorAll('.form-input-styled').forEach(el => el.classList.remove('error'));
+
+        const missing = required.filter(f => {
+            const val = document.getElementById(f.id)?.value?.trim() || '';
+            if (!val) {
+                const el = document.getElementById(f.id);
+                if (el) el.classList.add('error');
+                return true;
+            }
+            return false;
+        });
+
+        if (missing.length > 0) {
+            showError('กรุณากรอกข้อมูลที่จำเป็นให้ครบ: ' + missing.map(f => f.label).join(', '));
+            return false;
+        }
+
+        const accountVal = document.getElementById('account-no').value;
+        if (accountVal.length !== 12) {
+            showError('เลขที่บัญชีต้องมี 12 หลักเท่านั้น');
+            document.getElementById('account-no').classList.add('error');
+            return false;
+        }
+
+        const nameVal = document.getElementById('customer-name').value;
+        if (/[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(nameVal)) {
+            showError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
+            document.getElementById('customer-name').classList.add('error');
+            return false;
+        }
+
+        return true;
+    }
+
+    function fmtReview(val) {
+        const n = parseNumber(String(val));
+        if (!val || val === '0.00' || val === '') return '-';
+        return '฿' + n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtDateReview(id) {
+        const val = dpGetValue(id);
+        if (!val) return '-';
+        const [y,m,d] = val.split('-');
+        return `${d}/${m}/${y}`;
+    }
+
+    function handleSubmit() {
+        hideError();
+        if (!validate()) return;
+
+        document.getElementById('rv-account-no').textContent    = document.getElementById('account-no').value;
+        document.getElementById('rv-customer-name').textContent = document.getElementById('customer-name').value;
+        document.getElementById('rv-filing-date').textContent   = fmtDateReview('filing-date');
+
+        document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+
+    function closeConfirmModal() {
+        document.getElementById('confirm-modal').classList.add('hidden');
+    }
+
+    async function doSubmit() {
+        document.getElementById('confirm-submit-btn').disabled = true;
+        document.getElementById('confirm-submit-btn').innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังบันทึก...';
+
+        setLoading(true);
+
+        closeConfirmModal();
+        const payload = {
+            account_no  : document.getElementById('account-no').value.trim(),
+            name        : document.getElementById('customer-name').value.trim(),
+            filing_date : dpGetValue('filing-date') || null,
+        };
+
+        try {
+            const res  = await fetch('/api/customers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                window.location.href = '/customer-list';
+            } else {
+                showError(data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+            }
+        } catch (err) {
+            showError('ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            setLoading(false);
+            const btn = document.getElementById('confirm-submit-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> ยืนยันบันทึก';
+            }
+        }
+    }
+
+    function handleCancel() {
+        window.location.href = '/customer-list';
+    }
+
+    async function handleLogout() {
+        const token = document.cookie.split('; ').find(r => r.startsWith('token='))?.split('=')[1] || '';
+        await fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        document.cookie = 'token=; path=/; max-age=0';
+        sessionStorage.clear();
+        window.location.href = '/login';
+    }
+
+
+    // ---- Alert Modal ----
+    function showAlert(type, title, message) {
+        const iconWrap = document.getElementById('alert-icon-wrap');
+        const icon     = document.getElementById('alert-icon');
+        const configs  = {
+            warning: { bg: 'bg-amber-50', color: 'text-amber-500', icon: 'warning' },
+            error:   { bg: 'bg-red-50',   color: 'text-red-500',   icon: 'error' },
+            info:    { bg: 'bg-blue-50',  color: 'text-blue-500',  icon: 'info' },
+        };
+        const cfg = configs[type] || configs.info;
+        iconWrap.className = `w-16 h-16 rounded-full flex items-center justify-center mb-4 ${cfg.bg}`;
+        icon.className     = `material-symbols-outlined text-3xl ${cfg.color}`;
+        icon.style.fontVariationSettings = '"FILL" 1';
+        icon.textContent   = cfg.icon;
+        document.getElementById('alert-title').textContent   = title;
+        document.getElementById('alert-message').textContent = message;
+        document.getElementById('alert-modal').classList.remove('hidden');
+    }
+
+    function closeAlert() {
+        document.getElementById('alert-modal').classList.add('hidden');
+    }
+
+    // ---- Schedule Preview ----
+    let scheduleData    = { daily: [], monthly: [] };
+    let currentView     = 'monthly';
+    let previewDone     = false;
+
+    function setSubmitEnabled(enabled) {
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = !enabled;
+    }
+
+    function onInputChanged() {
+        if (previewDone) {
+            previewDone = false;
+            setSubmitEnabled(false);
+            const wrap = document.getElementById('preview-stale-warn');
+            if (wrap) wrap.classList.remove('hidden');
+        }
+    }
+
+    function fmt(n) {
+        return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtDate(d) {
+        if (!d) return '-';
+        const [y, m, day] = d.split('-');
+        return `${day}/${m}/${y}`;
+    }
+
+    const SCHEDULE_PAGE_SIZE = 20;
+    let   schedulePage = 1;
+
+    function switchView(view) {
+        currentView  = view;
+        schedulePage = 1;
+        document.getElementById('view-monthly-btn').className = view === 'monthly'
+            ? 'px-3 py-1 rounded text-[12px] font-bold transition-all bg-white text-primary shadow-sm'
+            : 'px-3 py-1 rounded text-[12px] font-bold transition-all text-slate-500 hover:text-slate-700';
+        document.getElementById('view-daily-btn').className = view === 'daily'
+            ? 'px-3 py-1 rounded text-[12px] font-bold transition-all bg-white text-primary shadow-sm'
+            : 'px-3 py-1 rounded text-[12px] font-bold transition-all text-slate-500 hover:text-slate-700';
+        renderSchedule();
+    }
+
+    function changeSchedulePage(page) {
+        schedulePage = page;
+        renderSchedule();
+        document.getElementById('schedule-table-wrap').scrollTop = 0;
+    }
+
+    function renderSchedulePagination(total, page) {
+        const totalPages = Math.ceil(total / SCHEDULE_PAGE_SIZE);
+        const container  = document.getElementById('schedule-pagination');
+        if (!container) return;
+        if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+        let html = `<button onclick="changeSchedulePage(${page-1})" ${page===1?'disabled':''} class="p-1 rounded border border-slate-100 hover:bg-white transition-all disabled:opacity-30 text-slate-400"><span class="material-symbols-outlined text-sm">chevron_left</span></button><div class="flex gap-1">`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i===1 || i===totalPages || (i>=page-1 && i<=page+1)) {
+                html += `<button onclick="changeSchedulePage(${i})" class="w-6 h-6 rounded text-[10px] transition-all ${i===page?'bg-primary text-white':'hover:bg-white text-slate-400'}">${i}</button>`;
+            } else if (i===2 || i===totalPages-1) {
+                html += `<span class="w-6 h-6 flex items-center justify-center text-[10px] text-slate-200">…</span>`;
+            }
+        }
+        html += `</div><button onclick="changeSchedulePage(${page+1})" ${page===totalPages?'disabled':''} class="p-1 rounded border border-slate-100 hover:bg-white transition-all disabled:opacity-30 text-slate-400"><span class="material-symbols-outlined text-sm">chevron_right</span></button>`;
+        container.innerHTML = html;
+    }
+
+    function renderSchedule() {
+        const allRows = currentView === 'monthly' ? scheduleData.monthly : scheduleData.daily;
+        const isDaily = currentView === 'daily';
+
+        let rows;
+        if (isDaily) {
+            const start = (schedulePage - 1) * SCHEDULE_PAGE_SIZE;
+            rows = allRows.slice(start, start + SCHEDULE_PAGE_SIZE);
+        } else {
+            rows = allRows;
+        }
+
+        const tbody = document.getElementById('schedule-tbody');
+        tbody.innerHTML = rows.map(r => {
+            const isPayment    = r.is_payment_date;
+            const isEarlyClose = r.is_early_close;
+            const rowClass     = isEarlyClose
+                ? 'bg-emerald-50 font-semibold border-l-4 border-emerald-400'
+                : isPayment
+                    ? 'bg-yellow-50 font-semibold'
+                    : 'hover:bg-blue-50/20 transition-colors';
+            return `<tr class="${rowClass}">
+                <td class="py-2 px-4 text-slate-700">${fmtDate(r.date)}</td>
+                <td class="py-2 px-4 text-slate-400 text-center font-bold">${String(r.term).padStart(2,'0')}</td>
+                <td class="py-2 px-4 text-right text-slate-600">${fmt(r.principal_bf)}</td>
+                <td class="py-2 px-4 text-right text-primary font-bold">${r.payment > 0 ? fmt(r.payment) : '-'}</td>
+                <td class="py-2 px-4 text-right text-emerald-600">${r.interest_paid > 0 ? fmt(r.interest_paid) : '-'}</td>
+                <td class="py-2 px-4 text-right text-indigo-600">${r.principal_paid > 0 ? fmt(r.principal_paid) : '-'}</td>
+                <td class="py-2 px-4 text-right text-slate-400">${fmt(r.other_paid)}</td>
+                <td class="py-2 px-4 text-right text-slate-800 font-bold">${fmt(r.principal_bal)}</td>
+                <td class="py-2 px-4 text-right text-slate-400">${Number(r.daily_interest).toFixed(2)}</td>
+                <td class="py-2 px-4 text-right text-slate-500">${fmt(r.acc_interest)}</td>
+            </tr>`;
+        }).join('');
+
+        const infoText = document.getElementById('schedule-info-text');
+        const infoEl   = document.getElementById('schedule-info');
+        if (infoText) {
+            if (isDaily) {
+                const start = (schedulePage - 1) * SCHEDULE_PAGE_SIZE;
+                infoText.textContent = `แสดง ${start+1}–${Math.min(start+SCHEDULE_PAGE_SIZE, allRows.length)} จาก ${allRows.length} รายการ (รายวัน)`;
+                renderSchedulePagination(allRows.length, schedulePage);
+            } else {
+                infoText.textContent = `แสดง ${allRows.length} รายการ (รายเดือน)`;
+                const pg = document.getElementById('schedule-pagination');
+                if (pg) pg.innerHTML = '';
+            }
+        } else if (infoEl) {
+            infoEl.textContent = `แสดง ${rows.length} รายการ (${currentView === 'monthly' ? 'รายเดือน' : 'รายวัน'})`;
+        }
+    }
+
+    async function loadPreview() {
+        const filingDate = dpGetValue('filing-date');
+        const principal  = document.getElementById('principal').value;
+        const intRate    = document.getElementById('interest-rate').value;
+        const instCount  = document.getElementById('installment-count').value;
+        const firstDue   = dpGetValue('first-due-date');
+        const inst1      = document.getElementById('installment-1').value;
+
+        if (!filingDate || !principal || !intRate || !instCount || !firstDue || !inst1) {
+            showAlert('warning', 'ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลที่จำเป็นก่อนกดพรีวิว\nได้แก่ วันที่ยื่นฟ้อง, เงินต้น, อัตราดอกเบี้ย, จำนวนงวด, วันครบกำหนดงวดแรก และค่างวด งวดที่ 1');
+            return;
+        }
+
+        document.getElementById('schedule-placeholder').classList.add('hidden');
+        document.getElementById('schedule-table-wrap').classList.add('hidden');
+        document.getElementById('schedule-info').classList.add('hidden');
+        document.getElementById('schedule-loading').classList.remove('hidden');
+
+        const courtFee  = parseFloat(document.getElementById('court-fee').value) || 0;
+        const lawyerFee = parseFloat(document.getElementById('lawyer-fee').value) || 0;
+
+        try {
+            const res  = await fetch('/api/schedule/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filing_date:       filingDate,
+                    principal:         parseNumber(principal),
+                    interest_rate:     parseFloat(intRate),
+                    installment_count: parseInt(instCount),
+                    diff_debt:         parseNumber(document.getElementById('diff-debt').value),
+                    first_due_date:    firstDue,
+                    installment_1:     parseNumber(inst1),
+                    installment_2:     parseNumber(document.getElementById('installment-2').value),
+                    installment_3:     parseNumber(document.getElementById('installment-3').value),
+                    installment_4:     parseNumber(document.getElementById('installment-4').value),
+                })
+            });
+
+            const data = await res.json();
+            document.getElementById('schedule-loading').classList.add('hidden');
+
+            if (res.ok) {
+                scheduleData = data;
+                document.getElementById('schedule-table-wrap').classList.remove('hidden');
+                document.getElementById('schedule-info').classList.remove('hidden');
+                const warn = document.getElementById('preview-stale-warn');
+                if (warn) warn.classList.add('hidden');
+                renderSchedule();
+                previewDone = true;
+                setSubmitEnabled(true);
+            } else {
+                document.getElementById('schedule-placeholder').classList.remove('hidden');
+                showAlert('error', 'เกิดข้อผิดพลาด', data.error || 'ไม่สามารถคำนวณได้ กรุณาตรวจสอบข้อมูล');
+            }
+        } catch (err) {
+            document.getElementById('schedule-loading').classList.add('hidden');
+            document.getElementById('schedule-placeholder').classList.remove('hidden');
+            showAlert('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+
+    // ผูก event กับทุก input field
+    const previewFields = ['filing-date','principal','interest-rate','installment-count',
+                           'first-due-date','installment-1','installment-2',
+                           'installment-3','installment-4'];
+    previewFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input',  onInputChanged);
+        el.addEventListener('change', onInputChanged);
+    });
+
+
+
+    // ---- Account No events ----
+    const accountEl = document.getElementById('account-no');
+    accountEl.addEventListener('keydown', handleAccountNoKeydown);
+    accountEl.addEventListener('input',   handleAccountNoInput);
+    accountEl.addEventListener('blur',    handleAccountNoBlur);
+
+    // ---- Customer Name events ----
+    document.getElementById('customer-name').addEventListener('input', handleCustomerNameInput);
+    document.getElementById('customer-name').addEventListener('blur',  handleCustomerNameBlur);
+
+    // ---- Filing Date ----
+    document.getElementById('filing-date').addEventListener('change', () => { onInputChanged(); });
+
+
+    // ============================================================
+    // Custom Date Picker Engine
+    // ============================================================
+    const DP_FIELDS   = ['filing-date'];
+    const DP_STATE    = {};
+    const TH_MONTHS   = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                         'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+    DP_FIELDS.forEach(id => {
+        const now = new Date();
+        DP_STATE[id] = { year: now.getFullYear(), month: now.getMonth(), selected: null, minDate: null, showMY: false };
+    });
+
+    function dpGetValue(id) {
+        return document.getElementById(id).value;
+    }
+
+    function dpSetValue(id, dateStr) {
+        document.getElementById(id).value = dateStr;
+    }
+
+    function dpFormatDisplay(dateStr) {
+        if (!dateStr) return null;
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+    }
+
+    function dpOpen(id) {
+        if (!DP_STATE[id]) return;
+        const state = DP_STATE[id];
+        const val   = dpGetValue(id);
+        if (val) {
+            const [y,m] = val.split('-').map(Number);
+            state.year  = y;
+            state.month = m - 1;
+        }
+        DP_FIELDS.forEach(f => { if (f !== id) dpClose(f); });
+        dpRender(id);
+
+        const popup   = document.getElementById('dp-popup-' + id);
+        const display = document.getElementById('dp-display-' + id);
+        popup.classList.add('open');
+        display.classList.add('open');
+
+        // คำนวณ position แบบ fixed
+        const rect    = display.getBoundingClientRect();
+        const popupH  = 340;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < popupH && rect.top > popupH) {
+            popup.style.top  = (rect.top - popupH - 6) + 'px';
+        } else {
+            popup.style.top  = (rect.bottom + 6) + 'px';
+        }
+        popup.style.left  = rect.left + 'px';
+        popup.style.width = Math.max(rect.width, 288) + 'px';
+    }
+
+    function dpClose(id) {
+        document.getElementById('dp-popup-' + id)?.classList.remove('open');
+        document.getElementById('dp-display-' + id)?.classList.remove('open');
+        if (DP_STATE[id]) DP_STATE[id].showMY = false;
+    }
+
+    function dpToggleMyPicker(id) {
+        const state = DP_STATE[id];
+        state.showMY = !state.showMY;
+        dpRender(id);
+    }
+
+    function dpNavMonth(id, delta) {
+        const s = DP_STATE[id];
+        s.month += delta;
+        if (s.month > 11) { s.month = 0; s.year++; }
+        if (s.month < 0)  { s.month = 11; s.year--; }
+        dpRender(id);
+    }
+
+    function dpNavYear(id, delta) {
+        DP_STATE[id].year += delta;
+        dpRender(id);
+    }
+
+    function dpRender(id) {
+        if (!DP_STATE[id]) return;
+        const s       = DP_STATE[id];
+        const titleEl = document.getElementById('dp-title-' + id);
+        titleEl.textContent = TH_MONTHS[s.month] + ' ' + (s.year + 543);
+
+        if (s.showMY) {
+            document.getElementById('dp-cal-' + id).classList.add('hidden');
+            document.getElementById('dp-my-' + id).classList.remove('hidden');
+            document.getElementById('dp-year-label-' + id).textContent = 'พ.ศ. ' + (s.year + 543);
+            dpRenderMonths(id);
+        } else {
+            document.getElementById('dp-cal-' + id).classList.remove('hidden');
+            document.getElementById('dp-my-' + id).classList.add('hidden');
+            dpRenderDays(id);
+        }
+    }
+
+    function dpRenderMonths(id) {
+        const s   = DP_STATE[id];
+        const el  = document.getElementById('dp-months-' + id);
+        el.innerHTML = TH_MONTHS.map((m, i) => {
+            const cls = i === s.month ? 'dp-my-item active' : 'dp-my-item';
+            return `<div class="${cls}" onclick="dpSelectMonth('${id}',${i})">${m.substring(0,3)}</div>`;
+        }).join('');
+    }
+
+    function dpSelectMonth(id, month) {
+        DP_STATE[id].month  = month;
+        DP_STATE[id].showMY = false;
+        dpRender(id);
+    }
+
+    function dpRenderDays(id) {
+        const s        = DP_STATE[id];
+        const el       = document.getElementById('dp-days-' + id);
+        const today    = new Date();
+        today.setHours(0,0,0,0);
+        const minDate  = s.minDate ? new Date(s.minDate + 'T00:00:00') : null;
+        const first    = new Date(s.year, s.month, 1);
+        const last     = new Date(s.year, s.month + 1, 0);
+        const startDay = first.getDay();
+        const selStr   = dpGetValue(id);
+
+        let html = '';
+
+        for (let i = 0; i < startDay; i++) {
+            const d   = new Date(s.year, s.month, -startDay + i + 1);
+            const str = dpDateStr(d);
+            html += `<div class="dp-day dp-day-other">${d.getDate()}</div>`;
+        }
+
+        for (let d = 1; d <= last.getDate(); d++) {
+            const date    = new Date(s.year, s.month, d);
+            const str     = dpDateStr(date);
+            const isToday = date.getTime() === today.getTime();
+            const isSel   = str === selStr;
+            const isDisabled = minDate && date < minDate;
+            let cls = 'dp-day';
+            if (isDisabled) cls += ' dp-day-disabled';
+            else if (isSel) cls += ' dp-day-selected';
+            else if (isToday) cls += ' dp-day-today';
+            html += `<div class="${cls}" onclick="dpSelectDay('${id}','${str}')">${d}</div>`;
+        }
+
+        const remaining = (7 - (startDay + last.getDate()) % 7) % 7;
+        for (let i = 1; i <= remaining; i++) {
+            html += `<div class="dp-day dp-day-other">${i}</div>`;
+        }
+
+        el.innerHTML = html;
+    }
+
+    function dpDateStr(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2,'0');
+        const d = String(date.getDate()).padStart(2,'0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function dpSelectDay(id, dateStr) {
+        dpSetValue(id, dateStr);
+        const disp = document.getElementById('dp-text-' + id);
+        disp.textContent = dpFormatDisplay(dateStr);
+        disp.classList.remove('text-slate-400');
+        disp.classList.add('text-slate-800');
+        dpClose(id);
+        dpAfterSelect(id);
+    }
+
+    function dpClear(id) {
+        const hiddenEl = document.getElementById(id);
+        if (hiddenEl) hiddenEl.value = '';
+        const disp = document.getElementById('dp-text-' + id);
+        if (!disp) return;
+        disp.textContent = { 'filing-date': 'เลือกวันที่ยื่นฟ้อง' }[id] || 'เลือกวันที่';
+        disp.classList.add('text-slate-400');
+        disp.classList.remove('text-slate-800');
+        dpClose(id);
+        dpAfterSelect(id);
+    }
+
+    function dpSelectToday(id) {
+        const today = new Date();
+        const str   = dpDateStr(today);
+        const state = DP_STATE[id];
+        if (state.minDate && str < state.minDate) return;
+        dpSelectDay(id, str);
+    }
+
+    function dpSetMin(id, minDateStr) {
+        if (!DP_STATE[id]) return;
+        DP_STATE[id].minDate = minDateStr;
+        const cur = dpGetValue(id);
+        if (cur && cur < minDateStr) { dpClear(id); }
+    }
+
+    function dpAfterSelect(id) {
+        if (id === 'filing-date') {
+            onInputChanged();
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        DP_FIELDS.forEach(id => {
+            const wrap = document.getElementById('dp-wrap-' + id);
+            if (wrap && !wrap.contains(e.target)) dpClose(id);
+        });
+    });
+
+    setupUI();
+</script>
+</body>
+</html>
