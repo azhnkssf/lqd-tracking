@@ -32,6 +32,92 @@ def _log_case_status(db, account_no, from_status, to_status, changed_by, note=''
     ''', (account_no, from_status, to_status, changed_by, note))
 
 
+def _parse_iso_date(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except Exception:
+        return None
+
+
+def _first_day_next_month(d):
+    if not d:
+        return None
+    if d.month == 12:
+        return date(d.year + 1, 1, 1)
+    return date(d.year, d.month + 1, 1)
+
+
+def _is_over_grace_period(cus, today=None):
+    """
+    Grace period rule:
+    - due date อยู่เดือนไหน ให้รอจนหมดเดือนนั้นก่อน
+    - วันที่ 1 ของเดือนถัดไปเป็นต้นไป ถึงถือว่าเลย grace period
+    """
+    today = today or date.today()
+
+    due_date = _parse_iso_date(cus.get('first_due_date'))
+    if not due_date:
+        return False
+
+    return today >= _first_day_next_month(due_date)
+
+
+def _payment_status_from_snapshot(cus, snap):
+    if cus.get('case_status') == 'ปิดบัญชี':
+        return 'ชำระครบแล้ว'
+
+    if cus.get('case_status') == 'ยื่นฟ้อง':
+        return 'ไม่มีแผนชำระ'
+
+    outstanding = float((snap or {}).get('outstanding') or 0)
+
+    if outstanding <= 0:
+        return 'จ่ายปกติ'
+
+    return 'ค้างชำระ'
+
+
+def _can_record_enforcement(cus, snap, today=None):
+    today = today or date.today()
+
+    allowed_status = ['พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว']
+    outstanding = float((snap or {}).get('outstanding') or 0)
+
+    has_enforcement_order = bool(
+        cus.get('enforcement_order_no') or
+        cus.get('enforcement_recorded_at')
+    )
+
+    return (
+        cus.get('case_status') in allowed_status
+        and outstanding > 0
+        and not has_enforcement_order
+        and _is_over_grace_period(cus, today)
+    )
+
+
+def _decorate_customer_for_ui(cus, payments=None, today=None):
+    today = today or date.today()
+    payments = payments or []
+
+    try:
+        snap = get_snapshot_at_date(cus, payments, today.isoformat())
+    except Exception:
+        snap = None
+
+    cus['latest_snapshot'] = snap
+    cus['payment_status'] = _payment_status_from_snapshot(cus, snap)
+    cus['can_record_enforcement'] = _can_record_enforcement(cus, snap, today)
+    cus['has_enforcement_order'] = bool(
+        cus.get('enforcement_order_no') or
+        cus.get('enforcement_recorded_at')
+    )
+
+    return cus
+
+
 @bp.route('', methods=['GET'])
 def list_customers():
     user = get_current_user()
@@ -75,8 +161,21 @@ def list_customers():
         'SELECT COALESCE(SUM(total_debt), 0) as total_value, COUNT(*) as active_count FROM customers WHERE case_status != "ปิดบัญชี" AND is_deleted = 0'
     ).fetchone()
 
+    decorated_rows = []
+
+    for r in rows:
+        cus = dict(r)
+
+        payments = db.execute(
+            'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+            (cus['account_no'],)
+        ).fetchall()
+        payments = [dict(p) for p in payments]
+
+        decorated_rows.append(_decorate_customer_for_ui(cus, payments))
+
     return jsonify({
-        'data':     [dict(r) for r in rows],
+        'data':     decorated_rows,
         'total':    total,
         'page':     page,
         'per_page': per_page,
@@ -148,12 +247,7 @@ def get_customer(account_no):
     ).fetchall()
     payments = [dict(p) for p in payments]
 
-    try:
-        latest_snapshot = get_snapshot_at_date(cus, payments, date.today().isoformat())
-    except Exception:
-        latest_snapshot = None
-
-    cus['latest_snapshot'] = latest_snapshot
+    cus = _decorate_customer_for_ui(cus, payments)
 
     return jsonify(cus), 200
 
@@ -202,6 +296,13 @@ def update_judgment(account_no):
     default_rate = float(data.get('default_interest_rate', 0) or 0)
     if int_rate == 0 and default_rate == 0:
         return jsonify({'error': 'อัตราดอกเบี้ย/ปี และ ดอกเบี้ยเมื่อผิดนัด ต้องไม่เป็น 0 ทั้งคู่'}), 400
+    total_debt = float(data.get('total_debt', 0) or 0)
+    principal = float(data.get('principal', 0) or 0)
+    court_fee = float(data.get('court_fee', 0) or 0)
+    lawyer_fee = float(data.get('lawyer_fee', 0) or 0)
+
+    # ใช้ BE เป็น source of truth สำหรับยอดหนี้ส่วนต่าง
+    judgment_difference = (court_fee + lawyer_fee + total_debt) - principal
 
     try:
         first_due_d   = date.fromisoformat(first_due_date)
@@ -215,6 +316,7 @@ def update_judgment(account_no):
             judgment_date         = ?,
             total_debt            = ?,
             principal             = ?,
+            judgment_difference   = ?,
             interest_rate         = ?,
             court_fee             = ?,
             lawyer_fee            = ?,
@@ -231,11 +333,12 @@ def update_judgment(account_no):
     ''', (
         data['judgment_type'],
         judgment_date,
-        float(data['total_debt']),
-        float(data['principal']),
+        total_debt,
+        principal,
+        judgment_difference,
         int_rate,
-        float(data.get('court_fee', 0)),
-        float(data.get('lawyer_fee', 0)),
+        court_fee,
+        lawyer_fee,
         int(data['installment_count']),
         default_rate,
         first_due_date,
@@ -254,8 +357,9 @@ def update_judgment(account_no):
         'judgment_type':         'ประเภทคำพิพากษา',
         'judgment_date':         'วันพิพากษา',
         'total_debt':            'ยอดหนี้รวม',
-        'principal':             'เงินต้น',
-        'interest_rate':         'อัตราดอกเบี้ย',
+        'principal':              'เงินต้น',
+        'judgment_difference':    'ยอดหนี้ส่วนต่าง',
+        'interest_rate':          'อัตราดอกเบี้ย',
         'court_fee':             'ค่าธรรมเนียมศาล',
         'lawyer_fee':            'ค่าทนาย',
         'installment_count':     'จำนวนงวด',
@@ -266,6 +370,7 @@ def update_judgment(account_no):
         'installment_3':         'ค่างวด 3',
         'installment_4':         'ค่างวด 4',
     }
+    data['judgment_difference'] = judgment_difference
     judgment_changes = {}
     for field, label in JUDGMENT_LABELS.items():
         old_val = cus.get(field) if field != 'judgment_type' else cus.get('case_status')
@@ -319,8 +424,9 @@ def update_enforcement(account_no):
     snap = get_snapshot_at_date(cus, payments, date.today().isoformat())
     if not snap:
         return jsonify({'error': 'ไม่สามารถคำนวณสถานะได้'}), 400
-    if not (snap['outstanding'] > 0 and snap['ncb_months'] in ['30', '31']):
-        return jsonify({'error': 'ลูกหนี้รายนี้ยังไม่มีการผิดนัดชำระ ไม่สามารถบันทึกหมายบังคับคดีได้'}), 400
+
+    if not _can_record_enforcement(cus, snap):
+        return jsonify({'error': 'ลูกหนี้รายนี้ยังไม่เข้าเงื่อนไขบันทึกหมายบังคับคดี'}), 400
 
     db.execute('''
         UPDATE customers SET
@@ -430,6 +536,7 @@ def bulk_judgment():
             interest_rate  = float(row[5] or 0)
             court_fee      = float(row[6] or 0)
             lawyer_fee     = float(row[7] or 0)
+            judgment_difference = (court_fee + lawyer_fee + total_debt) - principal
             inst_count     = int(float(row[8] or 0))
             first_due_date = str(row[9]).strip() if row[9] else None
             inst1          = float(row[10] or 0)
@@ -451,6 +558,7 @@ def bulk_judgment():
                     judgment_date         = ?,
                     total_debt            = ?,
                     principal             = ?,
+                    judgment_difference   = ?,
                     interest_rate         = ?,
                     court_fee             = ?,
                     lawyer_fee            = ?,
@@ -466,6 +574,7 @@ def bulk_judgment():
                 WHERE account_no = ? AND is_deleted = 0
             ''', (
                 judgment_type, judgment_date, total_debt, principal,
+                judgment_difference,
                 interest_rate, court_fee, lawyer_fee, inst_count, default_rate,
                 first_due_date, last_due_date, inst1, inst2, inst3, inst4,
                 account_no
@@ -580,6 +689,7 @@ def update_customer(account_no):
         'installment_2':         'ค่างวด 2',
         'installment_3':         'ค่างวด 3',
         'installment_4':         'ค่างวด 4',
+        'judgment_difference': 'ยอดหนี้ส่วนต่าง',
     }
 
     new_vals = {
@@ -598,6 +708,9 @@ def update_customer(account_no):
         'installment_3':         float(data.get('installment_3', 0)),
         'installment_4':         float(data.get('installment_4', 0)),
     }
+    new_vals['judgment_difference'] = (
+            new_vals['court_fee'] + new_vals['lawyer_fee'] + new_vals['total_debt']
+        ) - new_vals['principal']
 
     import json
     changes = {}
@@ -618,6 +731,7 @@ def update_customer(account_no):
             judgment_date         = ?,
             total_debt            = ?,
             principal             = ?,
+            judgment_difference   = ?,
             interest_rate         = ?,
             court_fee             = ?,
             lawyer_fee            = ?,
@@ -636,6 +750,7 @@ def update_customer(account_no):
         new_vals['judgment_date'],
         new_vals['total_debt'],
         new_vals['principal'],
+        new_vals['judgment_difference'],
         new_vals['interest_rate'],
         new_vals['court_fee'],
         new_vals['lawyer_fee'],

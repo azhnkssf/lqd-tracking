@@ -70,8 +70,7 @@ def get_payments(account_no):
         principal      = cus['principal'],
         interest_rate  = cus['interest_rate'],
         term_months    = cus['installment_count'],
-        diff_debt      = (cus.get('court_fee') or 0) + (cus.get('lawyer_fee') or 0) +
-                         (cus.get('total_debt') or 0) - (cus.get('principal') or 0),
+        diff_debt      = cus.get('judgment_difference') or 0,
         first_pay_date = cus['first_due_date'],
         installment_1  = cus['installment_1'],
         installment_2  = cus.get('installment_2', 0),
@@ -248,8 +247,7 @@ def export_payments(account_no):
         principal      = cus['principal'],
         interest_rate  = cus['interest_rate'],
         term_months    = cus['installment_count'],
-        diff_debt      = (cus.get('court_fee') or 0) + (cus.get('lawyer_fee') or 0) +
-                         (cus.get('total_debt') or 0) - (cus.get('principal') or 0),
+        diff_debt      = cus.get('judgment_difference') or 0,
         first_pay_date = cus['first_due_date'],
         installment_1  = cus['installment_1'],
         installment_2  = cus.get('installment_2', 0),

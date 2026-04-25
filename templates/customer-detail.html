@@ -370,77 +370,210 @@
         0%, 100% { box-shadow: 0 0 0 4px rgba(56,232,255,0.22), 0 2px 8px rgba(0,0,0,0.2); }
         50%       { box-shadow: 0 0 0 6px rgba(56,232,255,0.32), 0 2px 8px rgba(0,0,0,0.2); }
     }
+/* ===== Confirm Review Modal v2 ===== */
+    .confirm-review-backdrop {
+        background: rgba(15, 23, 42, 0.58);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    .confirm-review-panel {
+        background:
+            radial-gradient(circle at top right, rgba(45, 50, 130, 0.06), transparent 30%),
+            linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.20);
+        animation: confirmReviewIn 0.22s ease-out both;
+    }
+
+    @keyframes confirmReviewIn {
+        from {
+            opacity: 0;
+            transform: translateY(18px) scale(0.985);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .confirm-review-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+        color: #2D3282;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+
+    .confirm-review-section {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(226, 232, 240, 0.92);
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+    }
+
+    .confirm-review-section-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 16px;
+        background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.82));
+        border-bottom: 1px solid rgba(226, 232, 240, 0.78);
+    }
+
+    .confirm-review-section-head.indigo {
+        background: linear-gradient(180deg, rgba(238, 242, 255, 0.86), rgba(248, 250, 252, 0.94));
+    }
+
+    .confirm-review-section-head.green {
+        background: linear-gradient(180deg, rgba(236, 253, 245, 0.86), rgba(248, 250, 252, 0.94));
+    }
+
+    .confirm-review-section-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef2ff;
+        color: #2D3282;
+        flex-shrink: 0;
+    }
+
+    .confirm-review-section-icon.green {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    .confirm-review-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .confirm-review-grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .confirm-review-grid.cols-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .confirm-review-item {
+        padding: 12px 16px;
+        border-right: 1px solid rgba(226, 232, 240, 0.72);
+        border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+        min-height: 68px;
+    }
+
+    .confirm-review-grid .confirm-review-item:nth-child(2n) {
+        border-right: none;
+    }
+
+    .confirm-review-grid.cols-3 .confirm-review-item:nth-child(2n) {
+        border-right: 1px solid rgba(226, 232, 240, 0.72);
+    }
+
+    .confirm-review-grid.cols-3 .confirm-review-item:nth-child(3n) {
+        border-right: none;
+    }
+
+    .confirm-review-grid.cols-4 .confirm-review-item:nth-child(2n) {
+        border-right: 1px solid rgba(226, 232, 240, 0.72);
+    }
+
+    .confirm-review-grid.cols-4 .confirm-review-item:nth-child(4n) {
+        border-right: none;
+    }
+
+    .confirm-review-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #94a3b8;
+        margin-bottom: 5px;
+    }
+
+    .confirm-review-value {
+        font-size: 15px;
+        line-height: 1.25;
+        font-weight: 800;
+        color: #1e293b;
+    }
+
+    .confirm-review-value.primary {
+        color: #2D3282;
+    }
+
+    .confirm-review-value.success {
+        color: #059669;
+    }
+
+    .confirm-review-value.danger {
+        color: #ef4444;
+    }
+
+    .confirm-review-highlight {
+        padding: 14px 16px;
+        background: linear-gradient(135deg, rgba(238, 242, 255, 0.82), rgba(248, 250, 252, 0.94));
+        border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+    }
+
+    .confirm-review-footer {
+        background: rgba(248, 250, 252, 0.84);
+        border-top: 1px solid rgba(226, 232, 240, 0.88);
+    }
+
+    .confirm-review-primary-btn {
+        background: linear-gradient(135deg, #2D3282, #3F45B5);
+        box-shadow: 0 18px 38px rgba(45, 50, 130, 0.24);
+    }
+
+    .confirm-review-primary-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 22px 46px rgba(45, 50, 130, 0.3);
+    }
+
+    .confirm-review-secondary-btn:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+
+    @media (max-width: 768px) {
+        .confirm-review-grid,
+        .confirm-review-grid.cols-3,
+        .confirm-review-grid.cols-4 {
+            grid-template-columns: 1fr;
+        }
+
+        .confirm-review-item,
+        .confirm-review-grid .confirm-review-item:nth-child(2n),
+        .confirm-review-grid.cols-3 .confirm-review-item:nth-child(2n),
+        .confirm-review-grid.cols-3 .confirm-review-item:nth-child(3n),
+        .confirm-review-grid.cols-4 .confirm-review-item:nth-child(2n),
+        .confirm-review-grid.cols-4 .confirm-review-item:nth-child(4n) {
+            border-right: none;
+        }
+    }
 </style>
 </head>
 <body class="bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary">
 
-<!-- Navbar -->
-<nav class="fixed top-0 w-full z-50 bg-white border-b border-blue-100 flex justify-between items-center px-8 h-16 shadow-sm">
-    <div class="flex items-center gap-8">
-        <span class="text-xl tracking-tight text-primary font-headline flex items-center font-bold">
-            <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200 mr-3">
-                <span class="material-symbols-outlined text-white text-2xl font-normal" style='font-variation-settings: "FILL" 1;'>shield</span>
-            </div>
-            LQD Tracking Management System
-        </span>
-    </div>
-    <div class="flex items-center gap-4">
-        <div class="flex items-center gap-3">
-            <div class="text-right hidden sm:block">
-                <p class="text-[10px] text-indigo-400 uppercase tracking-widest leading-none mb-1 font-bold">System Role</p>
-                <!-- แสดง role จาก sessionStorage -->
-                <p id="nav-role" class="text-xs text-indigo-900 font-semibold">-</p>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold border border-blue-100">
-                <span id="nav-avatar">-</span>
-            </div>
-        </div>
-    </div>
-</nav>
-
-<!-- Sidebar -->
-<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-white border-r border-blue-100 flex flex-col p-4 gap-2 pt-20 hidden md:flex">
-    <div class="px-4 py-4 mb-4 bg-blue-50/50 rounded-xl border border-blue-50">
-        <h2 class="font-headline text-primary text-base font-bold">LQD Debt Overview</h2>
-        <p id="sidebar-role-label" class="text-[10px] text-indigo-400 uppercase tracking-widest font-bold">-</p>
-    </div>
-
-    <nav class="flex-1 space-y-1">
-        <!-- User + Admin เห็น -->
-        <a class="flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/customer-list">
-            <span class="material-symbols-outlined font-normal text-slate-400">gavel</span>
-            <span class="text-sm">Customer List</span>
-        </a>
-        <a class="flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/payment-record">
-            <span class="material-symbols-outlined font-normal text-slate-400">history</span>
-            <span class="text-sm">Payment Record</span>
-        </a>
-
-        <!-- Admin เท่านั้นที่เห็น -->
-        <a id="menu-import" class="admin-only flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/data-import">
-            <span class="material-symbols-outlined font-normal text-slate-400">upload_file</span>
-            <span class="text-sm">Data Import Center</span>
-        </a>
-        <a id="menu-report" class="admin-only flex items-center gap-3 px-4 py-3 bg-transparent text-slate-600 rounded-lg hover:bg-blue-50 hover:text-primary transition-all font-medium mb-1" href="/report">
-            <span class="material-symbols-outlined font-normal text-slate-400">assessment</span>
-            <span class="text-sm">Report Center</span>
-        </a>
-    </nav>
-
-    <div class="mt-auto pt-4 border-t border-blue-50">
-        <a onclick="handleLogout()" class="flex items-center gap-3 px-4 py-3 text-accent-coral text-sm hover:bg-red-50 rounded-lg transition-all font-bold cursor-pointer">
-            <span class="material-symbols-outlined font-normal">logout</span>
-            <span>Log out</span>
-        </a>
-    </div>
-</aside>
+<!-- Shared Layout -->
+{% set active_page = "customer-list" %}
+{% include "partials/navbar.html" %}
+{% include "partials/sidebar.html" %}
 
 <!-- Main -->
 <main class="md:ml-64 pt-16 min-h-screen pb-24">
 
     <!-- Hero bar -->
-    <section class="hero-gradient px-8 py-5 sticky top-16 z-30 shadow-lg border-b border-white/10">
-        <div class="max-w-[1600px] mx-auto flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+    <section class="hero-gradient px-8 py-5 min-h-[112px] sticky top-16 z-30 shadow-lg border-b border-white/10">
+        <div class="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
             
             <!-- Left: Page title -->
             <div class="flex items-start gap-4 min-w-0">
@@ -471,7 +604,7 @@
                     <p class="text-[10px] text-blue-200/75 uppercase tracking-widest font-bold leading-none text-right">
                         Status Progress
                     </p>
-                    <div id="progress-steps" class="min-w-[300px]"></div>
+                    <div id="progress-steps" class="min-w-[300px] min-h-[52px]"></div>
                 </div>
             </div>
 
@@ -643,9 +776,9 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-red-50 flex justify-end">
-                            <button onclick="submitEnforcement()" class="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all">
-                                <span class="material-symbols-outlined text-base">assignment_turned_in</span>
+                        <div class="mt-2 flex justify-end">
+                            <button onclick="submitEnforcement()" class="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 active:scale-[0.98] transition-all">
+                                <span class="material-symbols-outlined text-sm">assignment_turned_in</span>
                                 บันทึกหมายบังคับคดี
                             </button>
                         </div>
@@ -1231,154 +1364,195 @@
 
 
 <!-- Confirm Review Modal -->
-<div id="confirm-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-[4px]"></div>
-    <div class="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+<div id="confirm-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center px-6 py-8">
+    <div class="absolute inset-0 confirm-review-backdrop"></div>
+
+    <div class="confirm-review-panel relative w-full max-w-5xl max-h-[88vh] rounded-[28px] overflow-hidden flex flex-col">
 
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-primary text-xl" style='font-variation-settings:"FILL" 1'>fact_check</span>
+        <div class="px-6 py-5 border-b border-slate-200/80 flex items-center justify-between gap-4 bg-white/72">
+            <div class="flex items-center gap-4">
+                <div class="confirm-review-icon">
+                    <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>fact_check</span>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-slate-800 text-base">ตรวจสอบข้อมูลก่อนบันทึกการแก้ไข</h3>
-                    <p class="text-[11px] text-slate-400 uppercase tracking-wider">Review & Confirm</p>
+                    <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">
+                        ตรวจสอบข้อมูลก่อนบันทึก
+                    </h3>
+                    <p class="mt-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                        Review & Confirm Changes
+                    </p>
                 </div>
             </div>
-            <button onclick="closeConfirmModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-all">
-                <span class="material-symbols-outlined text-xl">close</span>
+
+            <button onclick="closeConfirmModal()"
+                class="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
+                <span class="material-symbols-outlined text-[20px]">close</span>
             </button>
         </div>
 
         <!-- Body -->
-        <div class="overflow-y-auto flex-1 p-6 space-y-4">
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
 
             <!-- รายละเอียดบัญชี -->
-            <div class="rounded-xl border border-slate-100 overflow-hidden">
-                <div class="bg-blue-50/50 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary text-base" style='font-variation-settings:"FILL" 1'>account_balance_wallet</span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">รายละเอียดบัญชี</span>
-                </div>
-                <div class="grid grid-cols-2 divide-x divide-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">หมายเลขบัญชี</p>
-                        <p id="rv-account-no" class="text-sm font-semibold text-slate-800">-</p>
+            <section class="confirm-review-section">
+                <div class="confirm-review-section-head">
+                    <div class="confirm-review-section-icon">
+                        <span class="material-symbols-outlined" style='font-variation-settings:"FILL" 1'>account_balance_wallet</span>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ชื่อ-นามสกุล</p>
-                        <p id="rv-customer-name" class="text-sm font-semibold text-slate-800">-</p>
+                    <h4 class="text-lg font-extrabold text-slate-700">
+                        รายละเอียดบัญชี
+                    </h4>
+                </div>
+
+                <div class="confirm-review-grid">
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">หมายเลขบัญชี</p>
+                        <p id="rv-account-no" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ชื่อ-นามสกุล</p>
+                        <p id="rv-customer-name" class="confirm-review-value">-</p>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <!-- รายละเอียดคำพิพากษา -->
-            <div class="rounded-xl border border-slate-100 overflow-hidden">
-                <div class="bg-indigo-50/50 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-indigo-600 text-base">gavel</span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">รายละเอียดคำพิพากษา</span>
+            <section class="confirm-review-section">
+                <div class="confirm-review-section-head indigo">
+                    <div class="confirm-review-section-icon">
+                        <span class="material-symbols-outlined" style='font-variation-settings:"FILL" 1'>gavel</span>
+                    </div>
+                    <h4 class="text-lg font-extrabold text-slate-700">
+                        รายละเอียดคำพิพากษา
+                    </h4>
                 </div>
-                <div class="grid grid-cols-2 divide-x divide-slate-50 border-b border-slate-50 flex-wrap">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันที่ยื่นฟ้อง</p>
-                        <p id="rv-filing-date" class="text-sm font-semibold text-slate-800">-</p>
+
+                <div class="confirm-review-grid">
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">วันที่ยื่นฟ้อง</p>
+                        <p id="rv-filing-date" class="confirm-review-value">-</p>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันที่พิพากษา</p>
-                        <p id="rv-judgment-date" class="text-sm font-semibold text-slate-800">-</p>
-                    </div>
-                    <div id="rv-judgment-type-row" class="hidden col-span-2 px-4 py-3 bg-indigo-50/40 border-t border-slate-50">
-                        <p class="text-[10px] text-indigo-500 uppercase tracking-wider mb-1 font-bold">ประเภทคำพิพากษา (สถานะใหม่)</p>
-                        <p id="rv-judgment-type" class="text-sm font-bold text-indigo-700">-</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-3 divide-x divide-slate-50 border-b border-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ยอดหนี้รวม</p>
-                        <p id="rv-total-debt" class="text-sm font-bold text-primary">-</p>
-                    </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">เงินต้น</p>
-                        <p id="rv-principal" class="text-sm font-semibold text-slate-800">-</p>
-                    </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">อัตราดอกเบี้ย/ปี</p>
-                        <p id="rv-interest-rate" class="text-sm font-semibold text-slate-800">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">วันที่พิพากษา</p>
+                        <p id="rv-judgment-date" class="confirm-review-value">-</p>
                     </div>
                 </div>
-                <div class="grid grid-cols-3 divide-x divide-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่าธรรมเนียมศาล</p>
-                        <p id="rv-court-fee" class="text-sm font-semibold text-slate-800">-</p>
+
+                <div id="rv-judgment-type-row" class="confirm-review-highlight hidden">
+                    <p class="confirm-review-label text-indigo-500">ประเภทคำพิพากษา</p>
+                    <p id="rv-judgment-type" class="confirm-review-value primary">-</p>
+                </div>
+
+                <div class="confirm-review-grid cols-3">
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ยอดหนี้รวม</p>
+                        <p id="rv-total-debt" class="confirm-review-value primary">-</p>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่าทนายความ</p>
-                        <p id="rv-lawyer-fee" class="text-sm font-semibold text-slate-800">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">เงินต้น</p>
+                        <p id="rv-principal" class="confirm-review-value">-</p>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ยอดหนี้ส่วนต่าง</p>
-                        <p id="rv-diff-debt" class="text-sm font-bold text-indigo-600">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">อัตราดอกเบี้ย/ปี</p>
+                        <p id="rv-interest-rate" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่าธรรมเนียมศาล</p>
+                        <p id="rv-court-fee" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่าทนายความ</p>
+                        <p id="rv-lawyer-fee" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ยอดหนี้ส่วนต่าง</p>
+                        <p id="rv-diff-debt" class="confirm-review-value primary">-</p>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <!-- รายละเอียดการชำระเงิน -->
-            <div class="rounded-xl border border-slate-100 overflow-hidden">
-                <div class="bg-emerald-50/50 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-emerald-600 text-base">payments</span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">รายละเอียดการชำระเงิน</span>
+            <section class="confirm-review-section">
+                <div class="confirm-review-section-head green">
+                    <div class="confirm-review-section-icon green">
+                        <span class="material-symbols-outlined" style='font-variation-settings:"FILL" 1'>payments</span>
+                    </div>
+                    <h4 class="text-lg font-extrabold text-slate-700">
+                        รายละเอียดการชำระเงิน
+                    </h4>
                 </div>
-                <div class="grid grid-cols-2 divide-x divide-slate-50 border-b border-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันครบกำหนดงวดแรก</p>
-                        <p id="rv-first-due-date" class="text-sm font-semibold text-slate-800">-</p>
+
+                <div class="confirm-review-grid">
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">วันครบกำหนดงวดแรก</p>
+                        <p id="rv-first-due-date" class="confirm-review-value">-</p>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันครบกำหนดงวดสุดท้าย</p>
-                        <p id="rv-last-due-date" class="text-sm font-semibold text-slate-800">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">วันครบกำหนดงวดสุดท้าย</p>
+                        <p id="rv-last-due-date" class="confirm-review-value">-</p>
                     </div>
-                </div>
-                <div class="grid grid-cols-2 divide-x divide-slate-50 border-b border-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">จำนวนงวดผ่อน</p>
-                        <p id="rv-installment-count" class="text-sm font-semibold text-slate-800">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">จำนวนงวดผ่อน</p>
+                        <p id="rv-installment-count" class="confirm-review-value">-</p>
                     </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ดอกเบี้ยเมื่อผิดนัด</p>
-                        <p id="rv-default-interest" class="text-sm font-semibold text-red-500">-</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-4 divide-x divide-slate-50">
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่างวดที่ 1</p>
-                        <p id="rv-inst-1" class="text-sm font-semibold text-slate-800">-</p>
-                    </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่างวดที่ 2</p>
-                        <p id="rv-inst-2" class="text-sm text-slate-400">-</p>
-                    </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่างวดที่ 3</p>
-                        <p id="rv-inst-3" class="text-sm text-slate-400">-</p>
-                    </div>
-                    <div class="px-4 py-3 bg-white">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ค่างวดที่ 4</p>
-                        <p id="rv-inst-4" class="text-sm text-slate-400">-</p>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ดอกเบี้ยเมื่อผิดนัด</p>
+                        <p id="rv-default-interest" class="confirm-review-value danger">-</p>
                     </div>
                 </div>
-            </div>
+
+                <div class="confirm-review-grid cols-4">
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่างวดที่ 1</p>
+                        <p id="rv-inst-1" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่างวดที่ 2</p>
+                        <p id="rv-inst-2" class="confirm-review-value text-slate-400">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่างวดที่ 3</p>
+                        <p id="rv-inst-3" class="confirm-review-value text-slate-400">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">ค่างวดที่ 4</p>
+                        <p id="rv-inst-4" class="confirm-review-value text-slate-400">-</p>
+                    </div>
+                </div>
+            </section>
 
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
-            <p class="text-[11px] text-slate-400">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
-            <div class="flex gap-3">
-                <button onclick="closeConfirmModal()" class="px-5 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all text-sm border border-slate-200">
+        <div class="confirm-review-footer px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <p class="text-xs font-semibold text-slate-400">
+                กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน
+            </p>
+        
+            <div class="flex items-center justify-end gap-2">
+                <button onclick="closeConfirmModal()"
+                    class="confirm-review-secondary-btn min-w-[96px] h-10 px-5 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold transition-all text-sm">
                     แก้ไข
                 </button>
-                <button onclick="doSubmit()" id="confirm-submit-btn" class="px-8 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-900/10 hover:bg-primary-dark transition-all text-sm flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base">save</span>
+        
+                <button id="confirm-submit-btn" onclick="doSubmit()"
+                    class="confirm-review-primary-btn min-w-[160px] h-10 px-5 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-base" style='font-variation-settings:"FILL" 1'>save</span>
                     ยืนยันบันทึก
                 </button>
             </div>
@@ -2198,6 +2372,7 @@ function setupFriendlyInputFocus() {
             judgment_date:          dpGetValue('judgment-date'),
             total_debt:             parseNumber(document.getElementById('total-debt').value),
             principal:              parseNumber(document.getElementById('principal').value),
+            judgment_difference:    parseNumber(document.getElementById('diff-debt').value),
             interest_rate:          parseNumber(document.getElementById('interest-rate').value),
             court_fee:              parseNumber(document.getElementById('court-fee').value),
             lawyer_fee:             parseNumber(document.getElementById('lawyer-fee').value),
@@ -3164,7 +3339,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             if (jtr) jtr.classList.remove('hidden')
 
         } else if (['พิพากษาตามยอม','พิพากษาฝ่ายเดียว'].includes(caseStatus)) {
-            if (canEdit && outstanding > 0 && ['30','31'].includes(String(ncb))) {
+            if (canEdit && currentCus?.can_record_enforcement === true) {
                 const el = document.getElementById('section-enforcement-form')
                 if (el) el.style.display = ''
             }

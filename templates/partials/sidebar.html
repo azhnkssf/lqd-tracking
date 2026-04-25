@@ -1,0 +1,40 @@
+<!-- Sidebar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-white border-r border-blue-100 flex flex-col p-4 gap-2 pt-20 hidden md:flex">
+    <div class="px-4 py-4 mb-4 bg-blue-50/50 rounded-xl border border-blue-50">
+        <h2 class="font-headline text-primary text-base font-bold">LQD Debt Overview</h2>
+        <p id="sidebar-role-label" class="text-[10px] text-indigo-400 uppercase tracking-widest font-bold">-</p>
+    </div>
+
+    <nav class="flex-1 space-y-1">
+        <a href="/customer-list"
+           class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-1 {% if active_page == 'customer-list' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal {% if active_page != 'customer-list' %}text-slate-400{% endif %}" {% if active_page == 'customer-list' %}style='font-variation-settings: "FILL" 1;'{% endif %}>groups</span>
+            <span class="text-sm {% if active_page == 'customer-list' %}font-semibold{% endif %}">Customer List</span>
+        </a>
+
+        <a href="/payment-record"
+           class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-1 {% if active_page == 'payment-record' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal {% if active_page != 'payment-record' %}text-slate-400{% endif %}" {% if active_page == 'payment-record' %}style='font-variation-settings: "FILL" 1;'{% endif %}>history</span>
+            <span class="text-sm {% if active_page == 'payment-record' %}font-semibold{% endif %}">Payment Record</span>
+        </a>
+
+        <a id="menu-import" href="/data-import"
+           class="admin-only flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-1 {% if active_page == 'data-import' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal {% if active_page != 'data-import' %}text-slate-400{% endif %}" {% if active_page == 'data-import' %}style='font-variation-settings: "FILL" 1;'{% endif %}>upload_file</span>
+            <span class="text-sm {% if active_page == 'data-import' %}font-semibold{% endif %}">Data Import Center</span>
+        </a>
+
+        <a id="menu-report" href="/report"
+           class="admin-only flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-1 {% if active_page == 'report' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal {% if active_page != 'report' %}text-slate-400{% endif %}" {% if active_page == 'report' %}style='font-variation-settings: "FILL" 1;'{% endif %}>assessment</span>
+            <span class="text-sm {% if active_page == 'report' %}font-semibold{% endif %}">Report Center</span>
+        </a>
+    </nav>
+
+    <div class="mt-auto pt-4 border-t border-blue-50">
+        <a onclick="handleLogout()" class="flex items-center gap-3 px-4 py-3 text-accent-coral text-sm hover:bg-red-50 rounded-lg transition-all font-bold cursor-pointer">
+            <span class="material-symbols-outlined font-normal">logout</span>
+            <span>Log out</span>
+        </a>
+    </div>
+</aside>
