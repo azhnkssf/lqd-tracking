@@ -126,13 +126,37 @@ def download_payment_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Sheet1'
-    ws.append(['account_no', 'payment_date', 'amount'])
-    ws.append(['เลขที่บัญชี * (Text 12 หลัก)', 'วันที่ชำระเงิน * (YYYY-MM-DD)', 'จำนวนเงิน *'])
-    ws.append(['700004761131', '2026-03-12', 30000])
+
+    from openpyxl.styles import PatternFill, Font, Alignment
+    header_fill = PatternFill(start_color='2D3282', end_color='2D3282', fill_type='solid')
+    label_fill  = PatternFill(start_color='EEF2FF', end_color='EEF2FF', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True)
+    label_font  = Font(bold=True, color='2D3282')
+
+    keys    = ['account_no', 'payment_date', 'amount']
+    labels  = ['เลขที่บัญชี * (Text 12 หลัก)', 'วันที่ชำระเงิน * (YYYY-MM-DD)', 'จำนวนเงิน *']
+    example = ['700004761131', '2026-03-12', 30000]
+
+    ws.append(keys)
+    ws.append(labels)
+    ws.append(example)
 
     for row in ws.iter_rows(min_row=1, max_row=5000):
         row[0].number_format = '@'
         row[1].number_format = '@'
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
+    for cell in ws[2]:
+        cell.fill = label_fill
+        cell.font = label_font
+
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or '')) for cell in col), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -161,7 +185,6 @@ def download_judgment_template():
         'account_no', 'judgment_type', 'judgment_date', 'total_debt', 'principal_debt',
         'interest_rate', 'court_fee', 'lawyer_fee', 'installment_months', 'first_due_date',
         'step_1_amount', 'step_2_amount', 'step_3_amount', 'step_4_amount', 'default_interest',
-        'last_due_date',
     ]
     labels = [
         'เลขที่บัญชี * (Text 12 หลัก)', 'ประเภทคำพิพากษา * (พิพากษาตามยอม/พิพากษาฝ่ายเดียว)',
@@ -169,12 +192,12 @@ def download_judgment_template():
         'อัตราดอกเบี้ยต่อปี (%)', 'ค่าธรรมเนียมศาล', 'ค่าทนายความ',
         'จำนวนงวดผ่อนชำระ *', 'วันครบกำหนดงวดแรก * (YYYY-MM-DD)',
         'ค่างวด งวดที่ 1 *', 'ค่างวด งวดที่ 2', 'ค่างวด งวดที่ 3', 'ค่างวด งวดที่ 4',
-        'ดอกเบี้ยเมื่อผิดนัด (%)', 'วันครบกำหนดงวดสุดท้าย (YYYY-MM-DD)',
+        'ดอกเบี้ยเมื่อผิดนัด (%)',
     ]
     example = [
         '700004761131', 'พิพากษาตามยอม', '2026-02-18', 190000, 190000,
         0, 3000, 2000, 24, '2026-03-18',
-        8500, 0, 0, 0, 15, '2028-02-18',
+        8500, 0, 0, 0, 15,
     ]
 
     ws.append(keys)
@@ -185,7 +208,6 @@ def download_judgment_template():
         row[0].number_format = '@'
         row[2].number_format = '@'
         row[9].number_format = '@'
-        row[15].number_format = '@'
 
     for cell in ws[1]: cell.fill = header_fill; cell.font = header_font; cell.alignment = Alignment(horizontal='center')
     for cell in ws[2]: cell.fill = label_fill;  cell.font = label_font

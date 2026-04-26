@@ -26,17 +26,180 @@ tailwind.config = {
     .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24 }
     .hero-gradient { background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%); }
     .admin-only { display: none; }
-    .tab-active   { background: #2D3282; color: white; }
-    .tab-inactive { background: white; color: #64748b; }
+
+    .tab-active {
+        background: #2D3282;
+        color: white;
+        box-shadow: 0 10px 20px rgba(45,50,130,0.16);
+    }
+    .tab-inactive {
+        background: transparent;
+        color: #64748b;
+    }
+    .tab-inactive:hover {
+        background: #EEF2FF;
+        color: #2D3282;
+    }
+
+    .panel-gradient-header .tab-active {
+        background: rgba(255,255,255,0.95);
+        color: #2D3282;
+        box-shadow: 0 12px 24px rgba(15,23,42,0.22);
+    }
+
+    .panel-gradient-header .tab-inactive {
+        background: rgba(255,255,255,0.08);
+        color: rgba(219,234,254,0.88);
+        border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .panel-gradient-header .tab-inactive:hover {
+        background: rgba(255,255,255,0.16);
+        color: #FFFFFF;
+    }
+
+    .panel-gradient-header .tab-disabled {
+        background: rgba(255,255,255,0.04) !important;
+        color: rgba(203,213,225,0.48) !important;
+        border-color: rgba(255,255,255,0.06) !important;
+        box-shadow: none !important;
+    }
+
     .scrollbar-hide::-webkit-scrollbar { display: none }
+
+    .glass-panel {
+        background: rgba(255,255,255,0.88);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(226,232,240,0.85);
+        box-shadow: 0 18px 45px rgba(30,41,59,0.06);
+    }
+
+    .section-title-icon {
+        font-variation-settings: "FILL" 1, "wght" 500, "GRAD" 0, "opsz" 24;
+    }
+
+    .soft-grid-bg {
+        background:
+            radial-gradient(circle at top left, rgba(99,102,241,0.14), transparent 32rem),
+            radial-gradient(circle at bottom right, rgba(14,165,233,0.10), transparent 30rem),
+            #F0F7FF;
+    }
+
+    .table-gradient-head {
+        background: linear-gradient(135deg, #1E1B4B 0%, #2D3282 48%, #4338CA 100%);
+        color: #FFFFFF;
+    }
+
+    .table-gradient-head th {
+        color: #DBEAFE !important;
+        border-bottom: 1px solid rgba(255,255,255,0.14);
+    }
+
+    .table-gradient-head th:first-child {
+        border-top-left-radius: 0;
+    }
+
+    .table-gradient-head th:last-child {
+        border-top-right-radius: 0;
+    }
+
+    .panel-gradient-header {
+        background:
+            linear-gradient(135deg, rgba(30,27,75,0.98) 0%, rgba(45,50,130,0.96) 55%, rgba(67,56,202,0.95) 100%);
+        color: white;
+    }
+
+    .panel-gradient-header .muted-text {
+        color: rgba(219,234,254,0.82);
+    }
+
+    .panel-gradient-header .header-icon-box {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.16);
+        color: white;
+        box-shadow: 0 12px 24px rgba(15,23,42,0.18);
+    }
+
+    .report-page-card {
+        @apply bg-white rounded-[28px] border border-blue-100/80 shadow-xl shadow-indigo-100/40 overflow-hidden;
+    }
+
+    .report-section-header {
+        @apply px-5 md:px-6 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-indigo-50;
+    }
+
+    .report-step-badge {
+        @apply w-9 h-9 rounded-2xl bg-primary text-white flex items-center justify-center text-sm font-extrabold shadow-md shadow-indigo-100 flex-shrink-0;
+    }
+
+    .report-icon-box {
+        @apply w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0;
+    }
+
+    .report-soft-card {
+        @apply relative rounded-2xl border border-blue-100 bg-white overflow-hidden transition-all duration-200;
+    }
+
+    .report-soft-card:hover {
+        border-color: #A5B4FC;
+        background: #F8FAFF;
+        box-shadow: 0 12px 24px rgba(99,102,241,0.10);
+        transform: translateY(-1px);
+    }
+
+    .report-action-card {
+        @apply bg-white rounded-[28px] border border-blue-100/80 shadow-xl shadow-indigo-100/40 overflow-hidden;
+    }
+
+    .report-action-header {
+        @apply px-5 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-indigo-50;
+    }
+
+    .report-template-btn {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border shadow-sm whitespace-nowrap;
+    }
+
+    .metric-card {
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 38px rgba(30,41,59,0.10);
+    }
 
     /* Date Picker */
     .dp-wrap { position: relative; }
     .dp-input { background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.5rem 2.2rem 0.5rem 0.75rem; width:100%; font-family:'Kanit',sans-serif; font-size:0.875rem; font-weight:700; color:#1e293b; cursor:pointer; transition:all 0.2s; outline:none; }
     .dp-input:focus,.dp-input.open { background:#fff; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
     .dp-icon { position:absolute; right:0.6rem; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; font-size:18px; }
-    .dp-popup { display:none; position:fixed; z-index:99999; background:#fff; border:1px solid #e2e8f0; border-radius:1rem; box-shadow:0 20px 40px rgba(15,23,42,0.12); width:288px; padding:1rem; font-family:'Kanit',sans-serif; }
-    .dp-popup.open { display:block; }
+    .dp-popup {
+        display:block;
+        position:fixed;
+        z-index:99999;
+        background:#fff;
+        border:1px solid #e2e8f0;
+        border-radius:1rem;
+        box-shadow:0 20px 40px rgba(15,23,42,0.12);
+        width:288px;
+        padding:1rem;
+        font-family:'Kanit',sans-serif;
+
+        opacity:0;
+        visibility:hidden;
+        pointer-events:none;
+        transform:translateY(-4px);
+        transition:opacity .12s ease, transform .12s ease, visibility .12s ease;
+        will-change: transform, opacity;
+        contain: layout paint;
+    }
+
+    .dp-popup.open {
+        opacity:1;
+        visibility:visible;
+        pointer-events:auto;
+        transform:translateY(0);
+    }
     .dp-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; }
     .dp-nav-btn { width:32px; height:32px; border-radius:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#64748b; transition:all 0.15s; }
     .dp-nav-btn:hover { background:#2D3282; color:#fff; border-color:#2D3282; }
@@ -83,235 +246,476 @@ tailwind.config = {
 {% include "partials/sidebar.html" %}
 
 <!-- Main -->
-<main class="md:ml-64 pt-16 min-h-screen pb-12">
-    <section class="hero-gradient px-8 py-4 sticky top-16 z-30 shadow-lg">
-        <div class="max-w-7xl mx-auto flex items-center gap-4">
-            <h1 class="font-headline text-xl text-white font-bold">Report Center</h1>
-            <div class="h-6 w-px bg-white/20 hidden md:block"></div>
-            <p class="text-blue-200 font-medium hidden lg:block text-base">Generate Report: Status 30/ 31</p>
+<main class="md:ml-64 pt-16 min-h-screen pb-12 soft-grid-bg">
+    <!-- Hero -->
+    <section id="report-hero" class="hero-gradient px-8 py-5 min-h-[112px] sticky top-16 z-30 shadow-lg border-b border-white/10">
+        <div class="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+            <div class="flex items-start gap-4 min-w-0">
+                <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 text-white flex items-center justify-center shadow-lg shadow-black/10 backdrop-blur-sm flex-shrink-0">
+                    <span class="material-symbols-outlined text-[26px]" style='font-variation-settings:"FILL" 1'>analytics</span>
+                </div>
+
+                <div class="min-w-0">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h1 class="font-headline text-2xl tracking-tight text-white font-extrabold">
+                            Report Center
+                        </h1>
+
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-blue-100 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                            Report Module
+                        </span>
+                    </div>
+
+                    <p class="text-blue-200/90 font-medium text-sm mt-1">
+                        Generate รายงาน Status 30 / 31 / 33 จาก Database หรือ Master File
+                    </p>
+                </div>
+            </div>
+
+            <div class="hidden xl:flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-xs font-bold text-blue-100 backdrop-blur-sm">
+                    <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>database</span>
+                    DB Report
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-xs font-bold text-blue-100 backdrop-blur-sm">
+                    <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>upload_file</span>
+                    File Report
+                </span>
+            </div>
         </div>
     </section>
 
-    <div class="px-8 py-6 max-w-7xl mx-auto space-y-6">
+    <div class="px-6 md:px-8 py-6">
+        <div class="max-w-[1600px] mx-auto space-y-6">
 
-        <!-- Step 1, 2, 3 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <!-- Step 1: วันที่ — Date Picker -->
-            <div class="bg-white rounded-xl p-6 shadow-sm border border-blue-100">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">1</div>
-                    <h3 class="font-bold text-sm text-on-surface">Report Reference Date</h3>
-                </div>
-                <div class="dp-wrap" id="dp-wrap-report-date">
-                    <div class="relative">
-                        <input type="hidden" id="report-date">
-                        <div class="dp-input" id="dp-display-report-date" tabindex="0"
-                            onclick="dpOpen('report-date')"
-                            onkeydown="if(event.key==='Enter'||event.key===' ')dpOpen('report-date')">
-                            <span id="dp-text-report-date" class="text-slate-400 text-sm">เลือกวันที่ขอ Report</span>
-                        </div>
-                        <span class="material-symbols-outlined dp-icon" style="font-size:18px">calendar_today</span>
+        <!-- Top workflow card -->
+        <section class="report-page-card">
+            <div class="report-section-header flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="report-step-badge">
+                        <span class="material-symbols-outlined text-[20px] section-title-icon">tune</span>
                     </div>
-                    <div class="dp-popup" id="dp-popup-report-date">
-                        <div class="dp-header">
-                            <button class="dp-nav-btn" onclick="dpNavMonth('report-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:16px">chevron_left</span></button>
-                            <span class="dp-month-year" id="dp-title-report-date" onclick="dpToggleMY('report-date')"></span>
-                            <button class="dp-nav-btn" onclick="dpNavMonth('report-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:16px">chevron_right</span></button>
-                        </div>
-                        <!-- Month/Year picker -->
-                        <div id="dp-my-report-date" style="display:none">
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                                <button class="dp-nav-btn" onclick="dpNavYear('report-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:16px">chevron_left</span></button>
-                                <span id="dp-year-lbl-report-date" style="font-size:0.85rem;font-weight:700;color:#1e293b"></span>
-                                <button class="dp-nav-btn" onclick="dpNavYear('report-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:16px">chevron_right</span></button>
+                    <div class="min-w-0">
+                        <h2 class="font-extrabold text-slate-800 text-base tracking-tight">
+                            Generate Report
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            เลือกวันที่ เลือกประเภท Report แล้ว Generate ได้จาก DB หรืออัปโหลด Master File
+                        </p>
+                    </div>
+                </div>
+        
+                <div class="hidden lg:flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Status 30
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-primary border border-indigo-100 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>Status 31
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Status 33
+                    </span>
+                </div>
+            </div>
+
+            <!-- Step 1, 2, 3 -->
+            <div class="p-5 lg:p-6 grid grid-cols-1 xl:grid-cols-12 gap-5">
+
+                <!-- Step 1: Date Picker -->
+                <div class="xl:col-span-4 report-soft-card p-5 !transform-none">
+                    <div class="flex items-center justify-between gap-3 mb-5 relative z-10">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="report-icon-box bg-blue-50 text-blue-600">
+                                <span class="material-symbols-outlined text-[24px] section-title-icon">event</span>
                             </div>
-                            <div id="dp-months-report-date" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px 0"></div>
-                        </div>
-                        <!-- Calendar -->
-                        <div id="dp-cal-report-date">
-                            <div class="dp-weekdays">
-                                <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
-                                <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                            <div class="min-w-0">
+                                <p class="font-extrabold text-sm text-slate-800">Report Reference Date</p>
+                                <p class="text-[11px] text-slate-400 font-semibold mt-0.5">วันที่อ้างอิงสำหรับคำนวณสถานะ</p>
+                                <p class="text-[10px] text-primary font-bold uppercase tracking-wider mt-1">Required</p>
                             </div>
-                            <div class="dp-days" id="dp-days-report-date"></div>
-                        </div>
-                        <div class="dp-footer">
-                            <button class="dp-btn-clear" onclick="dpClear('report-date')" type="button">ล้างค่า</button>
-                            <button class="dp-btn-today" onclick="dpSelectToday('report-date')" type="button">วันนี้</button>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Step 2: Compliance Type -->
-            <div class="bg-white rounded-xl p-6 shadow-sm border border-blue-100">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">2</div>
-                    <h3 class="font-bold text-sm text-on-surface">Status Type</h3>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="toggleStatus('30')" id="btn-30" class="flex items-center justify-center gap-2 py-3 px-4 rounded-full border-2 border-slate-200 text-slate-500 text-xs font-bold transition-all">
-                        <span class="material-symbols-outlined text-base">check_box_outline_blank</span>Status 30
-                    </button>
-                    <button onclick="toggleStatus('31')" id="btn-31" class="flex items-center justify-center gap-2 py-3 px-4 rounded-full border-2 border-slate-200 text-slate-500 text-xs font-bold transition-all">
-                        <span class="material-symbols-outlined text-base">check_box_outline_blank</span>Status 31
-                    </button>
-                </div>
-                <p class="text-[10px] text-slate-400 mt-3 px-1">สามารถเลือกได้ทั้งสองแบบ</p>
-            </div>
+                    <div class="dp-wrap" id="dp-wrap-report-date">
+                        <div class="relative">
+                            <input type="hidden" id="report-date">
+                            <div class="dp-input !rounded-xl !py-3 !bg-slate-50" id="dp-display-report-date" tabindex="0"
+                                onclick="dpOpen('report-date')"
+                                onkeydown="if(event.key==='Enter'||event.key===' ')dpOpen('report-date')">
+                                <span id="dp-text-report-date" class="text-slate-400 text-sm">เลือกวันที่ขอ Report</span>
+                            </div>
+                            <span class="material-symbols-outlined dp-icon" style="font-size:18px">calendar_today</span>
+                        </div>
 
-            <!-- Step 3: Upload -->
-            <div class="bg-white rounded-xl p-6 shadow-sm border border-blue-100">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">3</div>
-                    <h3 class="font-bold text-sm text-on-surface">Master File Upload</h3>
-                </div>
-                <div id="drop-zone" onclick="document.getElementById('file-input').click()"
-                    ondragover="event.preventDefault();this.classList.add('border-primary','bg-indigo-50/30')"
-                    ondragleave="this.classList.remove('border-primary','bg-indigo-50/30')"
-                    ondrop="handleDrop(event)"
-                    class="border-2 border-dashed border-blue-100 rounded-xl flex flex-col items-center justify-center py-6 cursor-pointer hover:border-primary hover:bg-indigo-50/30 transition-all">
-                    <span id="upload-icon" class="material-symbols-outlined text-3xl text-slate-300 mb-2" style='font-variation-settings:"FILL" 1'>cloud_upload</span>
-                    <p id="upload-text" class="text-sm font-bold text-slate-500">คลิกหรือลากไฟล์มาวางที่นี่</p>
-                    <p class="text-[11px] text-slate-400 mt-1">รองรับเฉพาะ .xlsx</p>
-                    <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleFileSelect(this)">
-                </div>
-                <div id="file-info" class="hidden mt-3 bg-indigo-50 rounded-lg px-4 py-3 flex items-center justify-between border border-blue-100">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary text-lg" style='font-variation-settings:"FILL" 1'>description</span>
-                        <div><p id="file-name" class="text-xs font-bold text-on-surface">-</p><p id="file-size" class="text-[10px] text-slate-400">-</p></div>
-                    </div>
-                    <button onclick="clearFile()" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined text-base">close</span></button>
-                </div>
-            </div>
-        </div>
+                        <div class="dp-popup" id="dp-popup-report-date">
+                            <div class="dp-header">
+                                <button class="dp-nav-btn" onclick="dpNavMonth('report-date',-1)" type="button">
+                                    <span class="material-symbols-outlined" style="font-size:16px">chevron_left</span>
+                                </button>
+                                <span class="dp-month-year" id="dp-title-report-date" onclick="dpToggleMY('report-date')"></span>
+                                <button class="dp-nav-btn" onclick="dpNavMonth('report-date',1)" type="button">
+                                    <span class="material-symbols-outlined" style="font-size:16px">chevron_right</span>
+                                </button>
+                            </div>
 
-        <!-- Generate Buttons -->
-        <div class="bg-white rounded-xl border border-blue-100 shadow-sm overflow-hidden">
-            <div class="flex divide-x divide-blue-100">
+                            <div id="dp-my-report-date" style="display:none">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                                    <button class="dp-nav-btn" onclick="dpNavYear('report-date',-1)" type="button">
+                                        <span class="material-symbols-outlined" style="font-size:16px">chevron_left</span>
+                                    </button>
+                                    <span id="dp-year-lbl-report-date" style="font-size:0.85rem;font-weight:700;color:#1e293b"></span>
+                                    <button class="dp-nav-btn" onclick="dpNavYear('report-date',1)" type="button">
+                                        <span class="material-symbols-outlined" style="font-size:16px">chevron_right</span>
+                                    </button>
+                                </div>
+                                <div id="dp-months-report-date" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px 0"></div>
+                            </div>
 
-                <!-- Generate from Database -->
-                <div class="flex-1 p-5 flex flex-col gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-indigo-400 text-lg" style='font-variation-settings:"FILL" 1'>database</span>
-                        <div>
-                            <p class="text-xs font-bold text-slate-700">Generate from Database</p>
-                            <p class="text-[11px] text-slate-400">ไม่ต้องอัพโหลดไฟล์ - คำนวณจากข้อมูลในระบบ ณ วันที่เลือก</p>
+                            <div id="dp-cal-report-date">
+                                <div class="dp-weekdays">
+                                    <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
+                                    <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                                </div>
+                                <div class="dp-days" id="dp-days-report-date"></div>
+                            </div>
+
+                            <div class="dp-footer">
+                                <button class="dp-btn-clear" onclick="dpClear('report-date')" type="button">ล้างค่า</button>
+                                <button class="dp-btn-today" onclick="dpSelectToday('report-date')" type="button">วันนี้</button>
+                            </div>
                         </div>
                     </div>
-                    <div id="db-notice" class="hidden text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span>
-                        มีไฟล์อัพโหลดอยู่ - ลบไฟล์ออกก่อนเพื่อใช้ Generate from Database
-                    </div>
-                    <button onclick="generateReportDB()" id="btn-generate-db" disabled
-                        class="w-full py-2.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 font-bold rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">
-                        <span class="material-symbols-outlined text-base" style='font-variation-settings:"FILL" 1'>database</span>Generate from Database
-                    </button>
                 </div>
 
-                <!-- Generate from File -->
-                <div class="flex-1 p-5 flex flex-col gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary text-lg" style='font-variation-settings:"FILL" 1'>analytics</span>
-                        <div>
-                            <p class="text-xs font-bold text-slate-700">Generate from File</p>
-                            <p class="text-[11px] text-slate-400">ต้องอัพโหลด Master File (ทะเบียนคดี) ด้านบนก่อน</p>
+                <!-- Step 2: Status Type -->
+                <div class="xl:col-span-3 report-soft-card p-5">
+                    <div class="flex items-center justify-between gap-3 mb-5 relative z-10">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="report-icon-box bg-indigo-50 text-indigo-600">
+                                <span class="material-symbols-outlined text-[24px] section-title-icon">fact_check</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-extrabold text-sm text-slate-800">Status Type</p>
+                                <p class="text-[11px] text-slate-400 font-semibold mt-0.5">เลือกได้มากกว่า 1 ประเภท</p>
+                                <p class="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mt-1">30 / 31</p>
+                            </div>
                         </div>
                     </div>
-                    <div id="file-notice" class="hidden text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-sm">upload_file</span>
-                        กรุณาอัพโหลด Master File ใน Step 3 ก่อน
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="toggleStatus('30')" id="btn-30" class="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-slate-200 text-slate-500 text-xs font-extrabold transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                            <span class="material-symbols-outlined text-base">check_box_outline_blank</span>Status 30
+                        </button>
+                        <button onclick="toggleStatus('31')" id="btn-31" class="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-slate-200 text-slate-500 text-xs font-extrabold transition-all hover:border-indigo-200 hover:bg-indigo-50 hover:text-primary">
+                            <span class="material-symbols-outlined text-base">check_box_outline_blank</span>Status 31
+                        </button>
                     </div>
-                    <button onclick="generateReport()" id="btn-generate" disabled
-                        class="w-full py-2.5 bg-primary hover:bg-primary-muted text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-md shadow-indigo-100">
-                        <span class="material-symbols-outlined text-base" style='font-variation-settings:"FILL" 1'>analytics</span>Generate from File
-                    </button>
+
+                    <div class="mt-4 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                        <p class="text-[11px] text-slate-500 leading-relaxed">
+                            เลือก Status ที่ต้องการ แล้วระบบจะเปิดปุ่ม Generate ให้อัตโนมัติเมื่อข้อมูลครบ
+                        </p>
+                    </div>
                 </div>
 
-            </div>
-        </div>
+                <!-- Step 3: Upload -->
+                <div class="xl:col-span-5 report-soft-card p-5">
+                    <div class="flex items-center justify-between gap-3 mb-5 relative z-10">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="report-icon-box bg-orange-50 text-orange-600">
+                                <span class="material-symbols-outlined text-[24px] section-title-icon">cloud_upload</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-extrabold text-sm text-slate-800">Master File Upload</p>
+                                <p class="text-[11px] text-slate-400 font-semibold mt-0.5">ใช้เฉพาะกรณี Generate from File</p>
+                                <p class="text-[10px] text-orange-500 font-bold uppercase tracking-wider mt-1">.xlsx only</p>
+                            </div>
+                        </div>
+                    </div>
 
-        <!-- Results -->
-        <div id="result-section" class="hidden space-y-4">
-            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <div class="bg-white rounded-xl p-5 border border-red-100 shadow-sm">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Report 30</p>
-                    <p id="sum-30" class="text-2xl font-extrabold text-red-600">0</p>
-                    <p class="text-[10px] text-slate-400 mt-1">รายการ</p>
-                </div>
-                <div class="bg-white rounded-xl p-5 border border-blue-100 shadow-sm">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Report 31</p>
-                    <p id="sum-31" class="text-2xl font-extrabold text-primary">0</p>
-                    <p class="text-[10px] text-slate-400 mt-1">รายการ</p>
-                </div>
-                <div class="bg-white rounded-xl p-5 border border-emerald-100 shadow-sm">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Status 33</p>
-                    <p id="sum-33" class="text-2xl font-extrabold text-emerald-600">0</p>
-                    <p class="text-[10px] text-slate-400 mt-1">ปิดบัญชีแล้ว</p>
-                </div>
-                <div class="bg-white rounded-xl p-5 border border-amber-100 shadow-sm">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">แจ้งเตือน</p>
-                    <p id="sum-alerts" class="text-2xl font-extrabold text-amber-600">0</p>
-                    <p class="text-[10px] text-slate-400 mt-1">ยังไม่กรอกข้อมูล</p>
-                </div>
-                <div class="bg-white rounded-xl p-5 border border-orange-100 shadow-sm">
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">หายจากไฟล์</p>
-                    <p id="sum-missing" class="text-2xl font-extrabold text-orange-600">0</p>
-                    <p class="text-[10px] text-slate-400 mt-1">อยู่ใน DB แต่ไม่อยู่ในไฟล์</p>
-                </div>
-            </div>
+                    <div id="drop-zone"
+                        onclick="document.getElementById('file-input').click()"
+                        ondragover="event.preventDefault();this.classList.add('border-primary','bg-indigo-50/50')"
+                        ondragleave="this.classList.remove('border-primary','bg-indigo-50/50')"
+                        ondrop="handleDrop(event)"
+                        class="relative overflow-hidden border-2 border-dashed border-blue-100 rounded-[24px] bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 hover:border-primary hover:bg-indigo-50/50 transition-all cursor-pointer p-5">
 
-            <div class="bg-white rounded-xl border border-blue-100 shadow-xl shadow-indigo-100/50 overflow-hidden">
-                <div class="flex border-b border-slate-100">
-                    <button onclick="switchTab('30')" id="tab-30" class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all tab-inactive">Report 30</button>
-                    <button onclick="switchTab('31')" id="tab-31" class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all tab-inactive">Report 31</button>
-                    <button onclick="switchTab('33')" id="tab-33" class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all tab-inactive">Status 33</button>
-                    <button onclick="switchTab('alerts')" id="tab-alerts" class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all tab-inactive">แจ้งเตือน</button>
-                    <button onclick="switchTab('missing')" id="tab-missing" class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all tab-inactive">หายจากไฟล์</button>
-                    <style>
-                        .tab-disabled { color:#cbd5e1; cursor:not-allowed; background:white; }
-                        .tab-disabled:hover { color:#cbd5e1; background:white; }
-                    </style>
-                    <div class="ml-auto flex items-center gap-2 px-4">
-                        <button onclick="exportReport()" class="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 font-bold text-xs rounded-lg transition-all border border-emerald-100">
-                            <span class="material-symbols-outlined text-sm">download</span>Export Excel
+                        <div class="absolute right-0 top-0 w-36 h-full bg-white/60 skew-x-[-18deg] translate-x-16"></div>
+
+                        <div class="relative z-10 flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-indigo-100 flex-shrink-0">
+                                <span id="upload-icon" class="material-symbols-outlined text-[30px] section-title-icon">cloud_upload</span>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p id="upload-text" class="font-extrabold text-slate-800 text-sm">
+                                    คลิกหรือลากไฟล์มาวางที่นี่
+                                </p>
+                                <p class="text-slate-500 text-[11px] mt-1">
+                                    รองรับเฉพาะไฟล์ .xlsx / Master File ทะเบียนคดี
+                                </p>
+                                <div class="flex flex-wrap items-center gap-2 mt-3">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-slate-500">
+                                        <span class="material-symbols-outlined text-xs">table</span>
+                                        .xlsx only
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-slate-500">
+                                        <span class="material-symbols-outlined text-xs">database</span>
+                                        Master File
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleFileSelect(this)">
+                    </div>
+
+                    <div id="file-info" class="hidden mt-3 bg-indigo-50 rounded-2xl px-4 py-3 items-center justify-between border border-indigo-100">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="material-symbols-outlined text-primary text-lg section-title-icon">description</span>
+                            <div class="min-w-0">
+                                <p id="file-name" class="text-xs font-bold text-on-surface truncate">-</p>
+                                <p id="file-size" class="text-[10px] text-slate-400">-</p>
+                            </div>
+                        </div>
+                        <button onclick="clearFile()" class="text-slate-400 hover:text-slate-600 shrink-0">
+                            <span class="material-symbols-outlined text-base">close</span>
                         </button>
                     </div>
                 </div>
-                <div class="overflow-x-auto scrollbar-hide" style="max-height:480px;overflow-y:auto">
+            </div>
+        </section>
+
+        <!-- Generate Actions -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Generate from Database -->
+            <section class="report-action-card">
+                <div class="report-action-header flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="report-icon-box bg-indigo-50 text-primary">
+                            <span class="material-symbols-outlined text-[24px] section-title-icon">database</span>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                Generate from Database
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                คำนวณจากข้อมูลลูกหนี้และตารางชำระเงินในระบบ
+                            </p>
+                        </div>
+                    </div>
+
+                    <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-primary uppercase tracking-wider shadow-sm">
+                        <span class="material-symbols-outlined text-sm section-title-icon">storage</span>
+                        No File Required
+                    </span>
+                </div>
+
+                <div class="p-5">
+                    <div class="relative overflow-hidden rounded-[24px] border border-blue-100 bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 p-5">
+                        <div class="absolute right-0 top-0 w-36 h-full bg-white/60 skew-x-[-18deg] translate-x-16"></div>
+
+                        <div class="relative z-10 flex items-start gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-indigo-100 flex-shrink-0">
+                                <span class="material-symbols-outlined text-[30px] section-title-icon">database</span>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p class="font-extrabold text-slate-800 text-sm">
+                                    Generate directly from system data
+                                </p>
+                                <p class="text-slate-500 text-xs mt-1 leading-relaxed">
+                                    ไม่ต้องอัปโหลดไฟล์ ระบบจะคำนวณจากข้อมูลในระบบ ณ วันที่เลือก
+                                </p>
+
+                                <div id="db-notice" class="hidden mt-4 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 items-center gap-2">
+                                    <span class="material-symbols-outlined text-sm section-title-icon">warning</span>
+                                    มีไฟล์อัปโหลดอยู่ — ลบไฟล์ออกก่อนเพื่อใช้ Generate from Database
+                                </div>
+
+                                <button onclick="generateReportDB()" id="btn-generate-db" disabled
+                                    class="mt-4 w-full py-3 bg-white hover:bg-primary hover:text-white text-primary border border-indigo-200 font-extrabold rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-sm">
+                                    <span class="material-symbols-outlined text-base section-title-icon">database</span>
+                                    Generate from Database
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Generate from File -->
+            <section class="report-action-card">
+                <div class="report-action-header flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="report-icon-box bg-orange-50 text-orange-600">
+                            <span class="material-symbols-outlined text-[24px] section-title-icon">upload_file</span>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                Generate from File
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                เทียบ Master File กับ Customer DB และแสดงรายการแจ้งเตือน
+                            </p>
+                        </div>
+                    </div>
+
+                    <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-orange-600 uppercase tracking-wider shadow-sm">
+                        <span class="material-symbols-outlined text-sm section-title-icon">table</span>
+                        .xlsx Required
+                    </span>
+                </div>
+
+                <div class="p-5">
+                    <div class="relative overflow-hidden rounded-[24px] border border-orange-100 bg-gradient-to-br from-orange-50/60 via-white to-indigo-50/50 p-5">
+                        <div class="absolute right-0 top-0 w-36 h-full bg-white/60 skew-x-[-18deg] translate-x-16"></div>
+
+                        <div class="relative z-10 flex items-start gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-100 flex-shrink-0">
+                                <span class="material-symbols-outlined text-[30px] section-title-icon">analytics</span>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p class="font-extrabold text-slate-800 text-sm">
+                                    Generate by comparing Master File
+                                </p>
+                                <p class="text-slate-500 text-xs mt-1 leading-relaxed">
+                                    ใช้ Master File ทะเบียนคดี เพื่อเทียบข้อมูลในไฟล์กับ Customer DB
+                                </p>
+
+                                <div id="file-notice" class="hidden mt-4 text-[11px] text-slate-500 bg-white border border-blue-100 rounded-2xl px-4 py-3 items-center gap-2">
+                                    <span class="material-symbols-outlined text-sm">upload_file</span>
+                                    กรุณาอัปโหลด Master File ใน Step 3 ก่อน
+                                </div>
+
+                                <button onclick="generateReport()" id="btn-generate" disabled
+                                    class="mt-4 w-full py-3 bg-primary hover:bg-primary-muted text-white font-extrabold rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-lg shadow-indigo-100">
+                                    <span class="material-symbols-outlined text-base section-title-icon">analytics</span>
+                                    Generate from File
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <!-- Results -->
+        <section id="result-section" class="hidden space-y-5">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div class="metric-card bg-white rounded-3xl p-5 border border-red-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-red-50"></div>
+                    <p class="relative text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">Report 30</p>
+                    <p id="sum-30" class="relative text-3xl font-black text-red-600">0</p>
+                    <p class="relative text-[11px] text-slate-400 mt-1">รายการ</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-3xl p-5 border border-indigo-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-50"></div>
+                    <p class="relative text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">Report 31</p>
+                    <p id="sum-31" class="relative text-3xl font-black text-primary">0</p>
+                    <p class="relative text-[11px] text-slate-400 mt-1">รายการ</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-3xl p-5 border border-emerald-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-emerald-50"></div>
+                    <p class="relative text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">Status 33</p>
+                    <p id="sum-33" class="relative text-3xl font-black text-emerald-600">0</p>
+                    <p class="relative text-[11px] text-slate-400 mt-1">ปิดบัญชีแล้ว</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-3xl p-5 border border-amber-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-amber-50"></div>
+                    <p class="relative text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">แจ้งเตือน</p>
+                    <p id="sum-alerts" class="relative text-3xl font-black text-amber-600">0</p>
+                    <p class="relative text-[11px] text-slate-400 mt-1">ยังไม่กรอกข้อมูล</p>
+                </div>
+
+                <div class="metric-card bg-white rounded-3xl p-5 border border-orange-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-orange-50"></div>
+                    <p class="relative text-[10px] text-slate-400 uppercase tracking-widest font-extrabold mb-1">หายจากไฟล์</p>
+                    <p id="sum-missing" class="relative text-3xl font-black text-orange-600">0</p>
+                    <p class="relative text-[11px] text-slate-400 mt-1">อยู่ใน DB แต่ไม่อยู่ในไฟล์</p>
+                </div>
+            </div>
+
+            <div class="report-page-card">
+                <div class="report-section-header flex flex-col xl:flex-row xl:items-center gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="report-icon-box bg-indigo-50 text-primary">
+                            <span class="material-symbols-outlined text-[24px] section-title-icon">table_chart</span>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 class="font-extrabold text-slate-800 text-base tracking-tight">Report Result</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">ตรวจสอบรายการก่อน Export Excel</p>
+                        </div>
+                    </div>
+
+                    <div class="xl:ml-auto flex flex-wrap items-center gap-2">
+                        <button onclick="switchTab('30')" id="tab-30" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">Report 30</button>
+                        <button onclick="switchTab('31')" id="tab-31" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">Report 31</button>
+                        <button onclick="switchTab('33')" id="tab-33" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">Status 33</button>
+                        <button onclick="switchTab('alerts')" id="tab-alerts" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">แจ้งเตือน</button>
+                        <button onclick="switchTab('missing')" id="tab-missing" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">หายจากไฟล์</button>
+
+                        <style>
+                            .tab-disabled { color:#cbd5e1; cursor:not-allowed; background:transparent; box-shadow:none; }
+                            .tab-disabled:hover { color:#cbd5e1; background:transparent; }
+                        </style>
+
+                    <button onclick="exportReport()" class="report-template-btn bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-100">
+                        <span class="material-symbols-outlined text-base section-title-icon">download</span>
+                        Export Excel
+                    </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto scrollbar-hide bg-white" style="max-height:520px;overflow-y:auto">
                     <table class="w-full text-left border-collapse">
                         <thead class="sticky top-0 z-10">
-                            <tr id="table-head" class="bg-blue-50 border-b border-blue-100 text-[11px] uppercase tracking-widest text-indigo-400 font-bold"></tr>
+                            <tr id="table-head" class="bg-slate-50/90 border-b border-blue-100 text-[11px] uppercase tracking-widest text-indigo-400 font-bold"></tr>
                         </thead>
                         <tbody id="table-body" class="divide-y divide-blue-50 text-xs">
-                            <tr><td colspan="10" class="px-6 py-10 text-center text-indigo-300">กด Generate Report เพื่อดูผลลัพธ์</td></tr>
+                            <tr>
+                                <td colspan="10" class="px-6 py-12 text-center text-indigo-300">
+                                    กด Generate Report เพื่อดูผลลัพธ์
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- History -->
-        <div class="bg-white rounded-xl border border-blue-100 shadow-sm overflow-hidden">
-            <div class="px-6 py-4 bg-blue-50/30 border-b border-blue-100 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                        <span class="material-symbols-outlined text-primary text-lg" style='font-variation-settings:"FILL" 1'>manage_history</span>
+        <section class="report-page-card">
+            <div class="report-section-header flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="report-icon-box bg-indigo-50 text-primary">
+                        <span class="material-symbols-outlined text-[24px] section-title-icon">manage_history</span>
                     </div>
-                    <div>
-                        <h3 class="font-bold text-sm text-on-surface">Generate Report History</h3>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-widest">50 รายการล่าสุด</p>
+                    <div class="min-w-0">
+                        <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                            Generate Report History
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            แสดงรายการ Generate Report 50 รายการล่าสุด
+                        </p>
                     </div>
                 </div>
-                <button onclick="loadHistory()" class="flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-100 rounded-lg text-xs font-bold text-primary hover:bg-blue-50 transition-all shadow-sm">
-                    <span class="material-symbols-outlined text-sm">refresh</span>Refresh
+
+                <button onclick="loadHistory()" class="report-template-btn bg-white hover:bg-blue-50 text-primary border-blue-100">
+                    <span class="material-symbols-outlined text-base">refresh</span>
+                    Refresh
                 </button>
             </div>
-            <div class="overflow-x-auto scrollbar-hide" style="max-height:300px;overflow-y:auto">
+
+            <div class="overflow-x-auto scrollbar-hide bg-white" style="max-height:330px;overflow-y:auto">
                 <table class="w-full text-left border-collapse">
                     <thead class="sticky top-0 z-10">
-                        <tr class="bg-blue-50 border-b border-blue-100 text-[11px] uppercase tracking-widest text-indigo-400 font-bold">
+                        <tr class="bg-slate-50/90 border-b border-blue-100 text-[11px] uppercase tracking-widest text-indigo-400 font-bold">
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400">DATE / TIME</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400">Generator</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400 text-center">Report Date</th>
@@ -323,13 +727,15 @@ tailwind.config = {
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-orange-600">Missing</th>
                         </tr>
                     </thead>
-                    <tbody id="history-table" class="divide-y divide-blue-50 text-xs">
-                        <tr><td colspan="8" class="px-6 py-10 text-center text-indigo-300 text-xs">กำลังโหลด...</td></tr>
+                    <tbody id="history-table" class="divide-y divide-slate-50 text-xs">
+                        <tr>
+                            <td colspan="9" class="px-6 py-10 text-center text-indigo-300 text-xs">กำลังโหลด...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
+        </section>
         </div>
-
     </div>
 </main>
 
@@ -373,27 +779,48 @@ tailwind.config = {
 
     function dpInit(id) {
         const now = new Date();
-        dpState[id] = { year: now.getFullYear(), month: now.getMonth(), showMY: false };
+        dpState[id] = {
+            year: now.getFullYear(),
+            month: now.getMonth(),
+            showMY: false,
+            renderKey: ''
+        };
     }
 
     function dpOpen(id) {
         if (!dpState[id]) dpInit(id);
-        const val = document.getElementById(id).value;
-        if (val) { const [y,m] = val.split('-'); dpState[id].year = +y; dpState[id].month = +m - 1; }
-        dpRender(id);
+
+        const input   = document.getElementById(id);
         const popup   = document.getElementById('dp-popup-' + id);
         const display = document.getElementById('dp-display-' + id);
-        popup.classList.add('open');
-        display.classList.add('open');
+
+        const val = input.value;
+        if (val) {
+            const [y, m] = val.split('-');
+            dpState[id].year = +y;
+            dpState[id].month = +m - 1;
+        }
+
         const rect = display.getBoundingClientRect();
         popup.style.top  = (window.innerHeight - rect.bottom > 340 ? rect.bottom + 4 : rect.top - 344) + 'px';
         popup.style.left = rect.left + 'px';
+
+        dpRender(id);
+
+        requestAnimationFrame(() => {
+            popup.classList.add('open');
+            display.classList.add('open');
+        });
     }
 
     function dpClose(id) {
         document.getElementById('dp-popup-' + id)?.classList.remove('open');
         document.getElementById('dp-display-' + id)?.classList.remove('open');
-        if (dpState[id]) dpState[id].showMY = false;
+
+        if (dpState[id]) {
+            dpState[id].showMY = false;
+            dpState[id].renderKey = '';
+        }
     }
 
     function dpNavMonth(id, d) {
@@ -423,7 +850,13 @@ tailwind.config = {
     }
 
     function dpRender(id) {
-        const s     = dpState[id];
+        const s = dpState[id];
+        const selectedValue = document.getElementById(id).value || '';
+        const renderKey = `${s.year}-${s.month}-${s.showMY}-${selectedValue}`;
+
+        if (s.renderKey === renderKey) return;
+        s.renderKey = renderKey;
+
         const title = document.getElementById('dp-title-' + id);
         title.textContent = DP_MONTHS[s.month] + ' ' + (s.year + 543);
 
@@ -512,12 +945,18 @@ tailwind.config = {
             btn.querySelector('.material-symbols-outlined').textContent = status30 ? 'check_box' : 'check_box_outline_blank';
             btn.classList.toggle('border-primary', status30);
             btn.classList.toggle('text-primary', status30);
+            btn.classList.toggle('bg-indigo-50', status30);
+            btn.classList.toggle('shadow-md', status30);
+            btn.classList.toggle('shadow-indigo-100', status30);
         } else {
             status31 = !status31;
             const btn = document.getElementById('btn-31');
             btn.querySelector('.material-symbols-outlined').textContent = status31 ? 'check_box' : 'check_box_outline_blank';
             btn.classList.toggle('border-primary', status31);
             btn.classList.toggle('text-primary', status31);
+            btn.classList.toggle('bg-indigo-50', status31);
+            btn.classList.toggle('shadow-md', status31);
+            btn.classList.toggle('shadow-indigo-100', status31);
         }
         updateGenerateBtn();
     }
@@ -525,13 +964,14 @@ tailwind.config = {
     function handleFileSelect(input) { if (input.files[0]) setFile(input.files[0]); }
     function handleDrop(e) {
         e.preventDefault();
-        document.getElementById('drop-zone').classList.remove('border-primary','bg-indigo-50/30');
+        document.getElementById('drop-zone').classList.remove('border-primary','bg-indigo-50/50');
         const f = e.dataTransfer.files[0];
         if (f && f.name.endsWith('.xlsx')) setFile(f);
     }
     function setFile(f) {
         selectedFile = f;
         document.getElementById('file-info').classList.remove('hidden');
+        document.getElementById('file-info').classList.add('flex');
         document.getElementById('file-name').textContent  = f.name;
         document.getElementById('file-size').textContent  = (f.size/1024).toFixed(1) + ' KB';
         document.getElementById('upload-text').textContent = f.name;
@@ -543,6 +983,7 @@ tailwind.config = {
         selectedFile = null;
         document.getElementById('file-input').value = '';
         document.getElementById('file-info').classList.add('hidden');
+        document.getElementById('file-info').classList.remove('flex');
         document.getElementById('upload-text').textContent = 'คลิกหรือลากไฟล์มาวางที่นี่';
         document.getElementById('upload-icon').textContent = 'cloud_upload';
         document.getElementById('upload-icon').style.color = '';
@@ -651,10 +1092,11 @@ tailwind.config = {
         if (!status31) { tab31.classList.add('tab-disabled'); tab31.onclick = null; }
         else            { tab31.classList.remove('tab-disabled'); tab31.onclick = () => switchTab('31'); }
 
-        if (status30 && data.summary.report_30 > 0)     switchTab('30');
-        else if (status31 && data.summary.report_31 > 0) switchTab('31');
-        else if (data.summary.alerts > 0)                switchTab('alerts');
-        else                                              switchTab('missing');
+        if (status30 && data.summary.report_30 > 0)          switchTab('30');
+        else if (status31 && data.summary.report_31 > 0)     switchTab('31');
+        else if ((data.summary.report_33 || 0) > 0)          switchTab('33');
+        else if (data.summary.alerts > 0)                    switchTab('alerts');
+        else                                                  switchTab('missing');
         document.getElementById('result-section').scrollIntoView({ behavior:'smooth' });
     }
 
@@ -683,7 +1125,7 @@ tailwind.config = {
         renderTable(tab);
     }
 
-    const TH = `px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400`;
+    const TH = `px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest`;
     const TD = `px-5 py-3 text-xs text-slate-600`;
 
     function renderTable(tab) {
@@ -741,7 +1183,7 @@ tailwind.config = {
             head.innerHTML = ['เลขที่บัญชี','ชื่อลูกค้า','วันที่พิพากษา','ยอดหนี้รวม (฿)','NCB Status']
                 .map(h => `<th class="${TH}">${h}</th>`).join('');
             const rows = reportData.report_33;
-            if (!rows || !rows.length) { body.innerHTML = `<tr><td colspan="5" class="${TD} py-10 text-center text-slate-300">ไม่มีรายการปิดบัญชี ✅</td></tr>`; return; }
+            if (!rows || !rows.length) { body.innerHTML = `<tr><td colspan="5" class="${TD} py-10 text-center text-slate-300">ไม่มีรายการปิดบัญชี</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr class="hover:bg-emerald-50/40 transition-colors">
                 <td class="px-5 py-3">
                     <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
@@ -787,25 +1229,31 @@ tailwind.config = {
 
     async function exportReport() {
         if (!reportData) return;
-        const rows = activeTab === '30' ? reportData.report_30 : reportData.report_31;
-        if (!rows.length) { showToast('warning', 'ไม่มีข้อมูล', 'ไม่มีข้อมูลที่จะ Export ในแท็บนี้'); return; }
-        try {
-            const res  = await fetch(`/api/report/export/${activeTab}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rows, report_date: reportData.report_date })
-            });
-            if (!res.ok) { showToast('error', 'Export ไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง'); return; }
-            const blob = await res.blob();
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            a.href = url;
-            a.download = `Report_Status_${activeTab}_${reportData.report_date}.xlsx`;
-            a.click();
-            URL.revokeObjectURL(url);
-        } catch(e) {
-            showToast('error', 'Export ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อ Server ได้');
+
+        if (!['30', '31'].includes(activeTab)) {
+            showToast('warning', 'ยังไม่รองรับ Export', 'ตอนนี้ Export Excel รองรับเฉพาะ Report 30 และ Report 31');
+            return;
         }
-    }
+
+        const rows = activeTab === '30' ? reportData.report_30 : reportData.report_31;
+            if (!rows.length) { showToast('warning', 'ไม่มีข้อมูล', 'ไม่มีข้อมูลที่จะ Export ในแท็บนี้'); return; }
+            try {
+                const res  = await fetch(`/api/report/export/${activeTab}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rows, report_date: reportData.report_date })
+                });
+                if (!res.ok) { showToast('error', 'Export ไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง'); return; }
+                const blob = await res.blob();
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url;
+                a.download = `Report_Status_${activeTab}_${reportData.report_date}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch(e) {
+                showToast('error', 'Export ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อ Server ได้');
+            }
+        }
 
     async function loadHistory() {
         const tbody = document.getElementById('history-table');
