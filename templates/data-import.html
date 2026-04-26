@@ -27,9 +27,71 @@ tailwind.config = {
     .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24 }
     .hero-gradient { background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%); }
     .admin-only { display: none; }
-    .import-card-active   { border: 2px solid #2D3282; border-radius: 0.75rem; background: #EEF2FF; }
-    .import-card-inactive { border: 2px solid #E2E8F0; border-radius: 0.75rem; background: #f1f5f9; opacity: 0.6; }
     .scrollbar-hide::-webkit-scrollbar { display: none }
+
+    .import-page-card {
+        @apply bg-white rounded-[28px] border border-blue-100/80 shadow-xl shadow-indigo-100/40 overflow-hidden;
+    }
+
+    .import-section-header {
+        @apply px-5 md:px-6 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-indigo-50;
+    }
+
+    .import-step-badge {
+        @apply w-9 h-9 rounded-2xl bg-primary text-white flex items-center justify-center text-sm font-extrabold shadow-md shadow-indigo-100 flex-shrink-0;
+    }
+
+    .import-icon-box {
+        @apply w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0;
+    }
+
+    .import-mode-card {
+        @apply relative flex items-center gap-3 rounded-2xl border p-4 transition-all duration-200 overflow-hidden min-h-[92px];
+    }
+
+    .import-card-active {
+        border: 1px solid #2D3282;
+        border-radius: 1rem;
+        background:
+            radial-gradient(circle at top right, rgba(45,50,130,0.14), transparent 34%),
+            linear-gradient(135deg, #EEF2FF 0%, #FFFFFF 100%);
+        box-shadow: 0 16px 32px rgba(45, 50, 130, 0.12);
+        opacity: 1;
+    }
+
+    .import-card-inactive {
+        border: 1px solid #DBEAFE;
+        border-radius: 1rem;
+        background: #FFFFFF;
+        opacity: 1;
+    }
+
+    .import-card-inactive:hover {
+        border-color: #A5B4FC;
+        background: #F8FAFF;
+        box-shadow: 0 12px 24px rgba(99, 102, 241, 0.10);
+        transform: translateY(-1px);
+    }
+
+    .import-template-btn {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border shadow-sm whitespace-nowrap;
+    }
+
+    .import-table {
+        border-collapse: separate !important;
+        border-spacing: 0;
+    }
+
+    .import-table thead tr {
+        @apply bg-slate-50/90 border-b border-blue-100 uppercase tracking-widest text-indigo-400 font-bold text-[11px];
+    }
+
+    .import-table tbody tr {
+        @apply border-b border-blue-50 hover:bg-blue-50/40 transition-all;
+    }
+    .metric-pill {
+        @apply bg-white/10 border border-white/15 rounded-2xl px-4 py-2 backdrop-blur-sm;
+    }
 </style>
 </head>
 <body class="bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary">
@@ -42,197 +104,345 @@ tailwind.config = {
 <!-- Main -->
 <main class="md:ml-64 pt-16 min-h-screen pb-28">
 
-    <!-- Hero bar -->
-    <section class="hero-gradient px-8 py-4 sticky top-16 z-30 shadow-lg border-b border-white/10">
-        <div class="max-w-7xl mx-auto flex items-center gap-4">
-            <h1 class="font-headline text-xl tracking-tight text-white font-bold">Data Import Center</h1>
-            <div class="h-6 w-px bg-white/20 hidden md:block"></div>
-            <p class="text-blue-200 font-medium hidden lg:block text-base">Bulk Import: ยื่นฟ้อง / คำพิพากษา / หมายบังคับคดี / ชำระเงิน</p>
+    <!-- Page Hero Bar -->
+    <section id="data-import-hero" class="hero-gradient px-8 py-5 min-h-[112px] sticky top-16 z-30 shadow-lg border-b border-white/10">
+        <div class="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+            <div class="flex items-start gap-4 min-w-0">
+                <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-lg shadow-black/10 backdrop-blur-sm flex-shrink-0">
+                    <span class="material-symbols-outlined text-[26px]" style='font-variation-settings:"FILL" 1'>upload_file</span>
+                </div>
+
+                <div class="min-w-0">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h1 class="font-headline text-2xl tracking-tight text-white font-extrabold">
+                            Data Import Center
+                        </h1>
+
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-blue-100 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                            Admin Import
+                        </span>
+                    </div>
+
+                    <p class="text-blue-200/90 font-medium text-sm mt-1">
+                        นำเข้าข้อมูลแบบ Bulk สำหรับยื่นฟ้อง คำพิพากษา หมายบังคับคดี และประวัติการชำระเงิน
+                    </p>
+                </div>
+            </div>
         </div>
     </section>
 
-    <div class="px-8 py-6 max-w-7xl mx-auto space-y-6">
+    <div class="px-6 md:px-8 py-6">
+        <div class="max-w-[1600px] mx-auto space-y-6">
+    
+            <!-- Import Workspace -->
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+    
+                <!-- Left: Import Setup -->
+                <div class="xl:col-span-5 space-y-6">
+    
+                    <!-- Step 1: Select Import Object -->
+                    <section class="import-page-card">
+                        <div class="import-section-header flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="import-step-badge">1</div>
+                                <div class="min-w-0">
+                                    <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                        Select Import Object
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mt-0.5">
+                                        เลือกประเภทข้อมูลที่ต้องการนำเข้า
+                                    </p>
+                                </div>
+                            </div>
+    
+                            <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-primary uppercase tracking-wider shadow-sm">
+                                <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>rule</span>
+                                Template Required
+                            </span>
+                        </div>
+    
+                        <div class="p-5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label class="relative group cursor-pointer">
+                                    <input checked class="peer sr-only" name="import_type" type="radio" value="customer" onchange="selectMode('customer')"/>
+                                    <div id="card-customer" class="import-mode-card import-card-active">
+                                        <div class="absolute right-0 top-0 w-20 h-full bg-blue-500/5 skew-x-[-18deg] translate-x-8"></div>
+                                        <div class="import-icon-box bg-blue-50 text-blue-600">
+                                            <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>gavel</span>
+                                        </div>
+                                        <div class="min-w-0 relative z-10">
+                                            <p class="font-extrabold text-sm text-slate-800">ยื่นฟ้อง</p>
+                                            <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Customer filing</p>
+                                            <p class="text-[10px] text-primary font-bold uppercase tracking-wider mt-1">3 fields</p>
+                                        </div>
+                                    </div>
+                                </label>
+    
+                                <label class="relative group cursor-pointer">
+                                    <input class="peer sr-only" name="import_type" type="radio" value="judgment" onchange="selectMode('judgment')"/>
+                                    <div id="card-judgment" class="import-mode-card import-card-inactive">
+                                        <div class="absolute right-0 top-0 w-20 h-full bg-indigo-500/5 skew-x-[-18deg] translate-x-8"></div>
+                                        <div class="import-icon-box bg-indigo-50 text-indigo-600">
+                                            <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>balance</span>
+                                        </div>
+                                        <div class="min-w-0 relative z-10">
+                                            <p class="font-extrabold text-sm text-slate-800">คำพิพากษา</p>
+                                            <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Judgment details</p>
+                                            <p class="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mt-1">16 fields</p>
+                                        </div>
+                                    </div>
+                                </label>
+    
+                                <label class="relative group cursor-pointer">
+                                    <input class="peer sr-only" name="import_type" type="radio" value="enforcement" onchange="selectMode('enforcement')"/>
+                                    <div id="card-enforcement" class="import-mode-card import-card-inactive">
+                                        <div class="absolute right-0 top-0 w-20 h-full bg-red-500/5 skew-x-[-18deg] translate-x-8"></div>
+                                        <div class="import-icon-box bg-red-50 text-red-600">
+                                            <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>assignment</span>
+                                        </div>
+                                        <div class="min-w-0 relative z-10">
+                                            <p class="font-extrabold text-sm text-slate-800">หมายบังคับคดี</p>
+                                            <p class="text-[11px] text-slate-400 font-semibold mt-0.5">Enforcement order</p>
+                                            <p class="text-[10px] text-red-500 font-bold uppercase tracking-wider mt-1">4 fields</p>
+                                        </div>
+                                    </div>
+                                </label>
+    
+                                <label class="relative group cursor-pointer">
+                                    <input class="peer sr-only" name="import_type" type="radio" value="payment" onchange="selectMode('payment')"/>
+                                    <div id="card-payment" class="import-mode-card import-card-inactive">
+                                        <div class="absolute right-0 top-0 w-20 h-full bg-orange-500/5 skew-x-[-18deg] translate-x-8"></div>
+                                        <div class="import-icon-box bg-orange-50 text-orange-600">
+                                            <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>payments</span>
+                                        </div>
+                                        <div class="min-w-0 relative z-10">
+                                            <p class="font-extrabold text-sm text-slate-800">Payment Record</p>
+                                            <p class="text-[11px] text-slate-400 font-semibold mt-0.5">ประวัติการชำระ</p>
+                                            <p class="text-[10px] text-orange-500 font-bold uppercase tracking-wider mt-1">Payment data</p>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </section>
+    
+                    <!-- Step 2: Upload -->
+                    <section class="import-page-card">
+                        <div class="import-section-header flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="import-step-badge">2</div>
+                                <div class="min-w-0">
+                                    <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                        Upload Financial Data
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mt-0.5">
+                                        อัปโหลดไฟล์ Excel ตาม Template ที่เลือก
+                                    </p>
+                                </div>
+                            </div>
+    
+                            <button id="btn-template"
+                                onclick="event.stopPropagation();downloadTemplate()"
+                                class="import-template-btn bg-white hover:bg-primary hover:text-white text-primary border-blue-100">
+                                <span class="material-symbols-outlined text-base">description</span>
+                                <span id="btn-template-label">Customer Template</span>
+                            </button>
+                        </div>
+    
+                        <div class="p-5">
+                            <div id="drop-zone"
+                                onclick="document.getElementById('file-input').click()"
+                                ondragover="event.preventDefault();this.classList.add('border-primary','bg-indigo-50/50')"
+                                ondragleave="this.classList.remove('border-primary','bg-indigo-50/50')"
+                                ondrop="handleDrop(event)"
+                                class="relative overflow-hidden border-2 border-dashed border-blue-100 rounded-[24px] bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 hover:border-primary hover:bg-indigo-50/50 transition-all cursor-pointer p-6">
+    
+                                <div class="absolute right-0 top-0 w-40 h-full bg-white/60 skew-x-[-18deg] translate-x-16"></div>
+    
+                                <div class="relative z-10 flex flex-col sm:flex-row sm:items-center gap-4">
+                                    <div class="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-indigo-100 flex-shrink-0">
+                                        <span class="material-symbols-outlined text-[34px]" style='font-variation-settings:"FILL" 1'>cloud_upload</span>
+                                    </div>
+    
+                                    <div class="min-w-0 flex-1">
+                                        <p id="drop-label" class="font-extrabold text-slate-800 text-base">
+                                            Drop files here
+                                        </p>
+                                        <p class="text-slate-500 text-xs mt-1">
+                                            ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์จากเครื่อง
+                                        </p>
+                                        <div class="flex flex-wrap items-center gap-2 mt-3">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-slate-500">
+                                                <span class="material-symbols-outlined text-xs">table</span>
+                                                .xlsx only
+                                            </span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-slate-500">
+                                                <span class="material-symbols-outlined text-xs">event</span>
+                                                Date: YYYY-MM-DD
+                                            </span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-blue-100 text-[10px] font-bold text-slate-500">
+                                                <span class="material-symbols-outlined text-xs">pin</span>
+                                                Account No: Text 12 digits
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+    
+                                <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleFileSelect(this)">
+                            </div>
 
-        <!-- Steps 1 & 2 -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            <!-- Step 1 -->
-            <div class="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">1</div>
-                    <h3 class="font-bold text-base text-on-surface">Select Import Object</h3>
+                            <div id="file-info" class="hidden mt-4 rounded-2xl bg-indigo-50/70 px-4 py-3 flex items-center justify-between border border-indigo-100">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="w-10 h-10 rounded-xl bg-white text-primary flex items-center justify-center shadow-sm flex-shrink-0">
+                                        <span class="material-symbols-outlined" style='font-variation-settings:"FILL" 1'>description</span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p id="file-name" class="text-sm font-extrabold text-slate-800 truncate">-</p>
+                                        <p id="file-size" class="text-[11px] text-slate-400 font-semibold">-</p>
+                                    </div>
+                                </div>
+                                <button onclick="clearFile()" class="w-9 h-9 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all">
+                                    <span class="material-symbols-outlined text-lg">close</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <label class="relative group cursor-pointer">
-                        <input checked class="peer sr-only" name="import_type" type="radio" value="customer" onchange="selectMode('customer')"/>
-                        <div id="card-customer" class="flex items-center gap-3 px-3 py-3 transition-all duration-200 import-card-active">
-                            <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>gavel</span>
+    
+                <!-- Right: Batch Preview -->
+                <div class="xl:col-span-7">
+                    <section class="import-page-card h-full">
+                        <div class="import-section-header flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="import-step-badge">3</div>
+                                <div class="min-w-0">
+                                    <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                        Batch Preview <span id="preview-filename" class="text-primary"></span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 mt-0.5">
+                                        ตรวจสอบผลลัพธ์หลังนำเข้าข้อมูล
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p class="font-bold text-sm text-on-surface">ยื่นฟ้อง</p>
-                                <p class="text-[10px] text-slate-400 uppercase tracking-wider">3 fields</p>
-                            </div>
-                        </div>
-                    </label>
-                    <label class="relative group cursor-pointer">
-                        <input class="peer sr-only" name="import_type" type="radio" value="judgment" onchange="selectMode('judgment')"/>
-                        <div id="card-judgment" class="flex items-center gap-3 px-3 py-3 transition-all duration-200 import-card-inactive">
-                            <div class="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>balance</span>
-                            </div>
-                            <div>
-                                <p class="font-bold text-sm text-on-surface">คำพิพากษา</p>
-                                <p class="text-[10px] text-slate-400 uppercase tracking-wider">16 fields</p>
-                            </div>
-                        </div>
-                    </label>
-                    <label class="relative group cursor-pointer">
-                        <input class="peer sr-only" name="import_type" type="radio" value="enforcement" onchange="selectMode('enforcement')"/>
-                        <div id="card-enforcement" class="flex items-center gap-3 px-3 py-3 transition-all duration-200 import-card-inactive">
-                            <div class="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center text-red-600 shrink-0">
-                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>assignment</span>
-                            </div>
-                            <div>
-                                <p class="font-bold text-sm text-on-surface">หมายบังคับคดี</p>
-                                <p class="text-[10px] text-slate-400 uppercase tracking-wider">4 fields</p>
-                            </div>
-                        </div>
-                    </label>
-                    <label class="relative group cursor-pointer">
-                        <input class="peer sr-only" name="import_type" type="radio" value="payment" onchange="selectMode('payment')"/>
-                        <div id="card-payment" class="flex items-center gap-3 px-3 py-3 transition-all duration-200 import-card-inactive">
-                            <div class="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 shrink-0">
-                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>payments</span>
-                            </div>
-                            <div>
-                                <p class="font-bold text-sm text-on-surface">Payment Record</p>
-                                <p class="text-[10px] text-slate-400 uppercase tracking-wider">ประวัติการชำระ</p>
+    
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <div id="summary-badges" class="hidden flex items-center gap-2 flex-wrap">
+                                    <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        สำเร็จ <span id="badge-success">0</span>
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
+                                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                        ข้ามแล้ว <span id="badge-skip">0</span>
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-100">
+                                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                                        ผิดพลาด <span id="badge-error">0</span>
+                                    </span>
+                                </div>
+    
+                                <button id="btn-download-result"
+                                    onclick="downloadResult()"
+                                    class="import-template-btn bg-white hover:bg-primary hover:text-white text-primary border-blue-100">
+                                    <span class="material-symbols-outlined text-base">download</span>
+                                    ดาวน์โหลดผลลัพธ์
+                                </button>
                             </div>
                         </div>
-                    </label>
+    
+                        <div class="overflow-x-auto scrollbar-hide" style="max-height:520px;overflow-y:auto">
+                            <table class="import-table w-full text-left">
+                                <thead class="sticky top-0 z-10">
+                                    <tr>
+                                        <th class="px-6 py-4 w-24">Ref ID</th>
+                                        <th class="px-6 py-4 w-44">เลขที่บัญชี</th>
+                                        <th class="px-6 py-4">ชื่อ / รายละเอียด</th>
+                                        <th class="px-6 py-4 w-32 text-right whitespace-nowrap">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="result-table" class="divide-y divide-blue-50 text-sm">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-20 text-center">
+                                            <div class="flex flex-col items-center justify-center">
+                                                <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-4">
+                                                    <span class="material-symbols-outlined text-[34px]" style='font-variation-settings:"FILL" 1'>upload_file</span>
+                                                </div>
+                                                <p class="text-sm font-extrabold text-slate-600">
+                                                    ยังไม่มีข้อมูล Preview
+                                                </p>
+                                                <p class="text-xs text-slate-400 mt-1">
+                                                    เลือกไฟล์และกด Execute Bulk Import เพื่อเริ่มนำเข้าข้อมูล
+                                                </p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
             </div>
-
-            <!-- Step 2 -->
-            <div class="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
-                <div class="flex items-center gap-3 mb-5">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">2</div>
-                    <h3 class="font-bold text-base text-on-surface">Upload Financial Data</h3>
-                </div>
-                <div id="drop-zone" onclick="document.getElementById('file-input').click()"
-                    ondragover="event.preventDefault();this.classList.add('border-primary','bg-indigo-50/30')"
-                    ondragleave="this.classList.remove('border-primary','bg-indigo-50/30')"
-                    ondrop="handleDrop(event)"
-                    class="border-2 border-dashed border-blue-100 rounded-xl flex items-center justify-between hover:border-primary hover:bg-indigo-50/30 transition-all cursor-pointer p-4">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-primary">
-                            <span class="material-symbols-outlined text-2xl" style='font-variation-settings:"FILL" 1'>cloud_upload</span>
+    
+            <!-- Import History -->
+            <section class="import-page-card">
+                <div class="import-section-header flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center text-primary shadow-sm flex-shrink-0">
+                            <span class="material-symbols-outlined text-[24px]" style='font-variation-settings:"FILL" 1'>manage_history</span>
                         </div>
-                        <div>
-                            <p id="drop-label" class="font-bold text-sm text-on-surface">Drop files here</p>
-                            <p class="text-slate-400 text-xs">รองรับเฉพาะไฟล์ .xlsx</p>
+                        <div class="min-w-0">
+                            <h3 class="font-extrabold text-slate-800 text-base tracking-tight">
+                                ประวัติการนำเข้าข้อมูล
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                แสดงรายการนำเข้าข้อมูล 50 รายการล่าสุด
+                            </p>
                         </div>
                     </div>
-                    <button id="btn-template" onclick="event.stopPropagation();downloadTemplate()" class="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-primary hover:text-white text-primary font-bold text-xs rounded-lg transition-all border border-blue-100">
-                        <span class="material-symbols-outlined text-sm">description</span><span id="btn-template-label">Customer Template</span>
+    
+                    <button onclick="loadHistory()" class="import-template-btn bg-white hover:bg-blue-50 text-primary border-blue-100">
+                        <span class="material-symbols-outlined text-base">refresh</span>
+                        รีเฟรช
                     </button>
-                    <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleFileSelect(this)">
                 </div>
-                <div id="file-info" class="hidden mt-3 bg-indigo-50/50 rounded-lg px-4 py-3 flex items-center justify-between border border-blue-100">
-                    <div class="flex items-center gap-3">
-                        <span class="material-symbols-outlined text-primary" style='font-variation-settings:"FILL" 1'>description</span>
-                        <div><p id="file-name" class="text-sm font-bold text-on-surface">-</p><p id="file-size" class="text-[11px] text-slate-400">-</p></div>
-                    </div>
-                    <button onclick="clearFile()" class="text-slate-400 hover:text-slate-600"><span class="material-symbols-outlined text-lg">close</span></button>
+    
+                <div class="overflow-x-auto" style="max-height:360px;overflow-y:auto">
+                    <table class="import-table w-full text-left">
+                        <thead class="sticky top-0 z-10">
+                            <tr>
+                                <th class="px-6 py-4">วันที่ / เวลา</th>
+                                <th class="px-6 py-4">ผู้นำเข้า</th>
+                                <th class="px-6 py-4 text-center">ประเภท</th>
+                                <th class="px-6 py-4">ชื่อไฟล์</th>
+                                <th class="px-6 py-4 text-center">ทั้งหมด</th>
+                                <th class="px-6 py-4 text-center">สำเร็จ</th>
+                                <th class="px-6 py-4 text-center">ข้าม</th>
+                                <th class="px-6 py-4 text-center">ผิดพลาด</th>
+                                <th class="px-6 py-4 text-center">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table" class="divide-y divide-blue-50 text-sm">
+                            <tr>
+                                <td colspan="9" class="px-6 py-16 text-center">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-4">
+                                            <span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>history</span>
+                                        </div>
+                                        <p class="text-sm font-extrabold text-slate-600">
+                                            ยังไม่มีประวัติการนำเข้า
+                                        </p>
+                                        <p class="text-xs text-slate-400 mt-1">
+                                            เมื่อมีการ Import สำเร็จ ระบบจะแสดงประวัติในตารางนี้
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
+            </section>
         </div>
-
-        <!-- Step 3: Batch Preview -->
-        <div class="bg-white rounded-xl shadow-xl shadow-indigo-100/50 border border-blue-100 overflow-hidden">
-            <div class="p-4 bg-blue-50/30 border-b border-blue-100 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">3</div>
-                    <div>
-                        <h3 class="font-bold text-sm text-on-surface">Batch Preview <span id="preview-filename" class="text-primary"></span></h3>
-                        <p class="text-[10px] text-slate-400">ผลลัพธ์หลังนำเข้าข้อมูล</p>
-                    </div>
-                </div>
-                <button id="btn-download-result" onclick="downloadResult()" class="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-primary hover:text-white text-primary font-bold text-xs rounded-lg transition-all border border-blue-100">
-                    <span class="material-symbols-outlined text-sm">download</span>ดาวน์โหลดผลลัพธ์
-                </button>
-                <div id="summary-badges" class="hidden flex items-center gap-4">
-                    <span class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>สำเร็จ <span id="badge-success">0</span>
-                    </span>
-                    <span class="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>ข้ามแล้ว <span id="badge-skip">0</span>
-                    </span>
-                    <span class="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span>ผิดพลาด <span id="badge-error">0</span>
-                    </span>
-                </div>
-            </div>
-            <div class="overflow-x-auto scrollbar-hide" style="max-height:480px;overflow-y:auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 z-10">
-                        <tr class="bg-blue-50 border-b border-blue-100 uppercase tracking-widest text-indigo-400 font-bold text-[11px]">
-                            <th class="px-6 py-4 w-20">Ref ID</th>
-                            <th class="px-6 py-4 w-40">เลขที่บัญชี</th>
-                            <th class="px-6 py-4">ชื่อ / รายละเอียด</th>
-                            <th class="px-6 py-4 w-28 text-right whitespace-nowrap">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="result-table" class="divide-y divide-blue-50 text-sm">
-                        <tr><td colspan="4" class="px-6 py-12 text-center text-indigo-300 text-sm">เลือกไฟล์และกด Execute Bulk Import เพื่อเริ่มนำเข้าข้อมูล</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Import History -->
-        <div class="bg-white rounded-xl shadow-xl shadow-indigo-100/50 border border-blue-100 overflow-hidden">
-
-            <!-- Header -->
-            <div class="px-6 py-4 bg-blue-50/30 border-b border-blue-100 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                        <span class="material-symbols-outlined text-primary text-lg" style='font-variation-settings:"FILL" 1'>manage_history</span>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-sm text-on-surface">ประวัติการนำเข้าข้อมูล</h3>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-widest">50 รายการล่าสุด</p>
-                    </div>
-                </div>
-                <button onclick="loadHistory()" class="flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-100 rounded-lg text-xs font-bold text-primary hover:bg-blue-50 transition-all shadow-sm">
-                    <span class="material-symbols-outlined text-sm">refresh</span>รีเฟรช
-                </button>
-            </div>
-
-            <!-- Table -->
-            <div class="overflow-x-auto" style="max-height:320px;overflow-y:auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 z-10">
-                        <tr class="bg-blue-50 border-b border-blue-100 uppercase tracking-widest text-indigo-400 font-bold text-[11px]">
-                            <th class="px-6 py-3.5">วันที่ / เวลา</th>
-                            <th class="px-6 py-3.5">ผู้นำเข้า</th>
-                            <th class="px-6 py-3.5 text-center">ประเภท</th>
-                            <th class="px-6 py-3.5">ชื่อไฟล์</th>
-                            <th class="px-6 py-3.5 text-center">ทั้งหมด</th>
-                            <th class="px-6 py-3.5 text-center">สำเร็จ</th>
-                            <th class="px-6 py-3.5 text-center">ข้าม</th>
-                            <th class="px-6 py-3.5 text-center">ผิดพลาด</th>
-                            <th class="px-6 py-3.5 text-center">Result</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-table" class="divide-y divide-blue-50 text-sm">
-                        <tr><td colspan="9" class="px-6 py-10 text-center text-indigo-300 text-sm">กำลังโหลด...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
     </div>
 </main>
 
@@ -260,7 +470,9 @@ tailwind.config = {
                     <p id="val-missing" class="text-xs font-bold text-red-600 break-all">-</p>
                 </div>
             </div>
-            <p class="text-xs text-slate-400 mb-5">กรุณาดาวน์โหลด Template ที่ถูกต้อง แล้วกรอกข้อมูลใหม่</p>
+            <p class="text-xs text-slate-400 mb-5">
+                กรุณาดาวน์โหลด Template ที่ถูกต้อง แล้วกรอกวันที่เป็น YYYY-MM-DD และเลขที่บัญชีเป็น Text 12 หลัก
+            </p>
             <div class="flex gap-3 w-full">
                 <button onclick="closeValidationError()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all text-sm">ปิด</button>
                 <button onclick="closeValidationError();downloadTemplate()" class="flex-1 py-2.5 bg-primary hover:bg-primary-muted text-white font-bold rounded-xl transition-all text-sm flex items-center justify-center gap-2">
@@ -276,38 +488,101 @@ tailwind.config = {
 
 <!-- Confirm Import Modal -->
 <div id="confirm-import-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-[4px]" onclick="closeConfirmImport()"></div>
-    <div class="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-        <div class="p-7 flex flex-col items-center text-center">
-            <div class="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
-                <span class="material-symbols-outlined text-primary text-3xl" style='font-variation-settings:"FILL" 1'>cloud_sync</span>
+    <div class="absolute inset-0 bg-slate-950/65 backdrop-blur-[6px]" onclick="closeConfirmImport()"></div>
+
+    <div class="relative w-full max-w-lg overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-900/20 border border-white/70">
+        <!-- Top Accent -->
+        <div class="relative hero-gradient px-6 py-5 text-white overflow-hidden">
+            <div class="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-white/10 blur-2xl"></div>
+            <div class="absolute right-8 bottom-0 w-24 h-24 rounded-full bg-blue-300/10 blur-xl"></div>
+
+            <div class="relative z-10 flex items-start gap-4">
+                <div class="w-13 h-13 min-w-[52px] h-[52px] rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                    <span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>cloud_sync</span>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="text-xl font-extrabold tracking-tight">
+                            ยืนยันการนำเข้าข้อมูล
+                        </h3>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/15 text-[10px] font-bold uppercase tracking-wider text-blue-100">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                            Ready to Import
+                        </span>
+                    </div>
+                    <p class="text-xs text-blue-100/80 mt-1">
+                        ตรวจสอบประเภทไฟล์และรายละเอียดก่อนเริ่ม Bulk Import
+                    </p>
+                </div>
             </div>
-            <h3 class="text-lg font-bold text-slate-800 mb-1">ยืนยันการนำเข้าข้อมูล</h3>
-            <p class="text-xs text-slate-400 mb-5">ตรวจสอบข้อมูลก่อนดำเนินการ</p>
-            <div class="bg-slate-50 rounded-xl w-full text-left divide-y divide-slate-100 mb-6">
-                <div class="flex justify-between px-4 py-3">
-                    <span class="text-xs text-slate-500">ประเภทข้อมูล</span>
-                    <span id="cm-type" class="text-xs font-bold text-primary">-</span>
-                </div>
-                <div class="flex justify-between px-4 py-3">
-                    <span class="text-xs text-slate-500">ชื่อไฟล์</span>
-                    <span id="cm-filename" class="text-xs font-bold text-slate-700 max-w-[200px] truncate text-right">-</span>
-                </div>
-                <div class="flex justify-between px-4 py-3">
-                    <span class="text-xs text-slate-500">ขนาดไฟล์</span>
-                    <span id="cm-filesize" class="text-xs font-bold text-slate-700">-</span>
+
+            <button onclick="closeConfirmImport()" class="absolute top-4 right-4 w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-all">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-5">
+            <div class="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-hidden">
+                <div class="grid grid-cols-1 divide-y divide-blue-100">
+                    <div class="flex items-center justify-between gap-4 px-4 py-3.5">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-xl bg-white text-primary flex items-center justify-center shadow-sm border border-blue-100">
+                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>category</span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-500">ประเภทข้อมูล</span>
+                        </div>
+                        <span id="cm-type" class="text-xs font-extrabold text-primary text-right">-</span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 px-4 py-3.5">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-xl bg-white text-primary flex items-center justify-center shadow-sm border border-blue-100">
+                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>description</span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-500">ชื่อไฟล์</span>
+                        </div>
+                        <span id="cm-filename" class="text-xs font-extrabold text-slate-700 max-w-[230px] truncate text-right">-</span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 px-4 py-3.5">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-xl bg-white text-primary flex items-center justify-center shadow-sm border border-blue-100">
+                                <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>database</span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-500">ขนาดไฟล์</span>
+                        </div>
+                        <span id="cm-filesize" class="text-xs font-extrabold text-slate-700">-</span>
+                    </div>
                 </div>
             </div>
-            <div class="flex gap-3 w-full">
-                <button onclick="closeConfirmImport()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all text-sm">ยกเลิก</button>
-                <button onclick="confirmAndImport()" id="confirm-import-btn" class="flex-1 py-2.5 bg-primary hover:bg-primary-muted text-white font-bold rounded-xl transition-all text-sm flex items-center justify-center gap-2">
-                    <span class="material-symbols-outlined text-base" style='font-variation-settings:"FILL" 1'>cloud_sync</span>ยืนยันนำเข้า
+
+            <div class="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-start gap-3">
+                <div class="w-8 h-8 rounded-xl bg-white text-amber-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <span class="material-symbols-outlined text-lg" style='font-variation-settings:"FILL" 1'>info</span>
+                </div>
+                <div>
+                    <p class="text-xs font-extrabold text-amber-700">โปรดตรวจสอบก่อนยืนยัน</p>
+                    <p class="text-[11px] text-amber-700/80 mt-0.5">
+                        วันที่ต้องเป็น YYYY-MM-DD และเลขที่บัญชีต้องเป็น Text 12 หลัก ตาม Template เท่านั้น
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button onclick="closeConfirmImport()"
+                    class="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold rounded-2xl transition-all text-sm">
+                    ยกเลิก
+                </button>
+
+                <button onclick="confirmAndImport()" id="confirm-import-btn"
+                    class="flex-[1.25] h-11 bg-primary hover:bg-primary-muted text-white font-extrabold rounded-2xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100">
+                    <span class="material-symbols-outlined text-base" style='font-variation-settings:"FILL" 1'>cloud_sync</span>
+                    ยืนยันนำเข้า
                 </button>
             </div>
         </div>
-        <button onclick="closeConfirmImport()" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1">
-            <span class="material-symbols-outlined text-lg">close</span>
-        </button>
     </div>
 </div>
 
@@ -318,7 +593,7 @@ tailwind.config = {
             <p class="text-[10px] font-bold text-primary uppercase tracking-widest leading-none mb-1">System Status</p>
             <p id="status-text" class="text-sm font-bold text-slate-700">พร้อมนำเข้าข้อมูล</p>
         </div>
-        <div id="progress-wrap" class="hidden items-center gap-3">
+        <div id="progress-wrap" class="hidden flex items-center gap-3">
             <div class="w-40 h-2 bg-blue-100 rounded-full overflow-hidden">
                 <div id="progress-bar" class="h-full bg-primary rounded-full transition-all duration-500" style="width:0%"></div>
             </div>
@@ -365,15 +640,18 @@ tailwind.config = {
 
     function selectMode(mode) {
         currentMode = mode;
+
         const lbl = document.getElementById('btn-template-label');
         if (lbl) lbl.textContent = templateLabels[mode] || 'Template';
+
         const CARDS = ['customer', 'judgment', 'enforcement', 'payment'];
-        const SIZE  = { customer: 'px-3 py-3', judgment: 'px-3 py-3', enforcement: 'px-3 py-3', payment: 'px-3 py-3' };
+
         CARDS.forEach(c => {
             const el = document.getElementById('card-' + c);
             if (!el) return;
-            el.className = `flex items-center gap-3 ${SIZE[c]} transition-all duration-200 `
-                + (c === mode ? 'import-card-active' : 'import-card-inactive');
+
+            el.classList.remove('import-card-active', 'import-card-inactive');
+            el.classList.add(c === mode ? 'import-card-active' : 'import-card-inactive');
         });
     }
 
@@ -383,7 +661,7 @@ tailwind.config = {
 
     function handleDrop(e) {
         e.preventDefault();
-        document.getElementById('drop-zone').classList.remove('border-primary','bg-indigo-50/30');
+        document.getElementById('drop-zone').classList.remove('border-primary', 'bg-indigo-50/50');
         const f = e.dataTransfer.files[0];
         if (f && f.name.endsWith('.xlsx')) setFile(f);
     }
@@ -409,7 +687,23 @@ tailwind.config = {
         document.getElementById('summary-badges').classList.add('hidden');
         document.getElementById('status-text').textContent    = 'พร้อมนำเข้าข้อมูล';
         document.getElementById('progress-wrap').classList.add('hidden');
-        document.getElementById('result-table').innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-indigo-300 text-sm">เลือกไฟล์และกด Execute Bulk Import เพื่อเริ่มนำเข้าข้อมูล</td></tr>';
+
+        document.getElementById('result-table').innerHTML = `
+            <tr>
+                <td colspan="4" class="px-6 py-20 text-center">
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-4">
+                            <span class="material-symbols-outlined text-[34px]" style='font-variation-settings:"FILL" 1'>upload_file</span>
+                        </div>
+                        <p class="text-sm font-extrabold text-slate-600">
+                            ยังไม่มีข้อมูล Preview
+                        </p>
+                        <p class="text-xs text-slate-400 mt-1">
+                            เลือกไฟล์และกด Execute Bulk Import เพื่อเริ่มนำเข้าข้อมูล
+                        </p>
+                    </div>
+                </td>
+            </tr>`;
     }
 
     const EXPECTED_HEADERS = {
@@ -428,6 +722,14 @@ tailwind.config = {
         enforcement: ['enforcement_order_no', 'enforcement_judgment_date'],
         payment:     ['payment_date', 'amount'],
     };
+
+    function resetSelectedFileAfterImport() {
+        selectedFile = null;
+        document.getElementById('file-input').value = '';
+        document.getElementById('file-info').classList.add('hidden');
+        document.getElementById('drop-label').textContent = 'Drop files here';
+        document.getElementById('btn-import').disabled = true;
+    }
 
     function detectFileType(fileHeader) {
         if (SIGNATURE_HEADERS.enforcement.every(k => fileHeader.includes(k))) return 'enforcement';
@@ -458,7 +760,12 @@ tailwind.config = {
 
                 // ตรวจว่าไฟล์ตรงกับ mode ที่เลือกไหม
                 if (detectedType !== 'unknown' && detectedType !== currentMode) {
-                    const typeLabel = { customer: 'ลูกหนี้ (Customer List)', payment: 'ชำระเงิน (Payment Record)' };
+                    const typeLabel = {
+                        customer: 'ยื่นฟ้อง (Customer Filing)',
+                        judgment: 'คำพิพากษา (Judgment)',
+                        enforcement: 'หมายบังคับคดี (Enforcement)',
+                        payment: 'ชำระเงิน (Payment Record)'
+                    };
                     const wrongCols = EXPECTED_HEADERS[currentMode].filter(k => !fileHeader.includes(k));
                     document.getElementById('val-wrong-msg').textContent =
                         `ไฟล์ที่อัพโหลดดูเหมือนเป็น Template "${typeLabel[detectedType]}" แต่คุณเลือก "${typeLabel[currentMode]}"`;
@@ -524,7 +831,6 @@ tailwind.config = {
         btn.disabled = true;
         btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังนำเข้า...';
         document.getElementById('progress-wrap').classList.remove('hidden');
-        document.getElementById('progress-wrap').style.display = 'flex';
         document.getElementById('status-text').textContent = 'กำลังนำเข้าข้อมูล...';
         setProgress(30);
 
@@ -543,7 +849,7 @@ tailwind.config = {
         } catch(e) {
             document.getElementById('status-text').textContent = 'ไม่สามารถเชื่อมต่อ Server ได้';
         } finally {
-            btn.disabled = false;
+            btn.disabled = !selectedFile;
             btn.innerHTML = '<span class="material-symbols-outlined text-base" style=\'font-variation-settings:"FILL" 1\'>cloud_sync</span> Execute Bulk Import';
         }
     }
@@ -565,8 +871,8 @@ tailwind.config = {
         }
         loadHistory();
 
-        // clear ไฟล์หลัง import เสร็จ ป้องกันกด import ซ้ำ
-        clearFile();
+        // clear เฉพาะไฟล์หลัง import เสร็จ แต่คงผลลัพธ์/summary ไว้
+        resetSelectedFileAfterImport();
 
         const statusMap = {
             success: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
@@ -605,7 +911,22 @@ tailwind.config = {
             const res  = await fetch('/api/import/history');
             const data = await res.json();
             if (!data.history || data.history.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="px-5 py-6 text-center text-indigo-300 text-sm">ยังไม่มีประวัติการนำเข้า</td></tr>';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-6 py-16 text-center">
+                            <div class="flex flex-col items-center justify-center">
+                                <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center mb-4">
+                                    <span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>history</span>
+                                </div>
+                                <p class="text-sm font-extrabold text-slate-600">
+                                    ยังไม่มีประวัติการนำเข้า
+                                </p>
+                                <p class="text-xs text-slate-400 mt-1">
+                                    เมื่อมีการ Import สำเร็จ ระบบจะแสดงประวัติในตารางนี้
+                                </p>
+                            </div>
+                        </td>
+                    </tr>`;
                 return;
             }
             const typeLabel = {
@@ -626,13 +947,6 @@ tailwind.config = {
                 const ts = TYPE_STYLE[h.import_type] || { bg: 'bg-gray-50 text-gray-500 border-gray-100', icon: 'upload_file' };
                 const typeBg   = ts.bg;
                 const typeIcon = ts.icon;
-                const hasError = h.error_rows > 0;
-                const allOk    = h.error_rows === 0 && h.skip_rows === 0;
-                const statusDot = allOk
-                    ? '<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5"></span>'
-                    : hasError
-                    ? '<span class="w-2 h-2 rounded-full bg-red-500 inline-block mr-1.5 animate-pulse"></span>'
-                    : '<span class="w-2 h-2 rounded-full bg-amber-400 inline-block mr-1.5"></span>';
                 return `<tr class="hover:bg-blue-50/30 transition-colors group">
                     <td class="px-6 py-3.5 whitespace-nowrap">
                         <p class="text-xs font-bold text-slate-700">${dtStr.split(' ')[0]}</p>
