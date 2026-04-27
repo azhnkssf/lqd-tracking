@@ -64,6 +64,22 @@ def parse_float(val, default=0.0):
         return default
 
 
+def parse_required_money(val):
+    if val in (None, ''):
+        raise ValueError('ว่างเปล่า')
+
+    s = str(val).replace(',', '').strip()
+
+    if not re.fullmatch(r'\d+(\.\d{1,2})?', s):
+        raise ValueError('ต้องเป็นตัวเลข และมีทศนิยมได้สูงสุด 2 ตำแหน่ง')
+
+    amount = round(float(s), 2)
+
+    if amount <= 0:
+        raise ValueError('ต้องมากกว่า 0')
+
+    return amount
+
 def parse_int(val, default=0):
     try:
         return int(float(str(val).replace(',', ''))) if val not in (None, '') else default
@@ -91,9 +107,14 @@ def download_customer_template():
     header_font = Font(color='FFFFFF', bold=True)
     label_font  = Font(bold=True, color='2D3282')
 
-    keys    = ['account_no', 'full_name', 'filing_date']
-    labels  = ['เลขที่บัญชี * (Text 12 หลัก)', 'ชื่อ-นามสกุล *', 'วันที่ยื่นฟ้อง * (YYYY-MM-DD)']
-    example = ['700004761131', 'มานิตย์ บุญรอด', '2026-03-12']
+    keys    = ['account_no', 'full_name', 'filing_date', 'filing_capital']
+    labels  = [
+        'เลขที่บัญชี * (Text 12 หลัก)',
+        'ชื่อ-นามสกุล *',
+        'วันที่ยื่นฟ้อง * (YYYY-MM-DD)',
+        'ทุนทรัพย์ที่ฟ้อง *'
+    ]
+    example = ['700004761131', 'มานิตย์ บุญรอด', '2026-03-12', 250000]
 
     ws.append(keys)
     ws.append(labels)
@@ -102,6 +123,7 @@ def download_customer_template():
     for row in ws.iter_rows(min_row=1, max_row=5000):
         row[0].number_format = '@'
         row[2].number_format = '@'
+        row[3].number_format = '#,##0.00'
 
     for cell in ws[1]: cell.fill = header_fill; cell.font = header_font; cell.alignment = Alignment(horizontal='center')
     for cell in ws[2]: cell.fill = label_fill;  cell.font = label_font
@@ -113,7 +135,7 @@ def download_customer_template():
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    return send_file(buf, as_attachment=True, download_name='Template-Customer_Filing.xlsx',
+    return send_file(buf, as_attachment=True, download_name='Template-Customer_Bulk_Upload.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
@@ -351,7 +373,20 @@ def import_customers():
             })
             error += 1
             continue
-
+        
+        filing_capital_raw = row[3] if len(row) > 3 else None
+        try:
+            filing_capital = parse_required_money(filing_capital_raw)
+        except ValueError as e:
+            results.append({
+                'row': row_idx,
+                'account_no': account_no,
+                'status': 'error',
+                'message': f'ทุนทรัพย์ที่ฟ้อง{str(e)}'
+            })
+            error += 1
+            continue
+        
         exists = db.execute('SELECT id, is_deleted FROM customers WHERE account_no = ?', (account_no,)).fetchone()
         if exists:
             msg = 'เลขที่บัญชีนี้เคยถูกลบออกจากระบบแล้ว กรุณากู้คืนข้อมูลก่อน Import' if exists['is_deleted'] == 1 else 'มีข้อมูลในระบบแล้ว'
@@ -362,10 +397,10 @@ def import_customers():
         try:
             db.execute('''
                 INSERT INTO customers (
-                    account_no, name, filing_date,
+                    account_no, name, filing_date, filing_capital,
                     case_status, created_by
-                ) VALUES (?, ?, ?, 'ยื่นฟ้อง', ?)
-            ''', (account_no, name, filing_date, user['id']))
+                ) VALUES (?, ?, ?, ?, 'ยื่นฟ้อง', ?)
+            ''', (account_no, name, filing_date, filing_capital, user['id']))
 
             db.execute('''
                 INSERT INTO case_status_logs
@@ -373,8 +408,14 @@ def import_customers():
                 VALUES (?, NULL, 'ยื่นฟ้อง', ?, 'Bulk Import ยื่นฟ้อง')
             ''', (account_no, user['id']))
 
-            results.append({'row': row_idx, 'account_no': account_no, 'name': name,
-                            'status': 'success', 'message': 'นำเข้าสำเร็จ'})
+            results.append({
+                'row': row_idx,
+                'account_no': account_no,
+                'name': name,
+                'filing_capital': filing_capital,
+                'status': 'success',
+                'message': 'นำเข้าสำเร็จ'
+            })
             success += 1
         except Exception as e:
             err_str = str(e)
@@ -395,11 +436,6 @@ def import_customers():
         'summary': {'success': success, 'skip': skip, 'error': error, 'total': success + skip + error},
         'results': results, 'log_id': cur.lastrowid
     }), 200
-
-
-# ============================================================
-# Judgment Import (admin only)
-# ============================================================
 
 @bp.route('/judgment', methods=['POST'])
 def import_judgment():
@@ -484,18 +520,15 @@ def import_judgment():
         try:
             judgment_date_raw  = row[2]
             first_due_date_raw = row[9]
-            last_due_date_raw  = row[15] if len(row) > 15 else None
 
             judgment_date  = parse_date(judgment_date_raw)
             first_due_date = parse_date(first_due_date_raw)
-            last_due_date  = parse_date(last_due_date_raw) if last_due_date_raw else None
+            last_due_date  = None
 
             if not judgment_date:
                 raise ValueError('วันที่พิพากษาต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-02-18')
             if not first_due_date:
                 raise ValueError('วันครบกำหนดงวดแรกต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-03-18')
-            if last_due_date_raw and not last_due_date:
-                raise ValueError('วันครบกำหนดงวดสุดท้ายต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2028-02-18')
 
             total_debt     = parse_float(row[3])
             principal      = parse_float(row[4])

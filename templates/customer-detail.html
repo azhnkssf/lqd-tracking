@@ -651,19 +651,27 @@
                         </div>
                     </div>
                     <div class="dashboard-card-content">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="form-label-styled">หมายเลขบัญชี <span class="text-red-500">*</span></label>
                                 <div class="relative">
                                     <input id="account-no" class="form-input-styled pr-4 bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium" type="text" readonly tabindex="-1">
-                                    
                                 </div>
                                 <p id="warn-account-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-account-no-msg">กรุณากรอกตัวเลขเท่านั้น</span></p>
                             </div>
+
                             <div>
                                 <label class="form-label-styled">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>
                                 <input id="customer-name" class="form-input-styled bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium" type="text" readonly tabindex="-1">
                                 <p id="warn-customer-name" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-customer-name-msg">ไม่อนุญาตให้ใช้อักขระพิเศษ</span></p>
+                            </div>
+
+                            <div>
+                                <label class="form-label-styled">ทุนทรัพย์ที่ฟ้อง</label>
+                                <div class="relative">
+                                    <input id="filing-capital" class="form-input-styled bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium text-right pr-4 pl-10" type="text" readonly tabindex="-1">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
+                                </div>
                             </div>
                         </div>
                         <!-- Timestamps -->
@@ -1726,6 +1734,16 @@
             document.getElementById('account-no').value      = data.account_no || '';
             document.getElementById('customer-name').value   = data.name || '';
 
+            const filingCapitalEl = document.getElementById('filing-capital');
+            if (filingCapitalEl) {
+                filingCapitalEl.value = Number(data.filing_capital || 0) > 0
+                    ? Number(data.filing_capital).toLocaleString('th-TH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })
+                    : '0.00';
+            }
+
             if (data.filing_date)   dpSelectDay('filing-date', data.filing_date);
             if (data.judgment_date) dpSelectDay('judgment-date', data.judgment_date);
             if (data.first_due_date) dpSelectDay('first-due-date', data.first_due_date);
@@ -1759,9 +1777,9 @@
             document.getElementById('detail-subtitle').textContent =
                 fmtAccNo(data.account_no) + ' - ' + data.name;
 
-            // เก็บค่าตั้งต้นเพื่อเปรียบเทียบ
             originalData = {
                 filing_date:           data.filing_date        || '',
+                filing_capital:        Number(data.filing_capital || 0),
                 judgment_date:         data.judgment_date      || '',
                 first_due_date:        data.first_due_date     || '',
                 total_debt:            Number(data.total_debt  || 0),
@@ -2368,9 +2386,11 @@ function setupFriendlyInputFocus() {
 
         closeConfirmModal();
         const payload = {
-            filing_date:            dpGetValue('filing-date') || null,
-            judgment_date:          dpGetValue('judgment-date'),
-            total_debt:             parseNumber(document.getElementById('total-debt').value),
+            filing_date: dpGetValue('filing-date'),
+            filing_capital:         parseNumber(document.getElementById('filing-capital')?.value || '0'),
+            filing_capital: parseNumber(document.getElementById('filing-capital').value),
+            judgment_date: dpGetValue('judgment-date'),
+            total_debt: parseNumber(document.getElementById('total-debt').value),
             principal:              parseNumber(document.getElementById('principal').value),
             judgment_difference:    parseNumber(document.getElementById('diff-debt').value),
             interest_rate:          parseNumber(document.getElementById('interest-rate').value),
@@ -2645,6 +2665,7 @@ function setupFriendlyInputFocus() {
         if (!originalData) return false;
         const cur = {
             filing_date:           document.getElementById('filing-date').value          || '',
+            filing_capital:        parseNum(document.getElementById('filing-capital')?.value || '0'),
             judgment_date:         document.getElementById('judgment-date').value         || '',
             first_due_date:        document.getElementById('first-due-date').value        || '',
             total_debt:            parseNum(document.getElementById('total-debt').value),

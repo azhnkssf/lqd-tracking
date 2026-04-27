@@ -389,7 +389,7 @@ tailwind.config = {
                 </div>
 
                 <!-- Step 2: Status Type -->
-                <div class="xl:col-span-3 report-soft-card p-5">
+                <div class="xl:col-span-4 report-soft-card p-5">
                     <div class="flex items-center justify-between gap-3 mb-5 relative z-10">
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="report-icon-box bg-indigo-50 text-indigo-600">
@@ -420,8 +420,8 @@ tailwind.config = {
                 </div>
 
                 <!-- Step 3: Upload -->
-                <div class="xl:col-span-5 report-soft-card p-5">
-                    <div class="flex items-center justify-between gap-3 mb-5 relative z-10">
+                <div class="xl:col-span-4 report-soft-card p-5">
+                    <div class="flex items-center justify-between gap-3 mb-4 relative z-10">
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="report-icon-box bg-orange-50 text-orange-600">
                                 <span class="material-symbols-outlined text-[24px] section-title-icon">cloud_upload</span>
@@ -439,13 +439,13 @@ tailwind.config = {
                         ondragover="event.preventDefault();this.classList.add('border-primary','bg-indigo-50/50')"
                         ondragleave="this.classList.remove('border-primary','bg-indigo-50/50')"
                         ondrop="handleDrop(event)"
-                        class="relative overflow-hidden border-2 border-dashed border-blue-100 rounded-[24px] bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 hover:border-primary hover:bg-indigo-50/50 transition-all cursor-pointer p-5">
+                        class="relative overflow-hidden border-2 border-dashed border-blue-100 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-indigo-50/50 hover:border-primary hover:bg-indigo-50/50 transition-all cursor-pointer p-4">
 
                         <div class="absolute right-0 top-0 w-36 h-full bg-white/60 skew-x-[-18deg] translate-x-16"></div>
 
                         <div class="relative z-10 flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-indigo-100 flex-shrink-0">
-                                <span id="upload-icon" class="material-symbols-outlined text-[30px] section-title-icon">cloud_upload</span>
+                            <div class="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-indigo-100 flex-shrink-0">
+                                <span id="upload-icon" class="material-symbols-outlined text-[26px] section-title-icon">cloud_upload</span>
                             </div>
 
                             <div class="min-w-0 flex-1">
@@ -1228,32 +1228,86 @@ tailwind.config = {
     }
 
     async function exportReport() {
-        if (!reportData) return;
-
-        if (!['30', '31'].includes(activeTab)) {
-            showToast('warning', 'ยังไม่รองรับ Export', 'ตอนนี้ Export Excel รองรับเฉพาะ Report 30 และ Report 31');
+        if (!reportData) {
+            showToast('warning', 'ยังไม่มีข้อมูล', 'กรุณา Generate Report ก่อน Export');
             return;
         }
 
-        const rows = activeTab === '30' ? reportData.report_30 : reportData.report_31;
-            if (!rows.length) { showToast('warning', 'ไม่มีข้อมูล', 'ไม่มีข้อมูลที่จะ Export ในแท็บนี้'); return; }
-            try {
-                const res  = await fetch(`/api/report/export/${activeTab}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rows, report_date: reportData.report_date })
-                });
-                if (!res.ok) { showToast('error', 'Export ไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง'); return; }
-                const blob = await res.blob();
-                const url  = URL.createObjectURL(blob);
-                const a    = document.createElement('a');
-                a.href = url;
-                a.download = `Report_Status_${activeTab}_${reportData.report_date}.xlsx`;
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch(e) {
-                showToast('error', 'Export ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อ Server ได้');
+        const payload = {
+            report_date: reportData.report_date,
+            report_30: reportData.report_30 || [],
+            report_31: reportData.report_31 || [],
+            report_33: reportData.report_33 || [],
+            alerts: reportData.alerts || [],
+            missing_db: reportData.missing_db || [],
+        };
+
+        const totalRows =
+            payload.report_30.length +
+            payload.report_31.length +
+            payload.report_33.length +
+            payload.alerts.length +
+            payload.missing_db.length;
+
+        if (totalRows === 0) {
+            showToast('warning', 'ไม่มีข้อมูล', 'ไม่มีข้อมูล Report สำหรับ Export ในรอบนี้');
+            return;
+        }
+
+        try {
+            const btn = event?.currentTarget;
+            const originalHtml = btn ? btn.innerHTML : '';
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                    Exporting...
+                `;
+            }
+
+            const res = await fetch('/api/report/export-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                showToast('error', 'Export ไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง');
+                return;
+            }
+
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+
+            a.href = url;
+            a.download = `Report_All_${reportData.report_date}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            URL.revokeObjectURL(url);
+
+            showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดไฟล์ Report รวมเรียบร้อยแล้ว');
+        } catch(e) {
+            showToast('error', 'Export ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อ Server ได้');
+        } finally {
+            const btn = document.querySelector('button[onclick="exportReport()"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <span class="material-symbols-outlined text-base section-title-icon">download</span>
+                    Export Excel
+                `;
             }
         }
+    }
 
     async function loadHistory() {
         const tbody = document.getElementById('history-table');

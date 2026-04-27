@@ -364,8 +364,9 @@
                     <p class="text-sm font-bold text-slate-700">ข้อมูลที่ต้องกรอก</p>
                     <p class="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
                         กรุณากรอก <span class="font-semibold text-slate-700">หมายเลขบัญชี</span>,
-                        <span class="font-semibold text-slate-700">ชื่อ-นามสกุล</span> และ
-                        <span class="font-semibold text-slate-700">วันที่ยื่นฟ้อง</span> ให้ครบถ้วน
+                        <span class="font-semibold text-slate-700">ชื่อ-นามสกุล</span>,
+                        <span class="font-semibold text-slate-700">วันที่ยื่นฟ้อง</span> และ
+                        <span class="font-semibold text-slate-700">ทุนทรัพย์ที่ฟ้อง</span> ให้ครบถ้วน
                         ก่อนตรวจสอบข้อมูล
                     </p>
                 </div>
@@ -449,6 +450,32 @@
                     </div>
 
                     <p class="text-[11px] text-slate-400 mt-2">เลือกวันที่ตามเอกสารยื่นฟ้อง</p>
+                </div>
+                
+                <!-- ทุนทรัพย์ที่ฟ้อง -->
+                <div class="md:col-span-12 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <label class="text-[12px] font-bold text-slate-500 mb-2 block uppercase tracking-wider">
+                        ทุนทรัพย์ที่ฟ้อง <span class="text-red-500">*</span>
+                    </label>
+
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 text-[18px] pointer-events-none">payments</span>
+                        <input
+                            id="add-filing-capital"
+                            class="bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-2 w-full text-sm transition-all text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-left"
+                            type="text"
+                            placeholder="เช่น 250,000.00"
+                            inputmode="decimal"
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 mt-2">กรอกจำนวนเงินได้สูงสุด 2 ตำแหน่งทศนิยม เช่น 250,000.00</p>
+
+                    <p id="add-warn-filing-capital" class="hidden text-[10px] text-red-500 mt-2 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span>
+                        <span id="add-warn-filing-capital-msg">กรุณากรอกจำนวนเงินให้ถูกต้อง</span>
+                    </p>
                 </div>
 
                 <!-- ชื่อ-นามสกุล -->
@@ -589,9 +616,16 @@
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">วันที่ยื่นฟ้อง</p>
-                        <p id="add-rv-filing-date" class="text-base font-bold text-slate-800">-</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">วันที่ยื่นฟ้อง</p>
+                            <p id="add-rv-filing-date" class="text-base font-bold text-slate-800">-</p>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">ทุนทรัพย์ที่ฟ้อง</p>
+                            <p id="add-rv-filing-capital" class="text-base font-bold text-slate-800">-</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -705,7 +739,7 @@
 }
 
     function paymentStatusBadge(status, row = {}) {
-        const normalizedStatus = status || derivePaymentStatus(row);
+        const normalizedStatus = derivePaymentStatus(row, status);
 
         const map = {
             'จ่ายปกติ': {
@@ -717,6 +751,11 @@
                 cls: 'bg-red-50 text-red-700 border-red-200',
                 dot: 'bg-red-500',
                 icon: 'warning'
+            },
+            'ยังไม่ถึงกำหนด': {
+                cls: 'bg-blue-50 text-blue-700 border-blue-200',
+                dot: 'bg-blue-500',
+                icon: 'schedule'
             },
             'ยังไม่เริ่มชำระ': {
                 cls: 'bg-sky-50 text-sky-700 border-sky-200',
@@ -749,14 +788,42 @@
         `;
     }
 
-    function derivePaymentStatus(row = {}) {
+    function derivePaymentStatus(row = {}, apiStatus = '') {
         if (row.case_status === 'ปิดบัญชี') return 'ชำระครบแล้ว';
 
-        // ถ้า backend ยังไม่ได้ส่ง payment_status มา ให้เริ่มต้นแบบปลอดภัยไว้ก่อน
-        // ภายหลังสามารถเปลี่ยนให้คำนวณจาก due_date / paid_amount / outstanding_amount ได้
         if (row.case_status === 'ยื่นฟ้อง') return 'ไม่มีแผนชำระ';
 
-        return 'ยังไม่เริ่มชำระ';
+        const firstDueDate = parseLocalDate(row.first_due_date);
+        const today = getLocalToday();
+
+        const snap = row.latest_snapshot || {};
+        const dpdDays = Number(snap.dpd_days || 0);
+        const dpdMonths = Number(snap.dpd_months || 0);
+        const outstanding = Number(snap.outstanding || 0);
+
+        // ถ้ายังไม่ถึงวันครบกำหนดงวดแรก ต้องแสดง "ยังไม่ถึงกำหนด"
+        // สำคัญ: ต้อง override apiStatus ที่ backend ส่งมาเป็น "จ่ายปกติ"
+        if (firstDueDate && firstDueDate > today) {
+            return 'ยังไม่ถึงกำหนด';
+        }
+
+        if (dpdDays > 0 || dpdMonths > 0 || outstanding > 0) {
+            return 'ค้างชำระ';
+        }
+
+        return apiStatus || 'ยังไม่เริ่มชำระ';
+    }
+
+    function parseLocalDate(dateStr) {
+        if (!dateStr) return null;
+        const [y, m, d] = String(dateStr).split('-').map(Number);
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
+    }
+
+    function getLocalToday() {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
 
     function enforcementReadyBadge(row = {}) {
@@ -837,7 +904,7 @@
                 <td class="px-5 py-2.5 text-center">${caseStatusBadge(row.case_status)}</td>
                 <td class="px-5 py-2.5 text-center">
                     <div class="flex flex-col items-center gap-1.5">
-                        ${paymentStatusBadge(row.payment_status, row)}
+                        ${paymentStatusBadge(row.display_payment_status || row.computed_payment_status || row.payment_status, row)}
                         ${enforcementReadyBadge(row)}
                     </div>
                 </td>
@@ -1068,6 +1135,7 @@
         document.getElementById('add-account-no').value       = '';
         document.getElementById('add-customer-name').value    = '';
         document.getElementById('add-filing-date').value      = '';
+        document.getElementById('add-filing-capital').value   = '';
         document.getElementById('add-dp-text-filing-date').textContent = 'เลือกวันที่ยื่นฟ้อง';
         document.getElementById('add-dp-text-filing-date').className   = 'text-slate-400';
         document.getElementById('add-account-no-counter').textContent  = '0/12';
@@ -1077,8 +1145,12 @@
             'bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-16 py-2 w-full text-sm transition-all text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10';
         document.getElementById('add-customer-name').className =
             'bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-2 w-full text-sm transition-all text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10';
+        document.getElementById('add-filing-capital').className =
+            'bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-2 w-full text-sm transition-all text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-left';
+
         document.getElementById('add-warn-account-no').classList.add('hidden');
         document.getElementById('add-warn-customer-name').classList.add('hidden');
+        document.getElementById('add-warn-filing-capital').classList.add('hidden');
         hideAddModalError();
         // Reset date picker state
         const now = new Date();
@@ -1107,28 +1179,78 @@
         document.getElementById('add-modal-error').classList.add('hidden');
     }
 
+    function parseMoneyValue(value) {
+    const cleaned = String(value || '').replace(/,/g, '').trim();
+    if (!cleaned) return NaN;
+    return Number(cleaned);
+}
+
+    function formatMoneyValue(value) {
+        const cleaned = String(value || '')
+            .replace(/,/g, '')
+            .replace(/[^\d.]/g, '');
+
+        if (!cleaned) return '';
+
+        const parts = cleaned.split('.');
+        const intPartRaw = parts[0] || '';
+        const decimalPart = parts.length > 1 ? parts.slice(1).join('').slice(0, 2) : null;
+
+        const intPart = intPartRaw.replace(/^0+(?=\d)/, '') || '0';
+        const formattedInt = Number(intPart).toLocaleString('en-US');
+
+        return decimalPart !== null ? `${formattedInt}.${decimalPart}` : formattedInt;
+    }
+
+    function formatMoneyForReview(value) {
+        const num = parseMoneyValue(value);
+        if (!Number.isFinite(num)) return '-';
+
+        return num.toLocaleString('th-TH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
     // ---- Validation ----
     function addValidate() {
-        const accountVal = document.getElementById('add-account-no').value.trim();
-        const nameVal    = document.getElementById('add-customer-name').value.trim();
-        const filingVal  = document.getElementById('add-filing-date').value;
+        const accountVal       = document.getElementById('add-account-no').value.trim();
+        const nameVal          = document.getElementById('add-customer-name').value.trim();
+        const filingVal        = document.getElementById('add-filing-date').value;
+        const filingCapitalVal = document.getElementById('add-filing-capital').value.trim();
+        const filingCapitalNum = parseMoneyValue(filingCapitalVal);
 
-        if (!accountVal || !nameVal || !filingVal) {
+        if (!accountVal || !nameVal || !filingVal || !filingCapitalVal) {
             const missing = [];
-            if (!accountVal) missing.push('หมายเลขบัญชี');
-            if (!nameVal)    missing.push('ชื่อ-นามสกุล');
-            if (!filingVal)  missing.push('วันที่ยื่นฟ้อง');
+            if (!accountVal)       missing.push('หมายเลขบัญชี');
+            if (!nameVal)          missing.push('ชื่อ-นามสกุล');
+            if (!filingVal)        missing.push('วันที่ยื่นฟ้อง');
+            if (!filingCapitalVal) missing.push('ทุนทรัพย์ที่ฟ้อง');
             showAddModalError('กรุณากรอกข้อมูลให้ครบ: ' + missing.join(', '));
             return false;
         }
+
         if (accountVal.length !== 12) {
             showAddModalError('เลขที่บัญชีต้องมี 12 หลักเท่านั้น');
             return false;
         }
-        if (/[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(nameVal)) {
+
+        if (/[!@#$%^&*()_+\=\[\]{};':"\|,<>\/?`~0-9]/.test(nameVal)) {
             showAddModalError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
             return false;
         }
+
+        if (!Number.isFinite(filingCapitalNum) || filingCapitalNum <= 0) {
+            showAddModalError('ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลขมากกว่า 0');
+            return false;
+        }
+
+        const rawMoney = filingCapitalVal.replace(/,/g, '');
+        if (!/^\d+(\.\d{1,2})?$/.test(rawMoney)) {
+            showAddModalError('ทุนทรัพย์ที่ฟ้องกรอกทศนิยมได้สูงสุด 2 ตำแหน่ง');
+            return false;
+        }
+
         return true;
     }
 
@@ -1139,9 +1261,10 @@
         const filingVal = document.getElementById('add-filing-date').value;
         const [y, m, d] = filingVal.split('-');
 
-        document.getElementById('add-rv-account-no').textContent    = document.getElementById('add-account-no').value.trim();
-        document.getElementById('add-rv-customer-name').textContent = document.getElementById('add-customer-name').value.trim();
-        document.getElementById('add-rv-filing-date').textContent   = `${d}/${m}/${y}`;
+        document.getElementById('add-rv-account-no').textContent      = document.getElementById('add-account-no').value.trim();
+        document.getElementById('add-rv-customer-name').textContent   = document.getElementById('add-customer-name').value.trim();
+        document.getElementById('add-rv-filing-date').textContent     = `${d}/${m}/${y}`;
+        document.getElementById('add-rv-filing-capital').textContent  = formatMoneyForReview(document.getElementById('add-filing-capital').value);
 
         document.getElementById('add-modal').classList.add('hidden');
         document.getElementById('add-review-modal').classList.remove('hidden');
@@ -1153,9 +1276,10 @@
         btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังบันทึก...';
 
         const payload = {
-            account_no  : document.getElementById('add-account-no').value.trim(),
-            name        : document.getElementById('add-customer-name').value.trim(),
-            filing_date : document.getElementById('add-filing-date').value,
+            account_no      : document.getElementById('add-account-no').value.trim(),
+            name            : document.getElementById('add-customer-name').value.trim(),
+            filing_date     : document.getElementById('add-filing-date').value,
+            filing_capital  : parseMoneyValue(document.getElementById('add-filing-capital').value),
         };
 
         try {
@@ -1224,6 +1348,50 @@
             document.getElementById('add-warn-customer-name').classList.remove('hidden');
         } else {
             document.getElementById('add-warn-customer-name').classList.add('hidden');
+        }
+    });
+
+    document.getElementById('add-filing-capital').addEventListener('keydown', function(e) {
+        const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
+
+        if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+
+        if (!/^[0-9.]$/.test(e.key)) {
+            e.preventDefault();
+            document.getElementById('add-warn-filing-capital-msg').textContent = 'กรุณากรอกเฉพาะตัวเลขและจุดทศนิยม';
+            document.getElementById('add-warn-filing-capital').classList.remove('hidden');
+            return;
+        }
+
+        if (e.key === '.' && this.value.includes('.')) {
+            e.preventDefault();
+            document.getElementById('add-warn-filing-capital-msg').textContent = 'ใส่จุดทศนิยมได้เพียง 1 จุด';
+            document.getElementById('add-warn-filing-capital').classList.remove('hidden');
+        }
+    });
+
+    document.getElementById('add-filing-capital').addEventListener('input', function() {
+        const formatted = formatMoneyValue(this.value);
+        this.value = formatted;
+
+        const rawMoney = formatted.replace(/,/g, '');
+
+        if (rawMoney && !/^\d+(\.\d{0,2})?$/.test(rawMoney)) {
+            document.getElementById('add-warn-filing-capital-msg').textContent = 'ทศนิยมต้องไม่เกิน 2 ตำแหน่ง';
+            document.getElementById('add-warn-filing-capital').classList.remove('hidden');
+        } else {
+            document.getElementById('add-warn-filing-capital').classList.add('hidden');
+        }
+    });
+
+    document.getElementById('add-filing-capital').addEventListener('blur', function() {
+        const num = parseMoneyValue(this.value);
+
+        if (Number.isFinite(num) && num > 0) {
+            this.value = num.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
         }
     });
 

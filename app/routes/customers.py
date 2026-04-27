@@ -1,5 +1,6 @@
 import json
 import io
+import re
 import openpyxl
 from datetime import date
 from flask import Blueprint, request, jsonify, send_file
@@ -64,19 +65,40 @@ def _is_over_grace_period(cus, today=None):
     return today >= _first_day_next_month(due_date)
 
 
-def _payment_status_from_snapshot(cus, snap):
-    if cus.get('case_status') == 'ปิดบัญชี':
+def _payment_status_from_snapshot(cus, snap, payments=None, today=None):
+    """
+    สถานะสำหรับแสดงผลหน้า UI แบบคำนวณสด
+
+    หมายเหตุ:
+    - ไม่ควรเชื่อ payment_status ใน DB ตรง ๆ เพราะสถานะบางอย่างเปลี่ยนตามวันที่
+    - เช่น ก่อนถึง first_due_date ต้องเป็น 'ยังไม่ถึงกำหนด'
+    """
+    today = today or date.today()
+    payments = payments or []
+
+    case_status = cus.get('case_status')
+
+    if case_status == 'ปิดบัญชี':
         return 'ชำระครบแล้ว'
 
-    if cus.get('case_status') == 'ยื่นฟ้อง':
+    if case_status == 'ยื่นฟ้อง':
         return 'ไม่มีแผนชำระ'
 
+    first_due_date = _parse_iso_date(cus.get('first_due_date'))
+
+    # ถ้ายังไม่ถึงกำหนดงวดแรก และยังไม่มี payment จริง
+    # ให้แสดงเป็น "ยังไม่ถึงกำหนด" แทน "จ่ายปกติ"
+    if first_due_date and today < first_due_date and len(payments) == 0:
+        return 'ยังไม่ถึงกำหนด'
+
     outstanding = float((snap or {}).get('outstanding') or 0)
+    dpd_days = int(float((snap or {}).get('dpd_days') or 0))
+    dpd_months = int(float((snap or {}).get('dpd_months') or 0))
 
-    if outstanding <= 0:
-        return 'จ่ายปกติ'
+    if outstanding > 0 or dpd_days > 0 or dpd_months > 0:
+        return 'ค้างชำระ'
 
-    return 'ค้างชำระ'
+    return 'จ่ายปกติ'
 
 
 def _can_record_enforcement(cus, snap, today=None):
@@ -107,8 +129,22 @@ def _decorate_customer_for_ui(cus, payments=None, today=None):
     except Exception:
         snap = None
 
+    computed_payment_status = _payment_status_from_snapshot(
+        cus,
+        snap,
+        payments=payments,
+        today=today
+    )
+
     cus['latest_snapshot'] = snap
-    cus['payment_status'] = _payment_status_from_snapshot(cus, snap)
+
+    # เก็บค่าเดิมจาก DB ไว้ ไม่ทับ เพื่อให้ตรวจสอบย้อนหลังได้
+    cus['db_payment_status'] = cus.get('payment_status')
+
+    # ค่าที่คำนวณสดสำหรับ UI
+    cus['computed_payment_status'] = computed_payment_status
+    cus['display_payment_status'] = computed_payment_status
+
     cus['can_record_enforcement'] = _can_record_enforcement(cus, snap, today)
     cus['has_enforcement_order'] = bool(
         cus.get('enforcement_order_no') or
@@ -192,37 +228,67 @@ def create_customer():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
-    required = ['account_no', 'name', 'filing_date']
+    required = ['account_no', 'name', 'filing_date', 'filing_capital']
     missing = [f for f in required if data.get(f) is None or data.get(f) == '']
     if missing:
-        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
+        field_labels = {
+            'account_no': 'หมายเลขบัญชี',
+            'name': 'ชื่อ-นามสกุล',
+            'filing_date': 'วันที่ยื่นฟ้อง',
+            'filing_capital': 'ทุนทรัพย์ที่ฟ้อง',
+        }
+        missing_labels = [field_labels.get(f, f) for f in missing]
+        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing_labels)}'}), 400
+
+    account_no = str(data.get('account_no') or '').strip()
+    name = str(data.get('name') or '').strip()
+    filing_date = str(data.get('filing_date') or '').strip()
+    filing_capital_text = str(data.get('filing_capital') or '').replace(',', '').strip()
+
+    if not account_no.isdigit() or len(account_no) != 12:
+        return jsonify({'error': 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก'}), 400
+
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', filing_date):
+        return jsonify({'error': 'วันที่ยื่นฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
+
+    if not re.fullmatch(r'\d+(\.\d{1,2})?', filing_capital_text):
+        return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลข และมีทศนิยมได้สูงสุด 2 ตำแหน่ง'}), 400
+
+    filing_capital = round(float(filing_capital_text), 2)
+    if filing_capital <= 0:
+        return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องมากกว่า 0'}), 400
 
     db = get_db()
 
     existing = db.execute(
-        'SELECT id FROM customers WHERE account_no = ?', (data['account_no'],)
+        'SELECT id FROM customers WHERE account_no = ?', (account_no,)
     ).fetchone()
     if existing:
         return jsonify({'error': 'เลขที่บัญชีนี้มีในระบบแล้ว'}), 409
 
     db.execute('''
         INSERT INTO customers (
-            account_no, name, filing_date,
+            account_no, name, filing_date, filing_capital,
             case_status, created_by
-        ) VALUES (?, ?, ?, 'ยื่นฟ้อง', ?)
+        ) VALUES (?, ?, ?, ?, 'ยื่นฟ้อง', ?)
     ''', (
-        data['account_no'],
-        data['name'],
-        data['filing_date'],
+        account_no,
+        name,
+        filing_date,
+        filing_capital,
         user['id']
     ))
 
-    _log_case_status(db, data['account_no'], None, 'ยื่นฟ้อง', user['id'], 'สร้างข้อมูลใหม่')
+    _log_case_status(db, account_no, None, 'ยื่นฟ้อง', user['id'], 'สร้างข้อมูลใหม่')
     db.commit()
 
-    return jsonify({'message': 'บันทึกข้อมูลสำเร็จ', 'account_no': data['account_no']}), 201
+    return jsonify({
+        'message': 'บันทึกข้อมูลสำเร็จ',
+        'account_no': account_no,
+        'filing_capital': filing_capital
+    }), 201
 
 
 @bp.route('/<account_no>', methods=['GET'])
@@ -656,8 +722,8 @@ def update_customer(account_no):
 
     data = request.get_json()
 
-    required = ['filing_date', 'judgment_date', 'total_debt', 'principal',
-                'interest_rate', 'installment_count', 'first_due_date', 'installment_1']
+    required = ['filing_date', 'filing_capital', 'judgment_date', 'total_debt', 'principal',
+            'interest_rate', 'installment_count', 'first_due_date', 'installment_1']
     missing = [f for f in required if data.get(f) is None]
     if missing:
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
@@ -676,6 +742,7 @@ def update_customer(account_no):
 
     EDITABLE_FIELDS = {
         'filing_date':           'วันที่ยื่นฟ้อง',
+        'filing_capital':        'ทุนทรัพย์ที่ฟ้อง',
         'judgment_date':         'วันพิพากษา',
         'total_debt':            'ยอดหนี้รวม',
         'principal':             'เงินต้น',
@@ -692,8 +759,17 @@ def update_customer(account_no):
         'judgment_difference': 'ยอดหนี้ส่วนต่าง',
     }
 
+    filing_capital_text = str(data.get('filing_capital') or '').replace(',', '').strip()
+    if not re.fullmatch(r'\d+(\.\d{1,2})?', filing_capital_text):
+        return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลข และมีทศนิยมได้สูงสุด 2 ตำแหน่ง'}), 400
+
+    filing_capital = round(float(filing_capital_text), 2)
+    if filing_capital <= 0:
+        return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องมากกว่า 0'}), 400
+
     new_vals = {
         'filing_date':           data['filing_date'],
+        'filing_capital':        filing_capital,
         'judgment_date':         data['judgment_date'],
         'total_debt':            float(data['total_debt']),
         'principal':             float(data['principal']),
@@ -728,6 +804,7 @@ def update_customer(account_no):
     db.execute('''
         UPDATE customers SET
             filing_date           = ?,
+            filing_capital        = ?,
             judgment_date         = ?,
             total_debt            = ?,
             principal             = ?,
@@ -747,6 +824,7 @@ def update_customer(account_no):
         WHERE account_no = ? AND is_deleted = 0
     ''', (
         new_vals['filing_date'],
+        new_vals['filing_capital'],
         new_vals['judgment_date'],
         new_vals['total_debt'],
         new_vals['principal'],
