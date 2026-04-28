@@ -16,6 +16,76 @@ def get_current_user():
     return get_user_by_token(token)
 
 
+# ============================================================
+# Backend Payment Calculation Helpers
+# ============================================================
+
+def _sort_payments_by_date(payments):
+    """
+    เรียง payment ตามวันที่ก่อนส่งเข้า generate_full_daily_schedule()
+    เพื่อไม่ให้เคสที่ user บันทึกย้อนหลังทำให้ end_date เพี้ยน
+    """
+    def _key(p):
+        pd = p.get('payment_date')
+        return date.fromisoformat(pd) if isinstance(pd, str) else pd
+    return sorted(payments, key=_key)
+
+
+def _calculate_payment_from_backend(cus, previous_payments, payment_date, amount):
+    """
+    ใช้ backend เป็น source of truth ตอน preview/save payment
+
+    เหตุผล:
+    - ห้ามเชื่อ interest_paid / principal_paid / principal_bal ที่ FE ส่งมา
+    - ต้องให้ generate_full_daily_schedule() คำนวณเองทุกครั้ง
+    - หลังแก้ schedule_service.py แล้ว เคส "พิพากษาฝ่ายเดียว + 1 งวด + จ่ายไม่ครบ"
+      จะตัดดอก/ต้น และปล่อยดอกวิ่งต่อได้จาก logic กลางตัวเดียวกัน
+    """
+    preview_payment_obj = {
+        'payment_date': payment_date,
+        'amount': float(amount),
+    }
+
+    all_payments = _sort_payments_by_date(previous_payments + [preview_payment_obj])
+    daily_rows = generate_full_daily_schedule(cus, all_payments)
+
+    # หา row ของวันที่จ่ายนี้จากผลคำนวณจริง
+    # ถ้ามีหลาย payment วันเดียวกัน ระบบ schedule ปัจจุบันคำนวณระดับ "รายวัน"
+    # ดังนั้น row นี้คือผลรวมของวันนั้นตาม behavior เดิมของระบบ
+    pay_row = next(
+        (r for r in reversed(daily_rows) if r.get('is_pay_date') and r.get('date') == payment_date),
+        None
+    )
+
+    if not pay_row:
+        raise ValueError('ไม่สามารถคำนวณยอดชำระได้ กรุณาตรวจสอบวันที่ชำระเงิน')
+
+    first_pay_date = date.fromisoformat(cus['first_due_date'])
+    pay_d = date.fromisoformat(payment_date)
+    term_num = get_term_number(pay_d, first_pay_date, int(cus['installment_count']))
+    due_date = get_due_date(term_num, first_pay_date)
+
+    result = {
+        'term': term_num,
+        'due_date': due_date,
+        'payment_date': payment_date,
+        'amount': round(float(amount), 2),
+        'interest_paid': float(pay_row.get('P') or 0),
+        'principal_paid': float(pay_row.get('R') or 0),
+        'other_paid': float(pay_row.get('other_paid') or 0),
+        'principal_bal': float(pay_row.get('T') or 0),
+        'dpd_days': int(pay_row.get('dpd_days') or 0),
+        'dpd_months': int(pay_row.get('dpd_months') or 0),
+        'ncb_status': str(pay_row.get('ncb_code') or pay_row.get('ncb_days') or '31'),
+        'status_text': pay_row.get('status_text') or '',
+        'outstanding': float(pay_row.get('outstanding') or 0),
+        'daily_rows': daily_rows,
+        'pay_row': pay_row,
+    }
+
+    return result
+
+
 @bp.route('/<account_no>', methods=['GET'])
 def get_payments(account_no):
     user = get_current_user()
@@ -119,35 +189,28 @@ def preview_payment(account_no):
     ).fetchall()
     payments = [dict(p) for p in payments]
 
-    preview_payment_obj = {'payment_date': payment_date, 'amount': amount}
-    all_payments = payments + [preview_payment_obj]
-
-    daily_rows = generate_full_daily_schedule(cus, all_payments)
-
-    pay_row = next((r for r in reversed(daily_rows) if r['is_pay_date'] and r['date'] == payment_date), None)
-
-    if not pay_row:
-        return jsonify({'error': 'ไม่สามารถคำนวณได้ กรุณาตรวจสอบวันที่'}), 400
-
-    first_pay_date = date.fromisoformat(cus['first_due_date'])
-    pay_d          = date.fromisoformat(payment_date)
-    term_num       = get_term_number(pay_d, first_pay_date, int(cus['installment_count']))
-    due_date       = get_due_date(term_num, first_pay_date)
+    try:
+        calc = _calculate_payment_from_backend(cus, payments, payment_date, amount)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': f'เกิดข้อผิดพลาดในการคำนวณ: {str(e)}'}), 500
 
     return jsonify({
-        'term':           term_num,
-        'due_date':       due_date.isoformat(),
-        'payment_date':   payment_date,
-        'amount':         amount,
-        'interest_paid':  pay_row['P'],
-        'principal_paid': pay_row['R'],
-        'other_paid':     pay_row['other_paid'],
-        'principal_bal':  pay_row['T'],
-        'dpd_days':       pay_row['dpd_days'],
-        'dpd_months':     pay_row['dpd_months'],
-        'ncb_status':     pay_row['ncb_code'],
-        'status_text':    pay_row['status_text'],
-        'outstanding':    pay_row['outstanding'],
+        'term':           calc['term'],
+        'due_date':       calc['due_date'].isoformat(),
+        'payment_date':   calc['payment_date'],
+        'amount':         calc['amount'],
+        'interest_paid':  round(calc['interest_paid'], 2),
+        'principal_paid': round(calc['principal_paid'], 2),
+        'other_paid':     round(calc['other_paid'], 2),
+        'principal_bal':  round(calc['principal_bal'], 2),
+        'dpd_days':       calc['dpd_days'],
+        'dpd_months':     calc['dpd_months'],
+        'ncb_status':     calc['ncb_status'],
+        'status_text':    calc['status_text'],
+        'outstanding':    round(calc['outstanding'], 2),
     }), 200
 
 
@@ -164,31 +227,72 @@ def create_payment(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     if not data.get('payment_date'):
         return jsonify({'error': 'ข้อมูลไม่ครบ: payment_date'}), 400
     if data.get('amount') is None:
         return jsonify({'error': 'ข้อมูลไม่ครบ: amount'}), 400
 
-    amount       = float(data['amount'])
-    principal_bal = float(data.get('principal_bal', 0))
+    try:
+        amount = float(data['amount'])
+    except Exception:
+        return jsonify({'error': 'amount ต้องเป็นตัวเลข'}), 400
 
+    if amount < 0:
+        return jsonify({'error': 'amount ต้องไม่น้อยกว่า 0'}), 400
+
+    try:
+        # validate format YYYY-MM-DD
+        date.fromisoformat(str(data['payment_date'])[:10])
+    except Exception:
+        return jsonify({'error': 'payment_date ต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
+
+    cus_dict = dict(cus)
+
+    previous_payments = db.execute(
+        'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC, id ASC',
+        (account_no,)
+    ).fetchall()
+    previous_payments = [dict(p) for p in previous_payments]
+
+    # ============================================================
+    # สำคัญ:
+    # Backend คำนวณผลตัดดอก/ต้นเองทุกครั้ง
+    # ไม่ใช้ interest_paid / principal_paid / other_paid / principal_bal
+    # ที่ FE ส่งมาอีกต่อไป
+    # ============================================================
+    try:
+        calc = _calculate_payment_from_backend(
+            cus=cus_dict,
+            previous_payments=previous_payments,
+            payment_date=data['payment_date'],
+            amount=amount,
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': f'เกิดข้อผิดพลาดในการคำนวณยอดชำระ: {str(e)}'}), 500
+
+    interest_paid  = round(calc['interest_paid'], 2)
+    principal_paid = round(calc['principal_paid'], 2)
+    other_paid     = round(calc['other_paid'], 2)
+    principal_bal  = round(calc['principal_bal'], 2)
+    dpd_days       = int(calc['dpd_days'])
+    dpd_months     = int(calc['dpd_months'])
+    ncb_status     = calc['ncb_status']
+
+    note = data.get('note', '') or ''
     overpayment = 0.0
-    note        = data.get('note', '')
+
+    # คง field overpayment ไว้ตาม schema เดิม
+    # หมายเหตุ: schedule_service ปัจจุบันเป็นตัวคุมการตัดยอดหลัก
+    # ถ้าต้องการคำนวณ overpayment แบบละเอียด ควรแก้ที่ calculation engine เพิ่มในรอบถัดไป
     if principal_bal <= 0 and amount > 0:
-        prev_payments = db.execute(
-            'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
-            (account_no,)
-        ).fetchall()
-        prev_payments = [dict(p) for p in prev_payments]
-        cus_dict = dict(cus)
-        all_pay  = prev_payments + [{'payment_date': data['payment_date'], 'amount': amount}]
-        daily    = generate_full_daily_schedule(cus_dict, all_pay)
-        pay_row  = next((r for r in reversed(daily) if r['is_pay_date'] and r['date'] == data['payment_date']), None)
-        if pay_row and pay_row.get('T', 0) <= 0:
-            overpayment = abs(pay_row.get('T', 0))
-            if overpayment > 0:
-                note = f'จ่ายเกิน {overpayment:,.2f} บาท'
+        applied_amount = round(interest_paid + principal_paid + other_paid, 2)
+        if applied_amount < amount:
+            overpayment = round(amount - applied_amount, 2)
+            note = (note + ' | ' if note else '') + f'จ่ายเกิน {overpayment:,.2f} บาท'
 
     cur = db.execute('''
         INSERT INTO payments (
@@ -199,13 +303,13 @@ def create_payment(account_no):
     ''', (
         cus['id'], account_no,
         data['payment_date'], amount,
-        float(data.get('interest_paid', 0)),
-        float(data.get('principal_paid', 0)),
-        float(data.get('other_paid', 0)),
+        interest_paid,
+        principal_paid,
+        other_paid,
         principal_bal,
-        int(data.get('dpd_days', 0)),
-        int(data.get('dpd_months', 0)),
-        data.get('ncb_status', '31'),
+        dpd_days,
+        dpd_months,
+        ncb_status,
         note,
         overpayment,
         user['id']
@@ -215,11 +319,19 @@ def create_payment(account_no):
     refresh_customer_status(account_no, db)
 
     return jsonify({
-        'message'     : 'บันทึกการรับเงินสำเร็จ',
-        'overpayment' : overpayment,
-        'note'        : note,
+        'message'        : 'บันทึกการรับเงินสำเร็จ',
+        'payment_id'     : cur.lastrowid,
+        'interest_paid'  : interest_paid,
+        'principal_paid' : principal_paid,
+        'other_paid'     : other_paid,
+        'principal_bal'  : principal_bal,
+        'dpd_days'       : dpd_days,
+        'dpd_months'     : dpd_months,
+        'ncb_status'     : ncb_status,
+        'outstanding'    : round(calc['outstanding'], 2),
+        'overpayment'    : overpayment,
+        'note'           : note,
     }), 201
-
 
 @bp.route('/<account_no>/export', methods=['GET'])
 def export_payments(account_no):

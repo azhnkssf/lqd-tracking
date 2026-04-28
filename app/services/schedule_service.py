@@ -165,6 +165,75 @@ def get_installment_for_term(term_num, term_months, inst1, inst2, inst3, inst4):
     return filled[3] if count >= 4 else (filled[2] if count >= 3 else (filled[1] if count >= 2 else filled[0]))
 
 
+# ============================================================
+# Helpers: Default Judgment / พิพากษาฝ่ายเดียว
+# ============================================================
+
+def is_single_default_judgment(cus):
+    """
+    ใช้เฉพาะ Actual Payment เท่านั้น
+    - พิพากษาฝ่ายเดียวตามคำพิพากษายังคงมี 1 งวด
+    - แต่ถ้าจ่ายไม่ครบ ระบบจะคำนวณ virtual follow-up ต่อให้เอง
+    """
+    case_value = (cus.get('case_status') or cus.get('judgment_type') or '').strip()
+    try:
+        term_count = int(cus.get('installment_count') or 0)
+    except Exception:
+        term_count = 0
+
+    return case_value == 'พิพากษาฝ่ายเดียว' and term_count == 1
+
+
+def _virtual_due_index_for_date(row_date, first_pay_date):
+    """
+    คืนเลขงวดตาม due date แบบ virtual
+    เช่น first_due=15/03
+    - 14/04 ยังอยู่ช่วงงวด 1
+    - 15/04 เป็นต้นไปเป็นงวด 2
+    """
+    diff_months = (row_date.year - first_pay_date.year) * 12 + (row_date.month - first_pay_date.month)
+    if row_date.day < first_pay_date.day:
+        diff_months -= 1
+    return max(1, diff_months + 1)
+
+
+def _effective_term_months_for_actual(cus, first_pay_date, end_date, original_term_months):
+    """
+    ตามยอม: ใช้จำนวนงวดเดิม 100%
+    ฝ่ายเดียว 1 งวด: ขยายจำนวนงวดเฉพาะในการคำนวณ Actual เป็น virtual term
+    เพื่อให้ due date เดิมและ due date ถัด ๆ ไปถูกนับใน DPD/NCB/outstanding
+    โดยไม่แก้ installment_count ใน DB
+    """
+    if not is_single_default_judgment(cus):
+        return original_term_months
+
+    due_index = _virtual_due_index_for_date(end_date, first_pay_date)
+
+    # ต้อง +1 เพื่อให้ due date ของงวดปัจจุบันไม่ถูกมองเป็นงวดสุดท้าย
+    # เพราะ get_installment_for_term() เดิม return 0 เมื่อ term_num == term_months
+    return max(2, due_index + 1)
+
+
+def _next_virtual_due_after(row_date, first_pay_date):
+    """หา due date ถัดไปของฝ่ายเดียว เพื่อให้ดอกวิ่งต่อถึงวันครบกำหนดถัดไป"""
+    due_index = _virtual_due_index_for_date(row_date, first_pay_date)
+    current_due = get_due_date(due_index, first_pay_date)
+    if row_date >= current_due:
+        return get_due_date(due_index + 1, first_pay_date)
+    return current_due
+
+
+def _default_single_month_dpd(row_date, first_pay_date, total_outstanding):
+    """DPD/NCB รายเดือนสำหรับฝ่ายเดียว กรณีไม่มี arr_due จากตารางเดิม"""
+    if row_date.year == first_pay_date.year and row_date.month == first_pay_date.month:
+        return 0, '31'
+
+    first_of_next = date(first_pay_date.year, first_pay_date.month, 1) + relativedelta(months=1)
+    dpd_months = max(0, (row_date - first_of_next).days + 1)
+    ncb_months = '30' if total_outstanding > 0 else '31'
+    return dpd_months, ncb_months
+
+
 def _calc_extra_paid(row_date, payments_list, paid_map, first_pay_date, term_months,
                      inst1, inst2, inst3, inst4):
     """
@@ -343,19 +412,60 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
         pd = date.fromisoformat(p['payment_date']) if isinstance(p['payment_date'], str) else p['payment_date']
         pay_by_date[pd] = float(p['amount'])
 
-    last_due_date = get_due_date(term_months, first_pay_date)
+    original_term_months = term_months
+    is_default_single    = is_single_default_judgment(cus)
+    last_due_date        = get_due_date(term_months, first_pay_date)
 
     if end_date is not None:
         # ใช้ end_date ที่ระบุมา (สำหรับ Report Center)
         if isinstance(end_date, str):
             end_date = date.fromisoformat(end_date)
+    elif is_default_single:
+        # พิพากษาฝ่ายเดียว + 1 งวด:
+        # ต้องรัน Actual ต่อให้เห็นงวดติดตามยอดคงเหลือทุกเดือน
+        # - ถ้ายังไม่จ่ายและเลย due แล้ว: รันถึง due ถัดไปเสมอ
+        #   เช่น first_due 04/03, today 28/04 => ต้องเห็น 04/03, 04/04, 04/05
+        # - ถ้ามี payment แล้วแต่ยังไม่ปิดบัญชี: รันถึง due ถัดไปจาก max(วันจ่ายล่าสุด, วันนี้)
+        # - ถ้าปิดบัญชีแล้ว: หยุดที่วันจ่ายล่าสุด เพื่อไม่สร้างงวดอนาคตเกินจริง
+        today = date.today()
+
+        if not payments:
+            if today >= first_pay_date:
+                end_date = _next_virtual_due_after(today, first_pay_date)
+            else:
+                end_date = today
+        else:
+            sorted_payments = sorted(
+                payments,
+                key=lambda p: date.fromisoformat(p['payment_date']) if isinstance(p['payment_date'], str) else p['payment_date']
+            )
+            last_pay_date = sorted_payments[-1]['payment_date']
+            if isinstance(last_pay_date, str):
+                last_pay_date = date.fromisoformat(last_pay_date)
+
+            # รอบแรกคำนวณถึงวันจ่ายล่าสุดก่อน เพื่อดูว่าปิดบัญชีแล้วหรือยัง
+            # ใช้ recursive call แบบระบุ end_date จึงไม่กลับเข้าบล็อก auto-end-date นี้อีก
+            probe_rows = generate_full_daily_schedule(cus, payments, end_date=last_pay_date)
+            probe_last = probe_rows[-1] if probe_rows else None
+            principal_left = round(float((probe_last or {}).get('T') or principal0), 2)
+            outstanding_left = round(float((probe_last or {}).get('outstanding') or 0), 2)
+
+            if principal_left <= 0 and outstanding_left <= 0:
+                end_date = last_pay_date
+            else:
+                anchor_date = max(last_pay_date, today)
+                end_date = _next_virtual_due_after(anchor_date, first_pay_date)
     elif not payments:
-        # ยังไม่มีการชำระ → วิ่งถึงวันนี้
+        # เคสอื่นคง logic เดิม: ยังไม่มีการชำระ → วิ่งถึงวันนี้
         end_date = date.today()
     else:
-        # มีการชำระ → หยุดที่วันชำระล่าสุดเท่านั้น
         last_pay_date = date.fromisoformat(payments[-1]['payment_date']) if isinstance(payments[-1]['payment_date'], str) else payments[-1]['payment_date']
+        # ตามยอม/เคสอื่น: คง logic เดิม หยุดที่วันชำระล่าสุดเท่านั้น
         end_date = last_pay_date
+
+    term_months = _effective_term_months_for_actual(
+        cus, first_pay_date, end_date, original_term_months
+    )
 
     paid_map = {}
     for i in range(1, term_months + 1):
@@ -366,6 +476,7 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
     current_date       = filing_date
     T_current          = principal0
     O_prev             = 0.0
+    other_remaining    = diff_debt if is_default_single else 0.0
     M_term             = {}
     term_closed        = set()
     ncb_ever_30_days   = False   # NCB (วัน) taint — เมื่อเป็น 30 แล้วไม่กลับ
@@ -412,22 +523,62 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
             M_term[term_num] = M_term.get(term_num, 0.0) + pay_amount
             paid_map[due_date_term] = M_term.get(term_num, 0.0)
 
-            if pay_amount >= O_prev:
-                P_val = O_prev
-                R_val = pay_amount - P_val
-                Q_val = 0.0
-                S_val = 0.0
-                T_current = T_current - R_val
-                if T_current < 0:
+            if is_default_single:
+                # ฝ่ายเดียว: จ่ายเงินจริงต้องตัดตามลำดับใหม่
+                # 1) ดอกเบี้ยค้าง 2) เงินต้น 3) ยอดส่วนต่าง/ค่าอื่น ๆ
+                # สำคัญ: ถ้าเงินต้นยังไม่หมด ห้ามตัดส่วนต่าง
+                # ส่วนต่างจะถูกตัดเฉพาะหลังจากดอกค้างและเงินต้นถูกปิดหมดแล้วเท่านั้น
+                budget_left = pay_amount
+
+                # 1) ตัดดอกเบี้ยค้างก่อน
+                P_val = min(budget_left, O_prev)
+                budget_left -= P_val
+                Q_val = max(0.0, O_prev - P_val)
+
+                # 2) ถ้าดอกค้างหมดแล้ว ค่อยตัดเงินต้น
+                if round(Q_val, 2) <= 0:
+                    R_val = min(budget_left, T_current)
+                    budget_left -= R_val
+                    T_current = max(0.0, T_current - R_val)
+                else:
+                    R_val = 0.0
+
+                # 3) ตัดส่วนต่าง/ค่าอื่น ๆ เฉพาะตอนปิดดอก + ปิดต้นครบแล้ว
+                if round(Q_val, 2) <= 0 and round(T_current, 2) <= 0:
+                    S_val = min(budget_left, other_remaining)
+                    budget_left -= S_val
+                    other_remaining = max(0.0, other_remaining - S_val)
+                else:
+                    S_val = 0.0
+
+                # ถ้าปิดต้น + ค่าอื่น + ดอกค้างครบแล้ว ไม่ต้องตั้งดอกใหม่ในวันนั้น
+                if round(T_current, 2) <= 0 and round(other_remaining, 2) <= 0 and round(Q_val, 2) <= 0:
                     T_current = 0.0
-                N_val = (T_current * active_rate) / 365
-                O_val = N_val
+                    other_remaining = 0.0
+                    N_val = 0.0
+                    O_val = 0.0
+                else:
+                    # ดอกเบี้ยรายวันคิดจากเงินต้นคงเหลือเท่านั้น
+                    N_val = (T_current * active_rate) / 365
+                    O_val = Q_val + N_val
             else:
-                P_val = pay_amount
-                Q_val = O_prev - pay_amount
-                R_val = 0.0
-                S_val = 0.0
-                O_val = Q_val + N_val
+                # ตามยอม/เคสอื่น: คง logic เดิม
+                if pay_amount >= O_prev:
+                    P_val = O_prev
+                    R_val = pay_amount - P_val
+                    Q_val = 0.0
+                    S_val = 0.0
+                    T_current = T_current - R_val
+                    if T_current < 0:
+                        T_current = 0.0
+                    N_val = (T_current * active_rate) / 365
+                    O_val = N_val
+                else:
+                    P_val = pay_amount
+                    Q_val = O_prev - pay_amount
+                    R_val = 0.0
+                    S_val = 0.0
+                    O_val = Q_val + N_val
 
             if is_due_date:
                 term_payment  = get_installment_for_term(term_num, term_months, inst1, inst2, inst3, inst4)
@@ -468,13 +619,47 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
                 ncb_at_due  = ncb_code
 
         is_last_term = (term_num == term_months and current_date == get_due_date(term_months, first_pay_date))
-        if is_last_term and is_pay_day:
-            other_paid  = diff_debt
-            T_current   = max(0.0, T_current)
-            status_text = 'Fully Paid'
-            ncb_at_due  = '31'
+        if is_default_single:
+            other_paid = S_val if is_pay_day else 0.0
+
+            # ฝ่ายเดียว: outstanding ต้องเป็นยอดปิดบัญชีจริง ณ วันนั้น
+            # = เงินต้นคงเหลือ + ดอกเบี้ยค้าง + ค่าอื่นคงเหลือ
+            payoff_outstanding = T_current + O_val + other_remaining
+            if current_date < first_pay_date:
+                payoff_outstanding = 0.0
+
+            if current_date >= first_pay_date and payoff_outstanding > 0:
+                if oldest_due is None:
+                    oldest_due = first_pay_date
+                    oldest_due_amount = payoff_outstanding
+
+                if current_date <= oldest_due:
+                    dpd_days = 0
+                    ncb_days = '31'
+                else:
+                    dpd_days = (current_date - oldest_due).days
+                    ncb_days = '30'
+
+                dpd_months, ncb_months = _default_single_month_dpd(
+                    current_date, oldest_due, payoff_outstanding
+                )
+
+                outstanding = payoff_outstanding
+                oldest_due_amount = payoff_outstanding
+            else:
+                outstanding = 0.0
+                oldest_due_amount = 0.0
+                if round(T_current, 2) <= 0 and round(other_remaining, 2) <= 0 and round(O_val, 2) <= 0:
+                    status_text = 'Fully Paid' if is_pay_day else status_text
+                    ncb_at_due = '31'
         else:
-            other_paid = 0.0
+            if is_last_term and is_pay_day:
+                other_paid  = diff_debt
+                T_current   = max(0.0, T_current)
+                status_text = 'Fully Paid'
+                ncb_at_due  = '31'
+            else:
+                other_paid = 0.0
 
         rows.append({
             'date':         current_date.isoformat(),
@@ -512,33 +697,122 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
 
 def build_export_rows(plan_rows, daily_rows, cus):
     """
-    สร้าง export rows โดย merge Plan (ทุกวันครบทุกงวด) กับ Actual (daily_rows)
-    Plan columns A-J: วิ่งครบทุกวันจาก generate_schedule
-    Actual columns K-Y: merge จาก daily_rows เฉพาะวันที่มีข้อมูล
+    สร้าง export rows โดย merge Plan กับ Actual
+
+    สำคัญสำหรับ "พิพากษาฝ่ายเดียว + 1 งวด":
+    - plan_rows ตามคำพิพากษามีแค่ 1 งวด จึงจบที่ maturity เดิม
+    - แต่ actual daily_rows ถูกคำนวณต่อเป็น virtual follow-up ทุกเดือน
+    - ดังนั้นคอลัมน์ฝั่งซ้าย (A-J) ต้องไม่ว่างหลัง maturity เดิม
+      ให้เติมจาก actual rows เพื่อให้ Excel เห็น daily timeline ต่อเนื่องเหมือนฝั่งขวา
     """
-    # สร้าง map จาก date → actual row
-    actual_map = {r['date']: r for r in daily_rows}
+    plan_map = {r['date']: r for r in (plan_rows or [])}
+    actual_map = {r['date']: r for r in (daily_rows or [])}
+
+    all_dates = sorted(set(plan_map.keys()) | set(actual_map.keys()))
+
+    is_default_single = is_single_default_judgment(cus)
+
+    def _num(v, default=0.0):
+        try:
+            return float(v or 0)
+        except Exception:
+            return default
+
+    def _round_money(v):
+        return round(_num(v), 2)
+
+    def _fallback_plan_from_actual(actual):
+        """
+        แปลง actual daily row ให้เติมฝั่ง Plan (A-J) สำหรับฝ่ายเดียวหลัง maturity เดิม
+        เพื่อให้ export ไม่ว่างหลัง plan row เดิมหมด
+        """
+        if not actual:
+            return None
+
+        t_end = _num(actual.get('T'))
+        principal_bf = t_end + _num(actual.get('R'))
+        acc_interest = _num(actual.get('O'))
+        daily_interest = _num(actual.get('N'))
+        outstanding = _num(actual.get('outstanding'))
+        other_due = max(0.0, outstanding - t_end - acc_interest)
+
+        is_virtual_due = bool(actual.get('is_due_date'))
+        is_payment_day = bool(actual.get('is_pay_date'))
+
+        # ฝั่งซ้ายของ Excel คือภาพ timeline/expected payoff
+        # สำหรับวัน due ให้แสดงยอดปิดบัญชี ณ วันนั้น
+        # สำหรับวันจ่ายจริง ให้แสดงยอดตัดจริงของวันนั้นด้วย เพื่อ audit ง่าย
+        show_payment_cols = is_virtual_due or is_payment_day
+
+        payment_amount = ''
+        interest_paid = ''
+        principal_paid = ''
+        other_paid = ''
+        principal_bal = t_end
+        plan_daily_interest = daily_interest
+        plan_acc_interest = acc_interest
+
+        if show_payment_cols:
+            if is_payment_day:
+                payment_amount = _round_money(actual.get('pay_amount'))
+                interest_paid = _round_money(actual.get('P'))
+                principal_paid = _round_money(actual.get('R'))
+                other_paid = _round_money(actual.get('S'))
+                principal_bal = _round_money(actual.get('T'))
+                plan_daily_interest = _round_money(actual.get('N')) if _num(actual.get('N')) else 0
+                plan_acc_interest = _round_money(actual.get('O'))
+            else:
+                # virtual due แต่ยังไม่จ่าย: แสดงยอดที่ควรจ่ายเพื่อปิด ณ due นั้น
+                payment_amount = _round_money(outstanding)
+                interest_paid = _round_money(acc_interest)
+                principal_paid = _round_money(t_end)
+                other_paid = _round_money(other_due)
+                # ไม่สมมติว่าจ่ายแล้วจริง จึงยังให้ยอดสิ้นวันคงเหลือตาม actual
+                principal_bal = _round_money(t_end)
+                plan_daily_interest = _round_money(daily_interest) if daily_interest else 0
+                plan_acc_interest = _round_money(acc_interest)
+
+        return {
+            'date': actual.get('date'),
+            'term': actual.get('term'),
+            'principal_bf': _round_money(principal_bf),
+            'payment': payment_amount,
+            'interest_paid': interest_paid,
+            'principal_paid': principal_paid,
+            'other_paid': other_paid,
+            'principal_bal': _round_money(principal_bal),
+            'daily_interest': round(plan_daily_interest, 6) if plan_daily_interest != '' else '',
+            'acc_interest': _round_money(plan_acc_interest) if plan_acc_interest != '' else '',
+            'is_payment_date': show_payment_cols,
+        }
 
     export = []
-    for p in plan_rows:
-        d      = p['date']
+    for d in all_dates:
+        p = plan_map.get(d)
         actual = actual_map.get(d)
-        is_pay = actual['is_pay_date'] if actual else False
+
+        # ตามยอม/เคสเดิม: ใช้ plan เดิมถ้ามีเท่านั้น
+        # ฝ่ายเดียว: ถ้า plan เดิมไม่มีแล้ว ให้เติมจาก actual เพื่อให้ A-J รันต่อเนื่อง
+        display_plan = p
+        if is_default_single and display_plan is None and actual is not None:
+            display_plan = _fallback_plan_from_actual(actual)
+
+        is_pay = bool(actual and actual.get('is_pay_date'))
 
         export.append({
             'A_วันที่':                                          d,
-            'B_งวดที่':                                          p['term'],
-            'C_เงินต้นยกมา_(ต้นวัน)':                           p['principal_bf'],
-            'D_จ่ายค่างวด':                                      p['payment'] if p['payment'] > 0 else '',
-            'E_ตัดดอกเบี้ย':                                     p['interest_paid'] if p['payment'] > 0 else '',
-            'F_ตัดเงินต้น':                                      p['principal_paid'] if p['payment'] > 0 else '',
-            'G_ตัดชำระอื่นๆ':                                    p['other_paid'] if p['payment'] > 0 else '',
-            'H_เงินต้นคงเหลือ_(สิ้นวัน)':                       p['principal_bal'],
-            'I_ดอกเบี้ยรายวัน':                                  round(p['daily_interest'], 6),
-            'J_ดอกเบี้ยสะสม':                                    p['acc_interest'],
+            'B_งวดที่':                                          (display_plan.get('term') if display_plan else (actual.get('term') if actual else '')),
+            'C_เงินต้นยกมา_(ต้นวัน)':                           (display_plan.get('principal_bf') if display_plan else ''),
+            'D_จ่ายค่างวด':                                      (display_plan.get('payment') if display_plan and display_plan.get('payment', '') != '' else ''),
+            'E_ตัดดอกเบี้ย':                                     (display_plan.get('interest_paid') if display_plan and display_plan.get('interest_paid', '') != '' else ''),
+            'F_ตัดเงินต้น':                                      (display_plan.get('principal_paid') if display_plan and display_plan.get('principal_paid', '') != '' else ''),
+            'G_ตัดชำระอื่นๆ':                                    (display_plan.get('other_paid') if display_plan and display_plan.get('other_paid', '') != '' else ''),
+            'H_เงินต้นคงเหลือ_(สิ้นวัน)':                       (display_plan.get('principal_bal') if display_plan else ''),
+            'I_ดอกเบี้ยรายวัน':                                  (round(display_plan.get('daily_interest', 0), 6) if display_plan and display_plan.get('daily_interest', '') != '' else ''),
+            'J_ดอกเบี้ยสะสม':                                    (display_plan.get('acc_interest') if display_plan else ''),
             'K_วันที่จ่ายชำระ':                                   d if is_pay else '',
             'L_จำนวนเงินที่ชำระจริง':                            actual['pay_amount'] if is_pay else '',
-            'M_จำนวนเงินที่ชำระจริงสะสม':                        actual['M'] if actual and actual['M'] > 0 else '',
+            'M_จำนวนเงินที่ชำระจริงสะสม':                        actual['M'] if actual and actual.get('M', 0) > 0 else '',
             'N_ดอกเบี้ยรายวัน_(Actual)':                         round(actual['N'], 6) if actual else '',
             'O_ดอกเบี้ยสะสม_(Actual)':                           actual['O'] if actual else '',
             'P_ตัดดอกเบี้ย_(Actual)':                            actual['P'] if is_pay else '',
@@ -546,10 +820,10 @@ def build_export_rows(plan_rows, daily_rows, cus):
             'R_ตัดเงินต้น_(Actual)':                             actual['R'] if is_pay else '',
             'S_ตัดชำระอื่นๆ_(Actual)':                           actual['S'] if is_pay else '',
             'T_เงินต้นคงเหลือ_(Actual)':                         actual['T'] if actual else '',
-            'U_NCB_Status_(รายวัน)':                             actual.get('ncb_days', actual['ncb_code']) if actual else '',
-            'V_DPD_(รายวัน)':                                    actual['dpd_days'] if actual and actual['dpd_days'] > 0 else '',
-            'W_ยอดค้างชำระสะสมรวม_(รายวัน)':                     actual['outstanding'] if actual and actual['outstanding'] > 0 else '',
-            'X_NCB_Status_(รายเดือน)':                           actual.get('ncb_months', actual['ncb_code']) if actual else '',
-            'Y_DPD_(รายเดือน)':                                  actual['dpd_months'] if actual and actual['dpd_months'] > 0 else '',
+            'U_NCB_Status_(รายวัน)':                             actual.get('ncb_days', actual.get('ncb_code')) if actual else '',
+            'V_DPD_(รายวัน)':                                    actual['dpd_days'] if actual and actual.get('dpd_days', 0) > 0 else '',
+            'W_ยอดค้างชำระสะสมรวม_(รายวัน)':                   actual['outstanding'] if actual and actual.get('outstanding', 0) > 0 else '',
+            'X_NCB_Status_(รายเดือน)':                           actual.get('ncb_months', actual.get('ncb_code')) if actual else '',
+            'Y_DPD_(รายเดือน)':                                  actual['dpd_months'] if actual and actual.get('dpd_months', 0) > 0 else '',
         })
     return export

@@ -1251,6 +1251,15 @@
             return false;
         }
 
+        // วันที่ยื่นฟ้องเลือกย้อนหลังและวันนี้ได้ แต่ห้ามเกินวันนี้
+        const filingDate = new Date(filingVal + 'T00:00:00');
+        const today      = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (filingDate > today) {
+            showAddModalError('วันที่ยื่นฟ้องต้องไม่เกินวันที่ปัจจุบัน');
+            return false;
+        }
+
         return true;
     }
 
@@ -1475,12 +1484,39 @@
         ADD_DP_STATE.month += delta;
         if (ADD_DP_STATE.month > 11) { ADD_DP_STATE.month = 0;  ADD_DP_STATE.year++; }
         if (ADD_DP_STATE.month < 0)  { ADD_DP_STATE.month = 11; ADD_DP_STATE.year--; }
+
+        // ห้ามเลื่อนปฏิทินไปเดือนอนาคตเกินเดือนปัจจุบัน
+        const today = new Date();
+        if (ADD_DP_STATE.year > today.getFullYear() ||
+            (ADD_DP_STATE.year === today.getFullYear() && ADD_DP_STATE.month > today.getMonth())) {
+            ADD_DP_STATE.year = today.getFullYear();
+            ADD_DP_STATE.month = today.getMonth();
+        }
+
         addDpRender();
     }
 
     function addDpNavYear(delta) {
         ADD_DP_STATE.year += delta;
+
+        // ห้ามเลื่อนไปปีอนาคต และถ้ากลับมาปีปัจจุบันให้ไม่เกินเดือนปัจจุบัน
+        const today = new Date();
+        if (ADD_DP_STATE.year > today.getFullYear()) {
+            ADD_DP_STATE.year = today.getFullYear();
+        }
+        if (ADD_DP_STATE.year === today.getFullYear() && ADD_DP_STATE.month > today.getMonth()) {
+            ADD_DP_STATE.month = today.getMonth();
+        }
+
         addDpRender();
+    }
+
+    function addDpIsFutureDate(dateObj) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const d = new Date(dateObj);
+        d.setHours(0, 0, 0, 0);
+        return d > today;
     }
 
     function addDpRender() {
@@ -1491,9 +1527,14 @@
             document.getElementById('add-dp-my-filing-date').classList.remove('hidden');
             document.getElementById('add-dp-year-label-filing-date').textContent = 'พ.ศ. ' + (s.year + 543);
             const grid = document.getElementById('add-dp-months-filing-date');
-            grid.innerHTML = ADD_TH_MONTHS.map((m, i) =>
-                `<div class="${i === s.month ? 'dp-my-item active' : 'dp-my-item'}" onclick="addDpSelectMonth(${i})">${m.substring(0,3)}</div>`
-            ).join('');
+            const today = new Date();
+            grid.innerHTML = ADD_TH_MONTHS.map((m, i) => {
+                const isFutureMonth = s.year > today.getFullYear() || (s.year === today.getFullYear() && i > today.getMonth());
+                if (isFutureMonth) {
+                    return `<div class="dp-my-item disabled">${m.substring(0,3)}</div>`;
+                }
+                return `<div class="${i === s.month ? 'dp-my-item active' : 'dp-my-item'}" onclick="addDpSelectMonth(${i})">${m.substring(0,3)}</div>`;
+            }).join('');
         } else {
             document.getElementById('add-dp-cal-filing-date').classList.remove('hidden');
             document.getElementById('add-dp-my-filing-date').classList.add('hidden');
@@ -1502,6 +1543,12 @@
     }
 
     function addDpSelectMonth(month) {
+        const candidate = new Date(ADD_DP_STATE.year, month, 1);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const firstOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        if (candidate > firstOfCurrentMonth) return;
+
         ADD_DP_STATE.month  = month;
         ADD_DP_STATE.showMY = false;
         addDpRender();
@@ -1524,9 +1571,14 @@
             const date = new Date(s.year, s.month, d);
             const str  = `${s.year}-${String(s.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             let cls    = 'dp-day';
-            if (str === selStr)                      cls += ' dp-day-selected';
-            else if (date.getTime() === today.getTime()) cls += ' dp-day-today';
-            html += `<div class="${cls}" onclick="addDpSelectDay('${str}')">${d}</div>`;
+            if (str === selStr)                           cls += ' dp-day-selected';
+            else if (date.getTime() === today.getTime())  cls += ' dp-day-today';
+            if (date > today) {
+                cls += ' dp-day-disabled';
+                html += `<div class="${cls}" title="เลือกวันที่อนาคตไม่ได้">${d}</div>`;
+            } else {
+                html += `<div class="${cls}" onclick="addDpSelectDay('${str}')">${d}</div>`;
+            }
         }
         const rem = (7 - (startDay + last.getDate()) % 7) % 7;
         for (let i = 1; i <= rem; i++) html += `<div class="dp-day dp-day-other">${i}</div>`;
@@ -1534,6 +1586,9 @@
     }
 
     function addDpSelectDay(dateStr) {
+        const selectedDate = new Date(dateStr + 'T00:00:00');
+        if (addDpIsFutureDate(selectedDate)) return;
+
         document.getElementById('add-filing-date').value = dateStr;
         const [y, m, d] = dateStr.split('-').map(Number);
         const disp = document.getElementById('add-dp-text-filing-date');

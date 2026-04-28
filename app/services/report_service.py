@@ -156,24 +156,46 @@ def get_snapshot_at_date(cus, payments, report_date):
     if not target_row:
         target_row = daily_rows[-1]
 
+    # ============================================================
+    # Monthly default policy
+    # ============================================================
+    # ถ้า due อยู่ในเดือนมีนาคม และขอ report วันที่ 31/03
+    # ยังถือว่าเป็นสถานะของเดือนมีนาคม: ยังไม่ผิดนัดรายเดือน
+    # ต้องเริ่มผิดนัดรายเดือนวันที่ 01 ของเดือนถัดไปเท่านั้น
     oldest_due_str = target_row.get('oldest_due')
+    default_date = None
+    default_amount = None
+    dpd_months = target_row.get('dpd_months', 0)
+    ncb_months = target_row.get('ncb_months', '31')
+
     if oldest_due_str:
         oldest_due_date = date.fromisoformat(oldest_due_str)
-        first_of_next   = date(oldest_due_date.year, oldest_due_date.month, 1) + relativedelta(months=1)
-        default_date    = first_of_next.isoformat()
-    else:
-        default_date = None
+        first_of_next = date(oldest_due_date.year, oldest_due_date.month, 1) + relativedelta(months=1)
+
+        if report_date >= first_of_next:
+            default_date = first_of_next.isoformat()
+            default_row = None
+            for row in reversed(daily_rows):
+                if row.get('date') <= default_date:
+                    default_row = row
+                    break
+            default_amount = _calc_remaining_from_daily_row(cus, default_row)
+        else:
+            # ยังอยู่ในเดือนของ due เอง เช่น report 31/03 ของ due 04/03
+            # ห้ามแสดงวันผิดนัด/ยอดหนี้วันผิดนัด และให้สถานะรายเดือนเป็น 31
+            dpd_months = 0
+            ncb_months = '31'
 
     return {
         'principal_bal'  : round(target_row.get('T', 0), 2),
         'acc_interest'   : round(target_row.get('O', 0), 2),
         'outstanding'    : round(target_row.get('outstanding', 0), 2),
         'default_date'   : default_date,
-        'default_amount' : round(target_row.get('oldest_due_amount', 0), 2),
+        'default_amount' : default_amount,
         'dpd_days'       : target_row.get('dpd_days', 0),
-        'dpd_months'     : target_row.get('dpd_months', 0),
+        'dpd_months'     : dpd_months,
         'ncb_days'       : target_row.get('ncb_days', '31'),
-        'ncb_months'     : target_row.get('ncb_months', '31'),
+        'ncb_months'     : ncb_months,
     }
 
 
@@ -309,24 +331,39 @@ def _get_principal_sued(cus, fallback=None):
         0
     )
 
-def _calc_remaining_debt(cus, snap):
-    if not snap:
-        return _num(cus.get('total_debt'))
 
-    diff_debt = (
+def _calc_diff_debt(cus):
+    return (
         _num(cus.get('court_fee')) +
         _num(cus.get('lawyer_fee')) +
         _num(cus.get('total_debt')) -
         _num(cus.get('principal'))
     )
 
-    remaining = (
-        _num(snap.get('principal_bal')) +
-        _num(snap.get('acc_interest')) +
-        diff_debt
+
+def _calc_remaining_from_values(cus, principal_bal=0, acc_interest=0):
+    return round(_num(principal_bal) + _num(acc_interest) + _calc_diff_debt(cus), 2)
+
+
+def _calc_remaining_from_daily_row(cus, row):
+    if not row:
+        return None
+    return _calc_remaining_from_values(
+        cus,
+        principal_bal=row.get('T', 0),
+        acc_interest=row.get('O', 0),
     )
 
-    return round(remaining, 2)
+
+def _calc_remaining_debt(cus, snap):
+    if not snap:
+        return _num(cus.get('total_debt'))
+
+    return _calc_remaining_from_values(
+        cus,
+        principal_bal=snap.get('principal_bal', 0),
+        acc_interest=snap.get('acc_interest', 0),
+    )
 
 
 def _build_report30_row_from_db(account_no, status, filing_date, principal_sued, cus, snap=None, report_date_str=None):
@@ -352,9 +389,21 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         return base
 
     if case_status == 'พิพากษาฝ่ายเดียว':
+        # ยังไม่ผิดนัดรายเดือนในเดือนของ due เอง
+        # เช่น due 04/03 แล้วขอ report 31/03 → default_date/default_amount ต้องว่าง
+        is_monthly_default = bool(
+            snap
+            and snap.get('default_date')
+            and str(snap.get('ncb_months')) == '30'
+        )
+
         base.update({
             'judgment_debt'  : _num(cus.get('total_debt')),
             'judgment_date'  : cus.get('judgment_date'),
+            'default_amount' : snap.get('default_amount') if is_monthly_default else None,
+            'default_date'   : snap.get('default_date') if is_monthly_default else None,
+            'dpd'            : snap.get('dpd_months') if is_monthly_default else None,
+            'dpd_months'     : snap.get('dpd_months') if is_monthly_default else None,
             'remaining_debt' : _calc_remaining_debt(cus, snap),
         })
         return base

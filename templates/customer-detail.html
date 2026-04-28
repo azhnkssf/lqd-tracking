@@ -1661,6 +1661,17 @@
         }
     }
 
+    function setDateRuleLocked(id, locked, title = '') {
+        const display = document.getElementById('dp-display-' + id);
+        if (!display) return;
+
+        display.style.pointerEvents = locked ? 'none' : '';
+        display.style.opacity = locked ? '0.65' : '';
+        display.classList.toggle('cursor-not-allowed', locked);
+        display.classList.toggle('dp-autocalc', locked);
+        display.title = locked ? title : '';
+    }
+
     function setJudgmentFormLocked(locked) {
         const editableInputIds = [
             'total-debt',
@@ -1687,19 +1698,16 @@
         });
 
         const editableDateIds = [
-            'filing-date',
             'judgment-date',
             'first-due-date'
         ];
 
         editableDateIds.forEach(id => {
-            const display = document.getElementById('dp-display-' + id);
-            if (!display) return;
-
-            display.style.pointerEvents = locked ? 'none' : '';
-            display.style.opacity = locked ? '0.65' : '';
-            display.classList.toggle('cursor-not-allowed', locked);
+            setDateRuleLocked(id, locked);
         });
+
+        // วันที่ยื่นฟ้องเป็นข้อมูลตั้งต้นของคดี ห้ามแก้ทั้งพิพากษาตามยอมและพิพากษาฝ่ายเดียว
+        setDateRuleLocked('filing-date', true, 'วันที่ยื่นฟ้องไม่อนุญาตให้แก้ไขหลังสร้างคดี');
 
         const jtTrigger = document.getElementById('jt-trigger');
         if (jtTrigger) {
@@ -1722,6 +1730,70 @@
             if (!btn) return;
             btn.disabled = false; // ปุ่มดูตารางยังให้กดได้
         });
+
+        // หลัง lock/unlock ตามสิทธิ์แล้ว ให้ apply rule เฉพาะประเภทคำพิพากษาซ้ำ
+        // เพื่อกันไม่ให้เคสพิพากษาฝ่ายเดียวถูกปลดล็อกกลับมาเป็นหลายงวด
+        applyJudgmentTypeInputRules(false);
+    }
+
+    function getActiveJudgmentType() {
+        const selected = document.getElementById('judgment-type')?.value || '';
+        if (selected) return selected;
+
+        // กรณีเป็นเคสที่บันทึกคำพิพากษาไปแล้ว dropdown จะถูกซ่อนไว้
+        // ให้ใช้ case_status ปัจจุบันเป็นตัวบอกประเภทคำพิพากษาแทน
+        return currentCus?.case_status || '';
+    }
+
+    function setInputRuleLocked(el, locked, title = '') {
+        if (!el) return;
+
+        el.readOnly = locked;
+        el.classList.toggle('autocalc-input', locked);
+        el.classList.toggle('bg-slate-100', locked);
+        el.classList.toggle('border-slate-300', locked);
+        el.classList.toggle('text-slate-500', locked);
+        el.classList.toggle('cursor-not-allowed', locked);
+        el.title = locked ? title : '';
+    }
+
+    function applyJudgmentTypeInputRules(triggerChanged = true) {
+        const judgmentType = getActiveJudgmentType();
+        const isDefaultJudgment = judgmentType === 'พิพากษาฝ่ายเดียว';
+        const lockedByPermission = currentCus ? !canEditJudgmentData(currentCus.case_status) : false;
+
+        const installmentCount = document.getElementById('installment-count');
+        const installment2 = document.getElementById('installment-2');
+        const installment3 = document.getElementById('installment-3');
+        const installment4 = document.getElementById('installment-4');
+        const followUpInstallments = [installment2, installment3, installment4];
+
+        if (isDefaultJudgment) {
+            if (installmentCount) {
+                installmentCount.value = '1';
+                hideFieldWarn('installment-count');
+                setInputRuleLocked(installmentCount, true, 'พิพากษาฝ่ายเดียวกำหนดเป็น 1 งวดเท่านั้น');
+            }
+
+            followUpInstallments.forEach(el => {
+                if (!el) return;
+                el.value = '0.00';
+                hideFieldWarn(el.id);
+                setInputRuleLocked(el, true, 'พิพากษาฝ่ายเดียวไม่ต้องกรอกค่างวดที่ 2-4');
+            });
+        } else if (!lockedByPermission) {
+            // พิพากษาตามยอม หรือยังไม่เลือกประเภท → ให้กลับไปใช้ logic เดิม
+            setInputRuleLocked(installmentCount, false);
+            followUpInstallments.forEach(el => setInputRuleLocked(el, false));
+        }
+
+        updateDateConstraints();
+        calculateLastDueDate();
+        validateBusinessRules(false);
+
+        if (triggerChanged && typeof onInputChanged === 'function') {
+            onInputChanged();
+        }
     }
 
     // ---- โหลดข้อมูล customer จาก API ----
@@ -1773,6 +1845,7 @@
 
             calculateDiff();
             calculateLastDueDate();
+            applyJudgmentTypeInputRules(false);
 
             document.getElementById('detail-subtitle').textContent =
                 fmtAccNo(data.account_no) + ' - ' + data.name;
@@ -1809,6 +1882,9 @@
 
             // โหลด case status และแสดง progress bar
             currentCus = data
+            applyJudgmentTypeInputRules(false);
+            updateDateConstraints();
+            validateBusinessRules(false);
             if (data.case_status) {
                 const logs = await loadStatusLogs()
                 renderProgressBar(data.case_status, logs)
@@ -1971,12 +2047,149 @@
         return /^\d+$/.test(val.trim());
     }
 
+    const ZERO_REQUIRED_FIELD_IDS = new Set([
+        'interest-rate',
+        'default-interest-rate',
+        'court-fee',
+        'lawyer-fee',
+        'installment-2',
+        'installment-3'
+    ]);
+
+    const ZERO_REQUIRED_MONEY_FIELD_IDS = new Set([
+        'court-fee',
+        'lawyer-fee',
+        'installment-2',
+        'installment-3'
+    ]);
+
+    function addDaysIso(dateStr, days) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + days);
+        return dpDateStr(d);
+    }
+
+    function normalizeRequiredZeroFields() {
+        ZERO_REQUIRED_MONEY_FIELD_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (String(el.value || '').trim() === '') {
+                el.value = '0.00';
+            }
+        });
+
+        ['interest-rate', 'default-interest-rate'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (String(el.value || '').trim() === '') {
+                el.value = '0';
+            }
+        });
+    }
+
+    function showBusinessError(title, message) {
+        if (typeof showAlert === 'function') {
+            showAlert('warning', title, message);
+        } else {
+            showError(message);
+        }
+    }
+
+    function validateBusinessRules(showErrorMessage = false) {
+        normalizeRequiredZeroFields();
+
+        const totalDebtEl = document.getElementById('total-debt');
+        const filingCapitalEl = document.getElementById('filing-capital');
+        const interestEl = document.getElementById('interest-rate');
+        const defaultInterestEl = document.getElementById('default-interest-rate');
+        const firstDueDisplay = document.getElementById('dp-display-first-due-date');
+
+        ['total-debt', 'interest-rate', 'default-interest-rate', 'court-fee', 'lawyer-fee', 'installment-2', 'installment-3'].forEach(id => {
+            document.getElementById(id)?.classList.remove('error');
+            hideFieldWarn(id);
+        });
+        firstDueDisplay?.classList.remove('error');
+
+        const numericRuleFields = [
+            ['total-debt', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['interest-rate', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['default-interest-rate', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['court-fee', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['lawyer-fee', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['installment-2', 'กรุณากรอกตัวเลขเท่านั้น'],
+            ['installment-3', 'กรุณากรอกตัวเลขเท่านั้น'],
+        ];
+
+        for (const [id, msg] of numericRuleFields) {
+            const field = document.getElementById(id);
+            const raw = String(field?.value || '').replace(/,/g, '').trim();
+            if (raw && !/^\d*\.?\d*$/.test(raw)) {
+                field?.classList.add('error');
+                showFieldWarn(id, msg);
+                if (showErrorMessage) showBusinessError('ข้อมูลไม่ถูกต้อง', msg);
+                return false;
+            }
+        }
+
+        const totalDebt = parseNumber(totalDebtEl?.value || '0');
+        const filingCapital = parseNumber(filingCapitalEl?.value || '0');
+        if (filingCapital > 0 && totalDebt > filingCapital) {
+            totalDebtEl?.classList.add('error');
+            showFieldWarn('total-debt', 'ยอดหนี้รวมต้องไม่เกินทุนทรัพย์ที่ฟ้อง');
+            if (showErrorMessage) {
+                showBusinessError('ยอดหนี้รวมไม่ถูกต้อง', 'ยอดหนี้รวมต้องไม่เกินทุนทรัพย์ที่ฟ้อง โดยไม่ต้องรวมดอกเบี้ย');
+            }
+            return false;
+        }
+
+        const interest = parseNumber(interestEl?.value || '0');
+        const defaultInterest = parseNumber(defaultInterestEl?.value || '0');
+        if (interest > 24) {
+            interestEl?.classList.add('error');
+            showFieldWarn('interest-rate', 'อัตราดอกเบี้ย/ปีต้องไม่เกิน 24%');
+            if (showErrorMessage) showBusinessError('อัตราดอกเบี้ยไม่ถูกต้อง', 'อัตราดอกเบี้ย/ปีต้องไม่เกิน 24%');
+            return false;
+        }
+        if (defaultInterest > 24) {
+            defaultInterestEl?.classList.add('error');
+            showFieldWarn('default-interest-rate', 'ดอกเบี้ยเมื่อผิดนัดต้องไม่เกิน 24%');
+            if (showErrorMessage) showBusinessError('ดอกเบี้ยผิดนัดไม่ถูกต้อง', 'ดอกเบี้ยเมื่อผิดนัด (%) ต้องไม่เกิน 24%');
+            return false;
+        }
+
+        const judgmentDate = dpGetValue('judgment-date');
+        const firstDue = dpGetValue('first-due-date');
+        const isDefaultJudgment = getActiveJudgmentType() === 'พิพากษาฝ่ายเดียว';
+        if (judgmentDate && firstDue) {
+            const invalidDate = isDefaultJudgment ? firstDue < judgmentDate : firstDue <= judgmentDate;
+            if (invalidDate) {
+                firstDueDisplay?.classList.add('error');
+                const msg = isDefaultJudgment
+                    ? 'พิพากษาฝ่ายเดียว วันครบกำหนดงวดแรกสามารถเป็นวันเดียวกับวันที่พิพากษาได้ แต่ห้ามน้อยกว่าวันที่พิพากษา'
+                    : 'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา';
+                if (showErrorMessage) showBusinessError('วันที่ครบกำหนดไม่ถูกต้อง', msg);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // ---- Date constraint ----
     function updateDateConstraints() {
         const filingVal   = dpGetValue('filing-date');
         const judgmentVal = dpGetValue('judgment-date');
-        if (filingVal)   dpSetMin('judgment-date', filingVal);
-        if (judgmentVal) dpSetMin('first-due-date', judgmentVal);
+        const isDefaultJudgment = getActiveJudgmentType() === 'พิพากษาฝ่ายเดียว';
+
+        if (filingVal) dpSetMin('judgment-date', filingVal);
+
+        if (judgmentVal) {
+            // ตามยอม: first_due_date ต้องมากกว่าวันพิพากษา
+            // ฝ่ายเดียว: first_due_date เป็นวันเดียวกับวันพิพากษาได้
+            const minFirstDue = isDefaultJudgment ? judgmentVal : addDaysIso(judgmentVal, 1);
+            dpSetMin('first-due-date', minFirstDue);
+        }
     }
 
     function handleMoneyInput(id) {
@@ -1985,10 +2198,10 @@
 
         const before = el.value;
         const cursor = el.selectionStart;
+        const rawNoComma = before.replace(/,/g, '');
+        const hasInvalidChars = /[^\d.]/.test(rawNoComma);
 
-        let cleaned = before
-            .replace(/,/g, '')
-            .replace(/[^\d.]/g, '');
+        let cleaned = rawNoComma.replace(/[^\d.]/g, '');
 
         const firstDotIndex = cleaned.indexOf('.');
         if (firstDotIndex !== -1) {
@@ -1997,8 +2210,13 @@
                 cleaned.slice(firstDotIndex + 1).replace(/\./g, '');
         }
 
-        if (cleaned === '' || cleaned === '.') {
+        if (hasInvalidChars) {
+            showFieldWarn(id, 'กรุณากรอกตัวเลขเท่านั้น');
+        } else {
             hideFieldWarn(id);
+        }
+
+        if (cleaned === '' || cleaned === '.') {
             el.value = cleaned;
             return;
         }
@@ -2008,8 +2226,6 @@
             el.value = cleaned;
             return;
         }
-
-        hideFieldWarn(id);
 
         if (before !== cleaned) {
             const diff = before.length - cleaned.length;
@@ -2026,69 +2242,113 @@
 
     function handleMoneyBlur(id) {
         const el  = document.getElementById(id);
-        const raw = el.value.replace(/,/g, '');
-        if (!raw || isNaN(parseFloat(raw))) { el.value = ''; return; }
+        const raw = el.value.replace(/,/g, '').trim();
+
+        if (!raw || isNaN(parseFloat(raw))) {
+            if (ZERO_REQUIRED_MONEY_FIELD_IDS.has(id)) {
+                el.value = '0.00';
+                hideFieldWarn(id);
+                return;
+            }
+            el.value = '';
+            return;
+        }
+
         const rounded = Math.round(parseFloat(raw) * 100) / 100;
         el.value = rounded.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         hideFieldWarn(id);
     }
 
     // ---- Interest rate handler ----
-    function handleInterestInput() {
-        const el  = document.getElementById('interest-rate');
-        const raw = el.value.replace('%', '').trim();
-        if (raw === '') { hideFieldWarn('interest-rate'); return; }
-        if (!/^[\d]*\.?\d*$/.test(raw)) {
-            showFieldWarn('interest-rate', 'กรุณากรอกตัวเลขเท่านั้น');
-            el.value = raw.replace(/[^\d.]/g, '');
+    function handleRateInput(id, maxMessage) {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const before = String(el.value || '').replace('%', '').trim();
+        const hasInvalidChars = /[^\d.]/.test(before);
+
+        let cleaned = before.replace(/[^\d.]/g, '');
+        const firstDotIndex = cleaned.indexOf('.');
+        if (firstDotIndex !== -1) {
+            cleaned = cleaned.slice(0, firstDotIndex + 1) + cleaned.slice(firstDotIndex + 1).replace(/\./g, '');
+        }
+
+        el.value = cleaned;
+
+        if (hasInvalidChars) {
+            showFieldWarn(id, 'กรุณากรอกตัวเลขเท่านั้น');
             return;
         }
-        hideFieldWarn('interest-rate');
+
+        // ระหว่างพิมพ์ให้รับค่าแบบ 12. / 12.3 / 12.34 ได้ ไม่ยิง error เร็วเกินไป
+        if (cleaned === '' || cleaned === '.') {
+            hideFieldWarn(id);
+            return;
+        }
+
+        const n = Number(cleaned);
+        if (!Number.isNaN(n) && n > 24) {
+            showFieldWarn(id, maxMessage);
+            return;
+        }
+
+        hideFieldWarn(id);
+    }
+
+    function handleRateBlur(id, maxMessage) {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const raw = String(el.value || '').replace('%', '').trim();
+        if (raw === '' || raw === '.') {
+            el.value = '0';
+            hideFieldWarn(id);
+            return;
+        }
+
+        const n = Number(raw);
+        if (Number.isNaN(n)) {
+            el.value = '0';
+            showFieldWarn(id, 'กรุณากรอกตัวเลขเท่านั้น');
+            return;
+        }
+
+        const rounded = Math.round(Math.min(24, Math.max(0, n)) * 100) / 100;
+        el.value = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+
+        if (n > 24) showFieldWarn(id, maxMessage);
+        else hideFieldWarn(id);
+    }
+
+    function handleInterestInput() {
+        handleRateInput('interest-rate', 'อัตราดอกเบี้ย/ปีต้องไม่เกิน 24%');
     }
 
     function handleInterestBlur() {
-        const el  = document.getElementById('interest-rate');
-        const raw = el.value.replace('%', '').trim();
-        if (raw === '') { el.value = '0'; hideFieldWarn('interest-rate'); return; }
-        if (isNaN(parseFloat(raw))) { el.value = '0'; return; }
-        el.value = (Math.round(parseFloat(raw) * 100) / 100).toString();
-        hideFieldWarn('interest-rate');
+        handleRateBlur('interest-rate', 'อัตราดอกเบี้ย/ปีต้องไม่เกิน 24%');
     }
 
     // ---- Default interest rate handler ----
     function handleDefaultInterestInput() {
-        const el  = document.getElementById('default-interest-rate');
-        const raw = el.value.replace('%', '').trim();
-        if (raw === '') { hideFieldWarn('default-interest-rate'); return; }
-        if (!/^[\d]*\.?\d*$/.test(raw)) {
-            showFieldWarn('default-interest-rate', 'กรุณากรอกตัวเลขเท่านั้น');
-            el.value = raw.replace(/[^\d.]/g, '');
-            return;
-        }
-        hideFieldWarn('default-interest-rate');
+        handleRateInput('default-interest-rate', 'ดอกเบี้ยเมื่อผิดนัดต้องไม่เกิน 24%');
     }
 
     function handleDefaultInterestBlur() {
-        const el       = document.getElementById('default-interest-rate');
-        const intRate  = parseFloat(document.getElementById('interest-rate').value) || -1;
-        const raw      = el.value.replace('%', '').trim();
-
-        if (raw === '') {
-            if (intRate === 0) {
-                showFieldWarn('default-interest-rate', 'ดอกเบี้ยปกติเป็น 0% กรุณากรอกดอกเบี้ยผิดนัด (กรอก 0 ถ้าไม่มี)');
-            }
-            el.value = '0';
-            return;
-        }
-        const rounded = Math.round(parseFloat(raw) * 100) / 100;
-            el.value = rounded.toString();
-        
-        hideFieldWarn('default-interest-rate');
+        handleRateBlur('default-interest-rate', 'ดอกเบี้ยเมื่อผิดนัดต้องไม่เกิน 24%');
     }
 
     // ---- Installment count handler ----
     function handleInstallmentCountInput() {
         const el  = document.getElementById('installment-count');
+
+        // ถ้าเป็นพิพากษาฝ่ายเดียว ช่องนี้ต้องเป็น 1 งวดเสมอ
+        if (getActiveJudgmentType() === 'พิพากษาฝ่ายเดียว') {
+            el.value = '1';
+            hideFieldWarn('installment-count');
+            calculateLastDueDate();
+            return;
+        }
+
         const raw = el.value.trim();
         if (raw === '') { hideFieldWarn('installment-count'); return; }
         if (!/^\d+$/.test(raw)) {
@@ -2195,6 +2455,8 @@ function setupFriendlyInputFocus() {
     }
 
     function validate() {
+        normalizeRequiredZeroFields();
+
         const required = [
             { id: 'account-no',       label: 'หมายเลขบัญชี' },
             { id: 'customer-name',    label: 'ชื่อ-นามสกุล' },
@@ -2202,7 +2464,10 @@ function setupFriendlyInputFocus() {
             { id: 'judgment-date',    label: 'วันที่พิพากษา' },
             { id: 'total-debt',       label: 'ยอดหนี้รวม' },
             { id: 'principal',        label: 'เงินต้น' },
-            //{ id: 'interest-rate',    label: 'อัตราดอกเบี้ย/ปี' },
+            { id: 'interest-rate',    label: 'อัตราดอกเบี้ย/ปี' },
+            { id: 'default-interest-rate', label: 'ดอกเบี้ยเมื่อผิดนัด (%)' },
+            { id: 'court-fee',        label: 'ค่าธรรมเนียมศาล' },
+            { id: 'lawyer-fee',       label: 'ค่าทนายความ' },
             { id: 'installment-count', label: 'จำนวนงวดผ่อน' },
             { id: 'first-due-date',   label: 'วันครบกำหนดงวดแรก' },
             { id: 'installment-1',    label: 'ค่างวด งวดที่ 1' },
@@ -2245,8 +2510,7 @@ function setupFriendlyInputFocus() {
             }
         }
 
-        // อัตราดอกเบี้ย/ปี และดอกเบี้ยเมื่อผิดนัด ห้ามเป็น 0 พร้อมกัน
-        if (!validateInterestPairForPreview(true)) {
+        if (!validateBusinessRules(true)) {
             return false;
         }
 
@@ -2373,6 +2637,8 @@ function setupFriendlyInputFocus() {
             return;
         }
 
+        normalizeRequiredZeroFields();
+
         if (!isPreviewFormReady(true)) {
             previewDone = false;
             setSubmitEnabled(false);
@@ -2405,6 +2671,16 @@ function setupFriendlyInputFocus() {
             installment_3:          parseNumber(document.getElementById('installment-3').value),
             installment_4:          parseNumber(document.getElementById('installment-4').value),
         };
+
+        // Guard ฝั่ง FE: พิพากษาฝ่ายเดียวต้องส่งเป็น 1 งวดเสมอ
+        const activeJudgmentTypeForPayload = getActiveJudgmentType();
+        if (activeJudgmentTypeForPayload === 'พิพากษาฝ่ายเดียว') {
+            payload.installment_count = 1;
+            payload.installment_2 = 0;
+            payload.installment_3 = 0;
+            payload.installment_4 = 0;
+            payload.last_due_date = payload.first_due_date || payload.last_due_date;
+        }
 
         // ถ้า case_status = ยื่นฟ้อง และเลือก judgment_type ให้เรียก PATCH /judgment
         const judgmentType   = document.getElementById('judgment-type')?.value || ''
@@ -2531,6 +2807,10 @@ function setupFriendlyInputFocus() {
             { id: 'judgment-date',     label: 'วันที่พิพากษา' },
             { id: 'total-debt',        label: 'ยอดหนี้รวม' },
             { id: 'principal',         label: 'เงินต้น' },
+            { id: 'interest-rate',     label: 'อัตราดอกเบี้ย/ปี' },
+            { id: 'default-interest-rate', label: 'ดอกเบี้ยเมื่อผิดนัด (%)' },
+            { id: 'court-fee',         label: 'ค่าธรรมเนียมศาล' },
+            { id: 'lawyer-fee',        label: 'ค่าทนายความ' },
             { id: 'installment-count', label: 'จำนวนงวดผ่อน' },
             { id: 'first-due-date',    label: 'วันครบกำหนดงวดแรก' },
             { id: 'installment-1',     label: 'ค่างวด งวดที่ 1' },
@@ -2553,41 +2833,21 @@ function setupFriendlyInputFocus() {
         }
 
         const num = Number(raw);
+        if (ZERO_REQUIRED_FIELD_IDS.has(id)) {
+            return Number.isNaN(num);
+        }
         return Number.isNaN(num) || num <= 0;
     }
 
     function validateInterestPairForPreview(showErrorMessage = false) {
-        const interestEl = document.getElementById('interest-rate');
-        const defaultInterestEl = document.getElementById('default-interest-rate');
-
-        if (!interestEl || !defaultInterestEl) return true;
-
-        const interest = parseNum(interestEl.value);
-        const defaultInterest = parseNum(defaultInterestEl.value);
-
-        interestEl.classList.remove('error');
-        defaultInterestEl.classList.remove('error');
-
-        // ต้องมีอย่างน้อย 1 ช่องที่มากกว่า 0
-        if (interest <= 0 && defaultInterest <= 0) {
-            interestEl.classList.add('error');
-            defaultInterestEl.classList.add('error');
-
-            if (showErrorMessage) {
-                showAlert(
-                    'warning',
-                    'กรุณากรอกข้อมูลดอกเบี้ย',
-                    'อัตราดอกเบี้ย/ปี และดอกเบี้ยเมื่อผิดนัด (%) ไม่สามารถเป็น 0 พร้อมกันได้ กรุณากรอกอย่างน้อย 1 ช่องให้มากกว่า 0'
-                );
-            }
-
-            return false;
-        }
-
-        return true;
+        // ชื่อ function เดิมยังคงไว้เพื่อไม่กระทบ flow เดิม
+        // Requirement ใหม่: ทั้งสองช่องต้องมีค่า ถ้าไม่มีให้ใส่ 0 และห้ามเกิน 24%
+        normalizeRequiredZeroFields();
+        return validateBusinessRules(showErrorMessage);
     }
 
     function canAutoPreviewExistingData() {
+        normalizeRequiredZeroFields();
         const requiredFields = getPreviewRequiredFields();
 
         const hasMissingRequired = requiredFields.some(f => {
@@ -2600,15 +2860,11 @@ function setupFriendlyInputFocus() {
 
         if (hasMissingRequired) return false;
 
-        const interest = parseNum(document.getElementById('interest-rate')?.value);
-        const defaultInterest = parseNum(document.getElementById('default-interest-rate')?.value);
-
-        if (interest <= 0 && defaultInterest <= 0) return false;
-
-        return true;
+        return validateBusinessRules(false);
     }
 
     function isPreviewFormReady(showErrorMessage = false) {
+        normalizeRequiredZeroFields();
         document.querySelectorAll('.form-input-styled, .dp-input').forEach(el => {
             el.classList.remove('error');
         });
@@ -2654,7 +2910,7 @@ function setupFriendlyInputFocus() {
             return false;
         }
 
-        if (!validateInterestPairForPreview(showErrorMessage)) {
+        if (!validateBusinessRules(showErrorMessage)) {
             return false;
         }
 
@@ -2812,6 +3068,8 @@ function setupFriendlyInputFocus() {
         const previewBtn = document.getElementById('preview-btn');
         const isManualPreview = previewBtn?.dataset.manual === 'true';
 
+        normalizeRequiredZeroFields();
+
         if (!isPreviewFormReady(isManualPreview)) {
             document.getElementById('schedule-loading').classList.add('hidden');
             document.getElementById('schedule-placeholder').classList.remove('hidden');
@@ -2825,7 +3083,9 @@ function setupFriendlyInputFocus() {
         const filingDate = dpGetValue('filing-date');
         const principal  = document.getElementById('principal').value;
         const intRate    = document.getElementById('interest-rate').value;
-        const instCount  = document.getElementById('installment-count').value;
+        const previewJudgmentType = getActiveJudgmentType();
+        const isDefaultJudgmentPreview = previewJudgmentType === 'พิพากษาฝ่ายเดียว';
+        const instCount  = isDefaultJudgmentPreview ? '1' : document.getElementById('installment-count').value;
         const firstDue   = dpGetValue('first-due-date');
         const inst1      = document.getElementById('installment-1').value;
 
@@ -2849,9 +3109,9 @@ function setupFriendlyInputFocus() {
                     diff_debt:         parseNumber(document.getElementById('diff-debt').value),
                     first_due_date:    firstDue,
                     installment_1:     parseNumber(inst1),
-                    installment_2:     parseNumber(document.getElementById('installment-2').value),
-                    installment_3:     parseNumber(document.getElementById('installment-3').value),
-                    installment_4:     parseNumber(document.getElementById('installment-4').value),
+                    installment_2:     isDefaultJudgmentPreview ? 0 : parseNumber(document.getElementById('installment-2').value),
+                    installment_3:     isDefaultJudgmentPreview ? 0 : parseNumber(document.getElementById('installment-3').value),
+                    installment_4:     isDefaultJudgmentPreview ? 0 : parseNumber(document.getElementById('installment-4').value),
                 })
             });
 
@@ -2892,7 +3152,7 @@ function setupFriendlyInputFocus() {
     }
 
     // ผูก event กับทุก input field
-    const previewFields = ['filing-date','principal','interest-rate','installment-count',
+    const previewFields = ['filing-date','judgment-date','total-debt','principal','interest-rate','default-interest-rate','court-fee','lawyer-fee','installment-count',
                            'first-due-date','installment-1','installment-2',
                            'installment-3','installment-4'];
     previewFields.forEach(id => {
@@ -2917,8 +3177,23 @@ function setupFriendlyInputFocus() {
     // ---- Money fields ----
     ['total-debt', 'principal', 'court-fee', 'lawyer-fee'].forEach(id => {
         const el = document.getElementById(id);
-        el.addEventListener('input',  () => { handleMoneyInput(id); calculateDiff(); onInputChanged(); });
-        el.addEventListener('blur',   () => { handleMoneyBlur(id); calculateDiff(); onInputChanged(); });
+        el.addEventListener('input',  () => {
+            handleMoneyInput(id);
+            calculateDiff();
+            onInputChanged();
+        });
+        el.addEventListener('blur',   () => {
+            handleMoneyBlur(id);
+            calculateDiff();
+
+            // Validate ยอดหนี้รวมทันทีหลังออกจากช่อง
+            // เพื่อดักทั้งตัวอักษร และยอดที่เกินทุนทรัพย์ที่ฟ้อง โดยไม่ต้องรอกด Preview
+            if (id === 'total-debt') {
+                validateBusinessRules(false);
+            }
+
+            onInputChanged();
+        });
     });
 
     // ---- Installment fields ----
@@ -2942,8 +3217,8 @@ function setupFriendlyInputFocus() {
 
     // ---- Date constraints ----
 document.getElementById('filing-date').addEventListener('change', () => { updateDateConstraints(); onInputChanged(); });
-document.getElementById('judgment-date').addEventListener('change', () => { updateDateConstraints(); onInputChanged(); });
-document.getElementById('first-due-date').addEventListener('change', () => { calculateLastDueDate(); onInputChanged(); });
+document.getElementById('judgment-date').addEventListener('change', () => { updateDateConstraints(); validateBusinessRules(false); onInputChanged(); });
+document.getElementById('first-due-date').addEventListener('change', () => { calculateLastDueDate(); validateBusinessRules(false); onInputChanged(); });
 
     // ---- Friendly input focus UX ----
     // ต้องเรียกหลังจากผูก blur/input handler เดิมแล้ว
@@ -3160,12 +3435,12 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             updateDateConstraints();
             onInputChanged();
         } else if (id === 'judgment-date') {
-            const val = dpGetValue('judgment-date');
-            if (val) dpSetMin('first-due-date', val);
             updateDateConstraints();
+            validateBusinessRules(false);
             onInputChanged();
         } else if (id === 'first-due-date') {
             calculateLastDueDate();
+            validateBusinessRules(false);
             onInputChanged();
         }
     }
@@ -3464,8 +3739,8 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         document.getElementById('jt-panel').classList.add('hidden');
         document.getElementById('jt-chevron').style.transform = 'rotate(0deg)';
 
-        // trigger onInputChanged ถ้ามี
-        if (typeof onInputChanged === 'function') onInputChanged();
+        // ใช้ rule เฉพาะประเภทคำพิพากษาทันทีหลังเลือก
+        applyJudgmentTypeInputRules(true);
     }
 
     // ปิด dropdown เมื่อคลิกนอก
@@ -3489,6 +3764,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         });
         document.getElementById('jt-panel')?.classList.add('hidden');
         document.getElementById('jt-chevron').style.transform = 'rotate(0deg)';
+        applyJudgmentTypeInputRules(false);
     }
 
     setupUI();

@@ -35,9 +35,27 @@ def compute_customer_status(cus, payments):
         return 'ชำระปกติ'
 
     last_row = daily_rows[-1]
-    if round(last_row['T'], 2) <= 0:
+
+    # ============================================================
+    # Status rule
+    # ============================================================
+    # เดิมระบบดู outstanding เป็นหลัก ถ้า outstanding = 0 จะคืนค่า "ชำระปกติ"
+    # แต่ในเคสพิพากษาฝ่ายเดียว / หรือเคสที่จ่ายมาแล้วยังเหลือเงินต้น
+    # อาจเกิดสถานการณ์ที่ outstanding ตามงวด = 0 แต่ T (เงินต้นคงเหลือ) ยัง > 0
+    # ดังนั้นต้องกันไม่ให้ขึ้น "ชำระปกติ" ถ้ายังมีเงินต้นคงเหลือ
+    #
+    # หมายเหตุ: ไม่เปลี่ยน logic ปิดบัญชีเดิม
+    # - ถ้า T <= 0 ยังถือว่า "ปิดบัญชี" เหมือนเดิม
+    # - ถ้า outstanding > 0 ยังถือว่า "ค้างชำระ" เหมือนเดิม
+    # - เพิ่มเฉพาะ guard กรณี T > 0 ก่อนจะตกไปเป็น "ชำระปกติ"
+    principal_bal = round(float(last_row.get('T') or 0), 2)
+    outstanding   = round(float(last_row.get('outstanding') or 0), 2)
+
+    if principal_bal <= 0:
         return 'ปิดบัญชี'
-    elif last_row['outstanding'] > 0:
+    elif outstanding > 0:
+        return 'ค้างชำระ'
+    elif principal_bal > 0:
         return 'ค้างชำระ'
     else:
         return 'ชำระปกติ'

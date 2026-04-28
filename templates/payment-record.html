@@ -1311,27 +1311,329 @@
         }
     }
 
+    function isDefaultSingleJudgment(cus = {}) {
+        const installmentCount = Number(cus.installment_count || 0);
+        if (installmentCount !== 1) return false;
+
+        // ตอนยังไม่ปิดบัญชี backend จะส่ง case_status = 'พิพากษาฝ่ายเดียว'
+        if (cus.case_status === 'พิพากษาฝ่ายเดียว') return true;
+
+        // หลังจ่ายครบ backend เปลี่ยน case_status เป็น 'ปิดบัญชี'
+        // ทำให้หน้า FE ไม่รู้แล้วว่าเดิมเป็นฝ่ายเดียวหรือไม่
+        // ดังนั้นต้อง infer จากโครงสร้างคำพิพากษางวดเดียว + มี payment จริงมากกว่า 1 ครั้ง
+        // เพื่อไม่ให้ตารางยุบกลับไปเหลือ 1 งวดหลังปิดบัญชี
+        const payments = window._payments || [];
+        const inst2 = Number(cus.installment_2 || 0);
+        const inst3 = Number(cus.installment_3 || 0);
+        const inst4 = Number(cus.installment_4 || 0);
+        const isSingleDueStructure = inst2 === 0 && inst3 === 0 && inst4 === 0;
+        const hasMultipleActualPayments = payments.length > 1;
+
+        return cus.case_status === 'ปิดบัญชี' && isSingleDueStructure && hasMultipleActualPayments;
+    }
+
+    function parseIsoDateLocal(dateStr) {
+        if (!dateStr) return null;
+        const [y, m, d] = String(dateStr).split('-').map(Number);
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
+    }
+
+    function toIsoDateLocal(dt) {
+        if (!dt) return '';
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function addMonthsIso(dateStr, months) {
+        const dt = parseIsoDateLocal(dateStr);
+        if (!dt) return '';
+        const originalDay = dt.getDate();
+        dt.setMonth(dt.getMonth() + Number(months || 0));
+
+        // กันเคสวันที่ 31 แล้วเดือนถัดไปไม่มี 31 จน JS overflow ข้ามเดือน
+        if (dt.getDate() !== originalDay) {
+            dt.setDate(0);
+        }
+
+        return toIsoDateLocal(dt);
+    }
+
+    function daysBetweenIso(startDate, endDate) {
+        const start = parseIsoDateLocal(startDate);
+        const end = parseIsoDateLocal(endDate);
+        if (!start || !end) return 0;
+        return Math.max(0, Math.round((end - start) / 86400000));
+    }
+
+    function buildDefaultJudgmentFallbackRow(cus, dailyRows, existingRows) {
+        const payRows = dailyRows.filter(r => r.is_pay_date);
+        const lastPay = payRows.length ? payRows[payRows.length - 1] : null;
+        if (!lastPay) return null;
+
+        const principalBal = Number(lastPay.T || 0);
+        const outstandingNow = Number(lastPay.outstanding || 0);
+        if (principalBal <= 0 && outstandingNow <= 0) return null;
+
+        const nextTerm = Number(lastPay.term || existingRows.length || 1) + 1;
+        const nextDueDate = addMonthsIso(cus.first_due_date, nextTerm - 1);
+        if (!nextDueDate) return null;
+
+        const alreadyExists = existingRows.some(r => String(r.date) === nextDueDate || Number(r.term || 0) === nextTerm);
+        if (alreadyExists) return null;
+
+        // ใช้เป็น fallback เฉพาะกรณี API ยังไม่ได้ส่ง daily row ถึง due ถัดไปมาให้
+        // ยอดนี้เป็น projected payoff คร่าว ๆ จากเงินต้นคงเหลือ + ดอกใหม่ถึง due ถัดไป
+        // ถ้า backend ส่ง row term ถัดไปมาแล้ว จะไม่ใช้ fallback นี้
+        const rate = Number(cus.interest_rate || 0) / 100;
+        const extraDays = daysBetweenIso(lastPay.date, nextDueDate);
+        const projectedInterest = principalBal > 0 && rate > 0 ? (principalBal * rate * extraDays / 365) : 0;
+        const projectedOutstanding = Math.max(0, outstandingNow + projectedInterest);
+
+        return {
+            term: nextTerm,
+            date: nextDueDate,
+            payment: projectedOutstanding,
+            _is_virtual_followup: true,
+            _projected_row: {
+                ...lastPay,
+                date: nextDueDate,
+                term: nextTerm,
+                is_pay_date: false,
+                is_due_date: true,
+                pay_amount: 0,
+                M: 0,
+                P: 0,
+                R: 0,
+                T: principalBal,
+                outstanding: projectedOutstanding,
+                dpd_months: 0,
+                ncb_months: '31',
+                ncb_code: '31'
+            }
+        };
+    }
+
+    function sortByDateThenId(a, b) {
+        const da = String(a.payment_date || a.date || '');
+        const db = String(b.payment_date || b.date || '');
+        if (da < db) return -1;
+        if (da > db) return 1;
+        return Number(a.id || 0) - Number(b.id || 0);
+    }
+
+    function findMatchingPayRowForPayment(payment, payRows, usedIndexes) {
+        if (!payment || !payRows || !payRows.length) return null;
+
+        // 1) match ด้วย id ก่อน ถ้ามี _payment_id จาก backend mapping
+        const pid = Number(payment.id || 0);
+        if (pid) {
+            const byIdIndex = payRows.findIndex((r, idx) => !usedIndexes.has(idx) && Number(r._payment_id || 0) === pid);
+            if (byIdIndex >= 0) {
+                usedIndexes.add(byIdIndex);
+                return payRows[byIdIndex];
+            }
+        }
+
+        // 2) match ด้วยวันที่ + จำนวนเงิน
+        const pDate = String(payment.payment_date || '');
+        const pAmount = Number(payment.amount || payment.pay_amount || 0);
+        const byDateAmountIndex = payRows.findIndex((r, idx) => {
+            if (usedIndexes.has(idx)) return false;
+            const sameDate = String(r.date || '') === pDate;
+            const sameAmount = Math.abs(Number(r.pay_amount || 0) - pAmount) < 0.01;
+            return sameDate && sameAmount;
+        });
+        if (byDateAmountIndex >= 0) {
+            usedIndexes.add(byDateAmountIndex);
+            return payRows[byDateAmountIndex];
+        }
+
+        // 3) fallback: match เฉพาะวันที่
+        const byDateIndex = payRows.findIndex((r, idx) => !usedIndexes.has(idx) && String(r.date || '') === pDate);
+        if (byDateIndex >= 0) {
+            usedIndexes.add(byDateIndex);
+            return payRows[byDateIndex];
+        }
+
+        return null;
+    }
+
+    function getProjectedRowForTerm(cus, dailyRows, term) {
+        const dueDate = addMonthsIso(cus.first_due_date, Number(term || 1) - 1);
+        let candidate = null;
+
+        (dailyRows || []).forEach(r => {
+            const rTerm = Number(r.term || 0);
+            const sameTerm = rTerm === Number(term);
+            const sameDueDate = dueDate && String(r.date || '') === dueDate;
+            if (!sameTerm && !sameDueDate) return;
+
+            if (!candidate || sameDueDate || r.is_due_date) {
+                candidate = r;
+            }
+        });
+
+        return candidate;
+    }
+
+    function getVirtualTermForDate(dateStr, firstDueDateStr) {
+        const rowDate = parseIsoDateLocal(dateStr);
+        const firstDue = parseIsoDateLocal(firstDueDateStr);
+        if (!rowDate || !firstDue) return 1;
+
+        let diffMonths = (rowDate.getFullYear() - firstDue.getFullYear()) * 12 + (rowDate.getMonth() - firstDue.getMonth());
+        if (rowDate.getDate() < firstDue.getDate()) diffMonths -= 1;
+        return Math.max(1, diffMonths + 1);
+    }
+
+    function buildMonthlyRowsForDisplay(cus, planMonthly, dailyRows) {
+        const baseRows = (planMonthly || []).map((r, idx) => ({
+            ...r,
+            term: Number(r.term || idx + 1)
+        }));
+
+        if (!isDefaultSingleJudgment(cus)) return baseRows;
+
+        const payments = [...(window._payments || [])].sort(sortByDateThenId);
+        const payRows = (dailyRows || [])
+            .filter(r => r.is_pay_date)
+            .sort((a, b) => {
+                const da = String(a.date || '');
+                const db = String(b.date || '');
+                if (da < db) return -1;
+                if (da > db) return 1;
+                return Number(a._payment_id || 0) - Number(b._payment_id || 0);
+            });
+
+        const dueRows = (dailyRows || [])
+            .filter(r => r.is_due_date)
+            .sort((a, b) => Number(a.term || 0) - Number(b.term || 0));
+
+        const rowsByTerm = {};
+        const firstPlan = baseRows[0] || {
+            term: 1,
+            date: cus.first_due_date,
+            payment: Number(cus.installment_1 || cus.total_debt || 0)
+        };
+
+        // 1) เริ่มจากแผนคำพิพากษาจริง งวดแรก
+        baseRows.forEach((r, idx) => {
+            const term = Number(r.term || idx + 1);
+            rowsByTerm[term] = { ...r, term };
+        });
+
+        // 2) เพิ่ม due rows ที่ backend คำนวณ actual/virtual มาให้
+        // เช่น first_due 04/03, today 28/04 => backend ส่ง 04/03, 04/04, 04/05
+        dueRows.forEach(r => {
+            const term = Number(r.term || getVirtualTermForDate(r.date, cus.first_due_date));
+            if (!term) return;
+
+            const expectedAmount = term === 1
+                ? Number(firstPlan.payment || cus.installment_1 || cus.total_debt || 0)
+                : Number(r.outstanding || r.T || 0);
+
+            rowsByTerm[term] = {
+                ...(rowsByTerm[term] || firstPlan),
+                term,
+                date: r.date || addMonthsIso(cus.first_due_date, term - 1),
+                payment: expectedAmount,
+                _is_virtual_followup: term > 1,
+                _projected_row: r
+            };
+        });
+
+        // 3) ผูก actual payment เข้ากับงวดที่เกิดขึ้นจริง
+        // ใช้ term จาก daily row ก่อน ถ้าไม่มีค่อยคำนวณจากวันที่จ่าย
+        // ถ้าวันเดียว/term เดียวมีหลายรายการ ให้เลื่อนไป term ถัดไปเพื่อไม่ให้หายเหลือแถวเดียว
+        const usedPayRowIndexes = new Set();
+        payments.forEach((payment, idx) => {
+            const matchedPayRow = findMatchingPayRowForPayment(payment, payRows, usedPayRowIndexes);
+
+            let term = Number(matchedPayRow?.term || 0);
+            if (!term) term = getVirtualTermForDate(payment.payment_date, cus.first_due_date);
+            if (!term) term = idx + 1;
+
+            while (rowsByTerm[term] && rowsByTerm[term]._actual_payment) {
+                term += 1;
+            }
+
+            const dueDate = addMonthsIso(cus.first_due_date, term - 1) || payment.payment_date || firstPlan.date;
+            const projectedRow = getProjectedRowForTerm(cus, dailyRows, term);
+            const analysisRow = matchedPayRow || projectedRow || rowsByTerm[term]?._projected_row || null;
+            const actualAmount = Number(payment.amount || payment.pay_amount || (matchedPayRow ? matchedPayRow.pay_amount : 0) || 0);
+
+            let expectedAmount;
+            if (term === 1) {
+                expectedAmount = Number(firstPlan.payment || cus.installment_1 || cus.total_debt || actualAmount || 0);
+            } else if (projectedRow && Number(projectedRow.outstanding || 0) > 0) {
+                expectedAmount = Number(projectedRow.outstanding || 0);
+            } else if (analysisRow && Number(analysisRow.outstanding || 0) > 0) {
+                expectedAmount = Number(analysisRow.outstanding || 0);
+            } else {
+                expectedAmount = actualAmount;
+            }
+
+            rowsByTerm[term] = {
+                ...(rowsByTerm[term] || firstPlan),
+                term,
+                date: dueDate,
+                payment: expectedAmount,
+                _is_virtual_followup: term > 1,
+                _is_actual_followup: term > 1,
+                _actual_payment: payment,
+                _actual_pay_row: matchedPayRow,
+                _projected_row: analysisRow
+            };
+        });
+
+        // 4) fallback เฉพาะกรณี backend ยังไม่ได้ส่ง due ถัดไปมา
+        const currentRows = Object.values(rowsByTerm);
+        const maxTerm = currentRows.reduce((max, r) => Math.max(max, Number(r.term || 0)), 0);
+        const fallbackRow = buildDefaultJudgmentFallbackRow(cus, dailyRows, currentRows);
+        if (fallbackRow && Number(fallbackRow.term || 0) > maxTerm) {
+            rowsByTerm[Number(fallbackRow.term)] = fallbackRow;
+        }
+
+        return Object.values(rowsByTerm)
+            .sort((a, b) => Number(a.term || 0) - Number(b.term || 0));
+    }
+
     async function loadScheduleAndPayments(data) {
-        const cus        = data.customer;
-        const payments   = data.payments;
-        const dailyRows  = data.daily_rows  || [];
+        const cus         = data.customer;
+        const payments    = data.payments;
+        const dailyRows   = data.daily_rows  || [];
         const planMonthly = data.plan_monthly || [];
 
         window._payments  = payments;
 
-        const paymentMap = {};
+        const paymentBuckets = {};
         payments.forEach(p => {
-            paymentMap[p.payment_date] = p;
+            const key = p.payment_date;
+            if (!paymentBuckets[key]) paymentBuckets[key] = [];
+            paymentBuckets[key].push(p);
         });
+        Object.values(paymentBuckets).forEach(list => list.sort(sortByDateThenId));
+
+        const usedPaymentIndexByDate = {};
         dailyRows.forEach(r => {
-            if (r.is_pay_date && paymentMap[r.date]) {
-                r._payment_overpayment = paymentMap[r.date].overpayment || 0;
-                r._payment_refunded    = paymentMap[r.date].refunded    || 0;
-                r._payment_id          = paymentMap[r.date].id          || 0;
+            if (!r.is_pay_date) return;
+
+            const list = paymentBuckets[r.date] || [];
+            const usedIndex = usedPaymentIndexByDate[r.date] || 0;
+            const matched = list[usedIndex] || list.find(p => Math.abs(Number(p.amount || 0) - Number(r.pay_amount || 0)) < 0.01) || null;
+
+            if (matched) {
+                r._payment_overpayment = matched.overpayment || 0;
+                r._payment_refunded    = matched.refunded    || 0;
+                r._payment_id          = matched.id          || 0;
+                usedPaymentIndexByDate[r.date] = usedIndex + 1;
             }
         });
         window._dailyRows = dailyRows;
-        scheduleRows      = planMonthly;
+        scheduleRows      = buildMonthlyRowsForDisplay(cus, planMonthly, dailyRows);
         scheduleAllRows   = dailyRows;
 
         const principalBal = data.principal_bal ?? cus.principal;
@@ -1344,47 +1646,61 @@
         const tbody    = document.getElementById('table-body');
         const dailyAll = window._dailyRows || [];
         if (!planRows.length && !dailyAll.length) {
-            tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-300 text-sm">ไม่มีข้อมูล</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="py-8 text-center text-slate-300 text-sm">ไม่มีข้อมูล</td></tr>';
             return;
         }
 
-        // สร้าง map จาก due_date → payment record จาก daily_rows
+        // map จาก term → payment row ใช้กับเคสทั่วไปเท่านั้น
+        // เคสพิพากษาฝ่ายเดียวจะใช้ _actual_pay_row / _actual_payment ที่ผูกตามลำดับการจ่ายจริงแล้ว
         const payByTerm = {};
         dailyAll.forEach(r => {
             if (r.is_pay_date) {
-                const t = r.term;
+                const t = Number(r.term || 0);
                 if (!payByTerm[t]) payByTerm[t] = [];
                 payByTerm[t].push(r);
             }
         });
 
         tbody.innerHTML = planRows.map((plan, i) => {
-            const termNum  = i + 1;
-            const payRows  = payByTerm[termNum] || [];
-            const lastPay  = payRows.length > 0 ? payRows[payRows.length - 1] : null;
-            const isCurr   = false;
-            const isPaid   = lastPay !== null;
-            const rowCls   = isPaid
+            const termNum = Number(plan.term || i + 1);
+            const isDefaultRow = isDefaultSingleJudgment(customerData || {}) && plan._actual_payment;
+
+            const termPayRows = payByTerm[termNum] || [];
+            const lastPay = isDefaultRow
+                ? (plan._actual_pay_row || null)
+                : (termPayRows.length > 0 ? termPayRows[termPayRows.length - 1] : null);
+
+            const actualPayment = plan._actual_payment || null;
+            const projected = plan._projected_row || null;
+            const analysisRow = lastPay || projected;
+            const isPaid = !!(lastPay || actualPayment);
+            const isVirtual = plan._is_virtual_followup === true;
+            const rowCls = isPaid
                 ? 'border-b border-slate-50 hover:bg-slate-50'
-                : 'border-b border-slate-50 opacity-40';
+                : (isVirtual ? 'border-b border-indigo-50 bg-indigo-50/25 hover:bg-indigo-50/40' : 'border-b border-slate-50 opacity-40');
 
-            const ncb_d    = lastPay ? (lastPay.ncb_days   || '31') : null;
-            const ncb_m    = lastPay ? (lastPay.ncb_months || '31') : null;
-            const dpd_d    = lastPay ? lastPay.dpd_days   : null;
-            const dpd_m    = lastPay ? lastPay.dpd_months  : null;
+            const ncb_m = analysisRow ? (analysisRow.ncb_months || analysisRow.ncb_code || '31') : null;
+            const dpd_m = analysisRow ? analysisRow.dpd_months : null;
+            const expected = Number(plan.payment || 0);
 
-            const mAcc = lastPay ? fmt(lastPay.M) : '-';
+            const paidDate = actualPayment ? actualPayment.payment_date : (lastPay ? lastPay.date : null);
+            const paidAmount = actualPayment ? Number(actualPayment.amount || 0) : (lastPay ? Number(lastPay.pay_amount || 0) : 0);
+            const mAcc = lastPay ? fmt(lastPay.M) : (isPaid ? fmt(paidAmount) : '-');
+            const principalBalText = analysisRow ? fmt(analysisRow.T) : '-';
+            const interestPaidText = lastPay ? fmt(lastPay.P) : '-';
+            const principalPaidText = lastPay ? fmt(lastPay.R) : '-';
+
             return `<tr class="${rowCls} transition-colors">
-                <td class="py-3 font-bold text-slate-400">${String(termNum).padStart(2,'0')}</td>
+                <td class="py-3 font-bold ${isVirtual && !isPaid ? 'text-indigo-400' : 'text-slate-400'}">${String(termNum).padStart(2,'0')}</td>
                 <td class="py-3 text-slate-600">${fmtDate(plan.date)}</td>
-                <td class="py-3 text-slate-700 font-medium">${fmt(plan.payment)}</td>
-                <td class="py-3 font-bold text-primary group-border-left">${lastPay ? fmtDate(lastPay.date) : '-'}</td>
-                <td class="py-3 font-bold text-primary">${lastPay ? fmt(lastPay.pay_amount) : '-'}</td>
+                <td class="py-3 text-slate-700 font-medium">${fmt(expected)}</td>
+                <td class="py-3 font-bold text-primary group-border-left">${paidDate ? fmtDate(paidDate) : '-'}</td>
+                <td class="py-3 font-bold text-primary">${isPaid ? fmt(paidAmount) : '-'}</td>
                 <td class="py-3 font-bold text-orange-700">${mAcc}</td>
-                <td class="py-3 font-bold text-slate-800 group-border-left">${lastPay ? fmt(lastPay.T) : '-'}</td>
-                <td class="py-3 text-orange-600 font-bold">${lastPay ? fmt(lastPay.P) : '-'}</td>
-                <td class="py-3 text-emerald-600 font-bold">${lastPay ? fmt(lastPay.R) : '-'}</td>
-                <td class="py-3 ${dpd_m > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}">${dpd_m !== null ? dpd_m : '-'}</td>
+                <td class="py-3 font-bold text-slate-800 group-border-left">${principalBalText}</td>
+                <td class="py-3 text-orange-600 font-bold">${interestPaidText}</td>
+                <td class="py-3 text-emerald-600 font-bold">${principalPaidText}</td>
+                <td class="py-3 ${dpd_m > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}">${dpd_m !== null && dpd_m !== undefined ? dpd_m : '-'}</td>
                 <td class="py-3">${ncb_m ? ncbBadge(ncb_m) : '-'}</td>
             </tr>`;
         }).join('');
@@ -1393,7 +1709,6 @@
             `แสดง ${planRows.length} งวด | ชำระแล้ว ${(window._payments||[]).length} ครั้ง`;
         document.getElementById('table-pagination').innerHTML = '';
     }
-
     // ---- Search ----
     async function searchAccount() {
         const val = document.getElementById('search-input').value.trim();

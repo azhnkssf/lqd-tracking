@@ -1134,10 +1134,10 @@ tailwind.config = {
         const body = document.getElementById('table-body');
 
         if (tab === '30') {
-            head.innerHTML = ['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','ยอดหนี้คำพิพากษา (฿)','วันที่พิพากษา','วันที่ผิดนัด','ยอดหนี้ผิดนัด (฿)','DPD (เดือน)']
+            head.innerHTML = ['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','ยอดหนี้คำพิพากษา (฿)','วันที่พิพากษา','วันที่ผิดนัด','ยอดหนี้ผิดนัด (฿)','DPD (เดือน)','ยอดหนี้คงเหลือ (฿)']
                 .map(h => `<th class="${TH}">${h}</th>`).join('');
             const rows = reportData.report_30;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="8" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr class="hover:bg-red-50/40 transition-colors">
                 <td class="px-5 py-3">
                     <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
@@ -1153,7 +1153,10 @@ tailwind.config = {
                         ? `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">${r.dpd_months}</span>`
                         : `<span class="text-xs text-slate-300">0</span>`}
                 </td>
-            </tr>`).join('');
+                <td class="px-5 py-3 text-xs text-right font-semibold text-slate-700">
+                    ${r.remaining_debt ? fmt(r.remaining_debt) : '<span class="text-slate-300">-</span>'}
+                </td>
+                </tr>`).join('');
 
         } else if (tab === '31') {
             head.innerHTML = ['เลขที่บัญชี','Amount Owed (฿)','Amount Past Due (฿)','DPD (เดือน)','Default Date','Installment Amount (฿)','จำนวนงวด','NCB Status']
