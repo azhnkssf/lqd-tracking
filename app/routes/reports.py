@@ -1,6 +1,7 @@
 import io
 import json
 import openpyxl
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.worksheet.worksheet import Worksheet
 from flask import Blueprint, request, jsonify, send_file
@@ -22,6 +23,17 @@ bp = Blueprint('reports', __name__, url_prefix='/api/report')
 def get_current_user():
     token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+def round_money(v, decimals=2, default=0.0):
+    if v is None or v == '':
+        return default
+
+    try:
+        q = Decimal('1').scaleb(-decimals)
+        return float(Decimal(str(v)).quantize(q, rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
 
 
 @bp.route('/generate', methods=['POST'])
@@ -142,12 +154,7 @@ def export_report(report_type):
             cell.alignment = center
 
         def fmt_num_30(v, decimals=2):
-            if v is None:
-                return 0.0
-            try:
-                return round(float(v), decimals)
-            except Exception:
-                return 0.0
+            return round_money(v, decimals, default=0.0)
 
         for r in rows:
             ws.append([
@@ -175,7 +182,7 @@ def export_report(report_type):
         headers = [
             'เลขที่บัญชี', 'Amount Owed', 'Amount Past Due',
             'DPD (เดือน)', 'Default Date', 'Installment Amount',
-            'จำนวนงวด', 'NCB Status'
+            'จำนวนงวด', 'Frequency', 'Maturity Date'
         ]
         ws.append(headers)
         for cell in ws[1]:
@@ -184,23 +191,19 @@ def export_report(report_type):
             cell.alignment = center
 
         def fmt_num(v, decimals=2):
-            if v is None:
-                return 0.0
-            try:
-                return round(float(v), decimals)
-            except Exception:
-                return 0.0
+            return round_money(v, decimals, default=0.0)
 
         for r in rows:
             ws.append([
                 r.get('account_no'),
                 fmt_num(r.get('amount_owed'), 2),
-                0.00,
+                fmt_num(r.get('amount_past_due'), 2),
                 int(r.get('dpd') or 0),
                 fmt_date_excel(r.get('default_date')),
                 fmt_num(r.get('installment_amount'), 2),
                 int(r.get('installment_count') or 0),
-                str(r.get('ncb_status') or '-'),
+                str(r.get('frequency') or '00'),
+                fmt_date_excel(r.get('maturity_date')),
             ])
             for cell in ws[ws.max_row]:
                 cell.fill = fill_31
@@ -254,12 +257,7 @@ def export_all_reports():
         return s
 
     def fmt_num(v, decimals=2):
-        if v is None or v == '':
-            return 0.0
-        try:
-            return round(float(v), decimals)
-        except Exception:
-            return 0.0
+        return round_money(v, decimals, default=0.0)
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
@@ -345,7 +343,8 @@ def export_all_reports():
             'Default Date',
             'Installment Amount',
             'จำนวนงวด',
-            'NCB Status',
+            'Frequency',
+            'Maturity Date',
         ])
         style_header(ws)
 
@@ -358,7 +357,8 @@ def export_all_reports():
                 fmt_date_excel(r.get('default_date')),
                 fmt_num(r.get('installment_amount'), 2),
                 int(r.get('installment_count') or 0),
-                str(r.get('ncb_status') or '-'),
+                str(r.get('frequency') or '00'),
+                fmt_date_excel(r.get('maturity_date')),
             ])
             paint_row(ws, fill_31)
 

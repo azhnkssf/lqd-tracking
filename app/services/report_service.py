@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from dateutil.relativedelta import relativedelta
 from app.services.schedule_service import generate_full_daily_schedule, get_due_date
 
@@ -128,6 +129,24 @@ def get_installment_for_month(cus, report_date):
         else:           return filled[3]
 
 
+
+def get_maturity_date(cus):
+    """
+    คำนวณวันครบกำหนดงวดสุดท้ายสำหรับ Report 31
+    Maturity Date = first_due_date + (installment_count - 1) เดือน
+    """
+    first_due = cus.get('first_due_date')
+    term_months = int(_num(cus.get('installment_count'), 0) or 0)
+
+    if not first_due or term_months <= 0:
+        return None
+
+    if isinstance(first_due, str):
+        first_due = date.fromisoformat(first_due)
+
+    maturity_date = first_due + relativedelta(months=term_months - 1)
+    return maturity_date.isoformat()
+
 def get_snapshot_at_date(cus, payments, report_date):
     """
     คำนวณ daily schedule ถึงวันที่ report_date
@@ -186,16 +205,29 @@ def get_snapshot_at_date(cus, payments, report_date):
             dpd_months = 0
             ncb_months = '31'
 
+    principal_bal_raw = target_row.get('T', 0)
+    acc_interest_raw = target_row.get('O', 0)
+    outstanding_raw = target_row.get('outstanding', 0)
+
     return {
-        'principal_bal'  : round(target_row.get('T', 0), 2),
-        'acc_interest'   : round(target_row.get('O', 0), 2),
-        'outstanding'    : round(target_row.get('outstanding', 0), 2),
-        'default_date'   : default_date,
-        'default_amount' : default_amount,
-        'dpd_days'       : target_row.get('dpd_days', 0),
-        'dpd_months'     : dpd_months,
-        'ncb_days'       : target_row.get('ncb_days', '31'),
-        'ncb_months'     : ncb_months,
+        # เก็บค่าแสดงผล 2 ตำแหน่งไว้เหมือนเดิม เพื่อไม่กระทบจุดอื่นที่อาจใช้ field เดิม
+        'principal_bal'      : _round_money(principal_bal_raw),
+        'acc_interest'       : _round_money(acc_interest_raw),
+        'outstanding'        : _round_money(outstanding_raw),
+
+        # เก็บค่าดิบไว้ใช้รวมยอดหนี้ก่อนปัดเศษครั้งเดียว
+        # ป้องกันปัญหา 60313.418332 ถูกคำนวณจากค่าที่ถูกปัดแยกส่วนจนเหลือ 60313.41
+        'principal_bal_raw'  : principal_bal_raw,
+        'acc_interest_raw'   : acc_interest_raw,
+        'outstanding_raw'    : outstanding_raw,
+        'remaining_debt_raw' : _calc_remaining_from_daily_row(cus, target_row),
+
+        'default_date'       : default_date,
+        'default_amount'     : default_amount,
+        'dpd_days'           : target_row.get('dpd_days', 0),
+        'dpd_months'         : dpd_months,
+        'ncb_days'           : target_row.get('ncb_days', '31'),
+        'ncb_months'         : ncb_months,
     }
 
 
@@ -323,6 +355,22 @@ def _num(v, default=0.0):
         return default
 
 
+def _dec(v, default='0'):
+    try:
+        if v is None or v == '':
+            return Decimal(default)
+        return Decimal(str(v))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal(default)
+
+
+def _round_money(v, default=0.0):
+    try:
+        return float(_dec(v).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+    except Exception:
+        return default
+
+
 def _get_principal_sued(cus, fallback=None):
     return (
         cus.get('filing_capital') or
@@ -342,7 +390,12 @@ def _calc_diff_debt(cus):
 
 
 def _calc_remaining_from_values(cus, principal_bal=0, acc_interest=0):
-    return round(_num(principal_bal) + _num(acc_interest) + _calc_diff_debt(cus), 2)
+    total = (
+        _dec(principal_bal) +
+        _dec(acc_interest) +
+        _dec(_calc_diff_debt(cus))
+    )
+    return float(total)
 
 
 def _calc_remaining_from_daily_row(cus, row):
@@ -357,13 +410,16 @@ def _calc_remaining_from_daily_row(cus, row):
 
 def _calc_remaining_debt(cus, snap):
     if not snap:
-        return _num(cus.get('total_debt'))
+        return _round_money(cus.get('total_debt'))
 
-    return _calc_remaining_from_values(
+    if snap.get('remaining_debt_raw') is not None:
+        return _round_money(snap.get('remaining_debt_raw'))
+
+    return _round_money(_calc_remaining_from_values(
         cus,
-        principal_bal=snap.get('principal_bal', 0),
-        acc_interest=snap.get('acc_interest', 0),
-    )
+        principal_bal=snap.get('principal_bal_raw', snap.get('principal_bal', 0)),
+        acc_interest=snap.get('acc_interest_raw', snap.get('acc_interest', 0)),
+    ))
 
 
 def _build_report30_row_from_db(account_no, status, filing_date, principal_sued, cus, snap=None, report_date_str=None):
@@ -426,6 +482,10 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
 def _build_report31_row(account_no, cus, snap, report_date_str):
     """สร้าง row Report 31"""
     inst_amount = get_installment_for_month(cus, report_date_str)
+    installment_count = int(_num(cus.get('installment_count'), 0) or 0)
+    frequency = '30' if installment_count > 1 else '00'
+    maturity_date = get_maturity_date(cus)
+
     diff_debt = (
         float(cus.get('court_fee') or 0) +
         float(cus.get('lawyer_fee') or 0) +
@@ -434,18 +494,28 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
     )
 
     amount_owed = (
-        snap.get('principal_bal', 0) +
-        snap.get('acc_interest', 0) +
-        diff_debt
+        _dec(snap.get('principal_bal_raw', snap.get('principal_bal', 0))) +
+        _dec(snap.get('acc_interest_raw', snap.get('acc_interest', 0))) +
+        _dec(diff_debt)
     )
+
+    # Grace Period รายเดือน:
+    # ถ้า due อยู่ในเดือนเดียวกับวันที่ขอ report และยังไม่ถึงวันที่ 1 ของเดือนถัดไป
+    # get_snapshot_at_date() จะยังไม่มี default_date และตั้ง dpd_months = 0
+    # ดังนั้น Amount Past Due ต้องเป็น 0.00 จนกว่าจะเกิด default รายเดือนจริง
+    is_monthly_default = bool(snap and snap.get('default_date'))
+    amount_past_due = snap.get('outstanding') if is_monthly_default else 0
+
     return {
         'account_no'         : account_no,
-        'amount_owed'        : round(amount_owed, 2),
-        'amount_past_due'    : snap.get('outstanding'),
-        'dpd'                : snap.get('dpd_months'),
-        'default_date'       : '19000101',
+        'amount_owed'        : _round_money(amount_owed),
+        'amount_past_due'    : _round_money(amount_past_due),
+        'dpd'                : snap.get('dpd_months') if is_monthly_default else 0,
+        'default_date'       : snap.get('default_date') if is_monthly_default else '',
         'installment_amount' : inst_amount,
-        'installment_count'  : cus.get('installment_count'),
+        'installment_count'  : installment_count,
+        'frequency'          : frequency,
+        'maturity_date'      : maturity_date,
         'ncb_status'         : snap.get('ncb_months'),
     }
     

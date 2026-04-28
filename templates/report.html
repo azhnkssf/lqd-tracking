@@ -1159,27 +1159,28 @@ tailwind.config = {
                 </tr>`).join('');
 
         } else if (tab === '31') {
-            head.innerHTML = ['เลขที่บัญชี','Amount Owed (฿)','Amount Past Due (฿)','DPD (เดือน)','Default Date','Installment Amount (฿)','จำนวนงวด','NCB Status']
+            head.innerHTML = ['เลขที่บัญชี','Amount Owed (฿)','Amount Past Due (฿)','DPD (เดือน)','Default Date','Installment Amount (฿)','จำนวนงวด','Frequency','Maturity Date']
                 .map(h => `<th class="${TH}">${h}</th>`).join('');
             const rows = reportData.report_31;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="8" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 31</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 31</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr class="hover:bg-blue-50/40 transition-colors">
                 <td class="px-5 py-3">
                     <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
                 </td>
                 <td class="px-5 py-3 text-xs text-right font-bold text-slate-800">${fmt(r.amount_owed)}</td>
-                <td class="px-5 py-3 text-xs text-right text-slate-400">0.00</td>
+                <td class="px-5 py-3 text-xs text-right font-semibold text-slate-700">${fmt(r.amount_past_due ?? 0)}</td>
                 <td class="px-5 py-3 text-center">
                     ${r.dpd > 0
                         ? `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">${Math.round(r.dpd)}</span>`
                         : `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-100">${Math.round(r.dpd ?? 0)}</span>`}
                 </td>
-                <td class="px-5 py-3 text-xs text-slate-400">${r.default_date || '<span class="text-slate-300">-</span>'}</td>
+                <td class="px-5 py-3 text-xs text-slate-400">${r.default_date ? fmtDate(r.default_date) : '<span class="text-slate-300">-</span>'}</td>
                 <td class="px-5 py-3 text-xs text-right font-semibold text-slate-700">${fmt(r.installment_amount)}</td>
                 <td class="px-5 py-3 text-xs text-center text-slate-500">${r.installment_count !== null && r.installment_count !== undefined ? Math.round(r.installment_count) : '-'}</td>
                 <td class="px-5 py-3 text-center">
-                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold ${r.ncb_status === '31' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-500 border border-red-100'}">${r.ncb_status ?? '-'}</span>
+                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold ${r.frequency === '30' ? 'bg-indigo-50 text-primary border border-indigo-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}">${r.frequency ?? '00'}</span>
                 </td>
+                <td class="px-5 py-3 text-xs text-slate-400">${r.maturity_date ? fmtDate(r.maturity_date) : '<span class="text-slate-300">-</span>'}</td>
             </tr>`).join('');
 
         } else if (tab === '33') {

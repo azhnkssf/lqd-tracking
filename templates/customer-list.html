@@ -251,7 +251,17 @@
 
             <!-- Table -->
             <div class="table-shell">
-                <table class="data-table w-full text-left border-collapse">
+                <table class="data-table w-full text-left border-collapse table-fixed">
+                    <colgroup>
+                        <col class="w-[12%]">
+                        <col class="w-[24%]">
+                        <col class="w-[12%]">
+                        <col class="w-[12%]">
+                        <col class="w-[11%]">
+                        <col class="w-[11%]">
+                        <col class="w-[9%]">
+                        <col class="w-[9%]">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th class="px-6 py-4 text-center cursor-pointer select-none hover:text-primary transition-colors" onclick="handleSort('account_no')">
@@ -264,14 +274,15 @@
                             <th class="px-6 py-4 text-center cursor-pointer select-none hover:text-primary transition-colors" onclick="handleSort('judgment_date')">
                                 <span class="inline-flex items-center gap-1">วันที่พิพากษา <span id="sort-icon-judgment_date" class="material-symbols-outlined text-sm opacity-30">unfold_more</span></span>
                             </th>
-                            <th class="px-5 py-4 text-center">Case Status</th>
-                            <th class="px-5 py-4 text-center">Payment Status</th>
+                            <th class="px-3 py-4 text-center">Case Status</th>
+                            <th class="px-3 py-4 text-center">Payment Status</th>
+                            <th class="px-3 py-4 text-center">บันทึกหมาย</th>
                             <th class="px-5 py-4 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-body" class="divide-y divide-blue-50">
                         <tr>
-                            <td colspan="7" class="px-6 py-8 text-center text-indigo-300 text-sm">กำลังโหลดข้อมูล...</td>
+                            <td colspan="8" class="px-6 py-8 text-center text-indigo-300 text-sm">กำลังโหลดข้อมูล...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -832,14 +843,19 @@
 
         if (row.can_record_enforcement === true) {
             return `
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                <button
+                    type="button"
+                    title="ไปหน้ารายละเอียดเพื่อบันทึกหมายบังคับคดี"
+                    onclick="handleRecordEnforcement('${row.account_no}')"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-800 transition-all whitespace-nowrap shadow-sm"
+                >
                     <span class="material-symbols-outlined text-[13px] leading-none">assignment</span>
                     พร้อมบันทึกหมาย
-                </span>
+                </button>
             `;
         }
 
-        return '';
+        return `<span class="text-[11px] font-semibold text-slate-300">-</span>`;
     }
 
     // ---- Render ตาราง ----
@@ -850,7 +866,7 @@
         if (!data || data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="px-6 py-14 text-center">
+                    <td colspan="8" class="px-6 py-14 text-center">
                         <div class="flex flex-col items-center justify-center gap-3">
                             <div class="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-400">
                                 <span class="material-symbols-outlined text-[28px]">manage_search</span>
@@ -901,15 +917,15 @@
                 </td>
                 <td class="px-6 py-2.5 text-center"><span class="text-sm font-medium text-slate-500">${row.filing_date ? fmtDate(row.filing_date) : '-'}</span></td>
                 <td class="px-6 py-2.5 text-center"><span class="text-sm font-medium text-slate-500">${row.judgment_date ? fmtDate(row.judgment_date) : '-'}</span></td>
-                <td class="px-5 py-2.5 text-center">${caseStatusBadge(row.case_status)}</td>
-                <td class="px-5 py-2.5 text-center">
-                    <div class="flex flex-col items-center gap-1.5">
-                        ${paymentStatusBadge(row.display_payment_status || row.computed_payment_status || row.payment_status, row)}
-                        ${enforcementReadyBadge(row)}
-                    </div>
+                <td class="px-3 py-2.5 text-center">${caseStatusBadge(row.case_status)}</td>
+                <td class="px-3 py-2.5 text-center">
+                    ${paymentStatusBadge(row.display_payment_status || row.computed_payment_status || row.payment_status, row)}
                 </td>
-                <td class="px-5 py-2.5">
-                    <div class="flex justify-center gap-1">
+                <td class="px-3 py-2.5 text-center">
+                    ${enforcementReadyBadge(row)}
+                </td>
+                <td class="px-5 py-2.5 text-center">
+                    <div class="flex justify-center gap-2 min-w-[92px]">
                         <button title="Payment Record" onclick="handlePayment('${row.account_no}')" class="action-icon-btn">
                             <span class="material-symbols-outlined text-lg">payments</span>
                         </button>
@@ -980,7 +996,7 @@
         } catch (err) {
             document.getElementById('table-body').innerHTML =
                 `<tr>
-                    <td colspan="7" class="px-6 py-12 text-center">
+                    <td colspan="8" class="px-6 py-12 text-center">
                         <div class="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-red-500 text-sm font-semibold">
                             <span class="material-symbols-outlined text-base">cloud_off</span>
                             ไม่สามารถโหลดข้อมูลได้
@@ -1075,9 +1091,12 @@
         applyFilterSort(1);
     }
     function handlePayment(accountNo)  {
-        window.location.href = `/payment-record?account=${accountNo}&from=customer-list`;
+        window.location.href = `/payment-record?account=${encodeURIComponent(accountNo)}&from=customer-list`;
     }
-    function handleView(accountNo)     { window.location.href = `/customer-detail?account=${accountNo}`; }
+    function handleView(accountNo)     { window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}`; }
+    function handleRecordEnforcement(accountNo) {
+        window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}&open=enforcement`;
+    }
     function handleAddDebtor()         { openAddModal(); }
 
     let pendingDeleteAccount = null;
