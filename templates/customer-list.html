@@ -79,15 +79,112 @@
     }
     .table-shell {
         @apply overflow-x-auto bg-white;
+        max-width: 100%;
     }
+
+    .table-shell::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .table-shell::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 9999px;
+    }
+
+    .data-table {
+        min-width: 1180px;
+    }
+
     .data-table thead tr {
         @apply bg-slate-50/90 border-b border-blue-100 uppercase tracking-widest text-indigo-400 font-bold text-[11px];
     }
+
     .data-table tbody tr {
         @apply border-b border-blue-50 hover:bg-blue-50/40 transition-all;
     }
+
     .action-icon-btn {
-    @apply p-2 rounded-xl text-indigo-300 hover:text-primary hover:bg-indigo-50 transition-all;
+        @apply p-2 rounded-xl text-indigo-300 hover:text-primary hover:bg-indigo-50 transition-all;
+    }
+
+    /* ===== Notebook / smaller desktop responsive fix ===== */
+    @media (max-width: 1366px) {
+        .page-card {
+            border-radius: 22px;
+        }
+
+        .section-header-modern,
+        .search-panel {
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+
+        .metric-pill {
+            padding: 0.45rem 0.75rem;
+        }
+
+        .input-modern {
+            padding-top: 0.6rem;
+            padding-bottom: 0.6rem;
+            font-size: 0.78rem;
+        }
+
+        .btn-primary-modern,
+        .btn-secondary-modern {
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
+            min-height: 38px;
+        }
+
+        .case-tab {
+            padding: 0.35rem 0.65rem;
+            font-size: 10px;
+        }
+
+        .data-table {
+            min-width: 1080px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding-left: 0.85rem !important;
+            padding-right: 0.85rem !important;
+        }
+
+        .payment-status-badge {
+            padding-left: 0.65rem;
+            padding-right: 0.65rem;
+            font-size: 10px;
+        }
+
+        .action-icon-btn {
+            padding: 0.45rem;
+        }
+    }
+
+    @media (max-width: 1180px) {
+        main {
+            padding-bottom: 2rem;
+        }
+
+        .data-table {
+            min-width: 1040px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding-left: 0.65rem !important;
+            padding-right: 0.65rem !important;
+        }
+
+        .data-table thead tr {
+            font-size: 10px;
+            letter-spacing: 0.04em;
+        }
+
+        .payment-status-badge {
+            font-size: 9.5px;
+        }
     }
 
     .payment-status-badge {
@@ -251,7 +348,7 @@
 
             <!-- Table -->
             <div class="table-shell">
-                <table class="data-table w-full text-left border-collapse table-fixed">
+                <table class="data-table text-left border-collapse table-fixed">
                     <colgroup>
                         <col class="w-[12%]">
                         <col class="w-[24%]">
@@ -808,16 +905,45 @@
         const today = getLocalToday();
 
         const snap = row.latest_snapshot || {};
+
+        const principalBal = Number(
+            snap.principal_bal ??
+            snap.principal_bal_raw ??
+            row.principal_bal ??
+            row.principal_balance ??
+            row.remaining_principal ??
+            0
+        );
+
+        const outstanding = Number(
+            snap.outstanding ??
+            snap.outstanding_raw ??
+            snap.remaining_debt_raw ??
+            row.outstanding ??
+            row.outstanding_amount ??
+            row.remaining_debt ??
+            0
+        );
+
         const dpdDays = Number(snap.dpd_days || 0);
         const dpdMonths = Number(snap.dpd_months || 0);
-        const outstanding = Number(snap.outstanding || 0);
 
-        // ถ้ายังไม่ถึงวันครบกำหนดงวดแรก ต้องแสดง "ยังไม่ถึงกำหนด"
-        // สำคัญ: ต้อง override apiStatus ที่ backend ส่งมาเป็น "จ่ายปกติ"
+        // ถ้ายังไม่ถึงวันครบกำหนดงวดแรก ให้ถือว่ายังไม่ถึงกำหนด
         if (firstDueDate && firstDueDate > today) {
             return 'ยังไม่ถึงกำหนด';
         }
 
+        // เคสที่ส่งบังคับคดีแล้ว ถ้ายังมีหนี้คงเหลือ ห้าม fallback เป็น "จ่ายปกติ"
+        // เพราะสถานะจ่ายปกติจาก API อาจเป็นค่า default / computed status ที่ไม่ได้สะท้อนการจ่ายจริงของเคสบังคับคดี
+        if (row.case_status === 'บังคับคดี') {
+            if (principalBal <= 0 && outstanding <= 0) {
+                return 'ชำระครบแล้ว';
+            }
+
+            return 'ค้างชำระ';
+        }
+
+        // ถ้ามีหนี้คงเหลือ หรือมี DPD ให้ถือว่าค้างชำระ
         if (dpdDays > 0 || dpdMonths > 0 || outstanding > 0) {
             return 'ค้างชำระ';
         }

@@ -1266,6 +1266,88 @@
         `;
     }
 
+
+    function normalizePaymentStatus(status) {
+        const raw = String(status || '').trim();
+        if (!raw || raw === '-') return 'ชำระปกติ';
+
+        if (raw.includes('ปิด')) return 'ปิดบัญชี';
+        if (raw.includes('ยังไม่ถึง')) return 'ยังไม่ถึงกำหนด';
+        if (raw.includes('ค้าง') || raw.includes('overdue') || raw.includes('late')) return 'ค้างชำระ';
+        if (raw.includes('ปกติ') || raw.includes('31') || raw.toLowerCase() === 'normal') return 'ชำระปกติ';
+
+        return raw;
+    }
+
+    function setHeroPaymentStatus(status) {
+        const normalized = normalizePaymentStatus(status);
+        const statusMap = {
+            'ชำระปกติ': ['bg-emerald-500', 'ชำระปกติ'],
+            'ค้างชำระ': ['bg-red-500', 'ค้างชำระ'],
+            'ปิดบัญชี': ['bg-slate-500', 'ปิดบัญชี'],
+            'ยังไม่ถึงกำหนด': ['bg-blue-400', 'ยังไม่ถึงกำหนด']
+        };
+        const [statusCls, statusLabel] = statusMap[normalized] || ['bg-slate-500', normalized];
+        const el = document.getElementById('hero-status');
+        if (!el) return;
+
+        el.textContent = statusLabel;
+        el.className = `inline-flex px-4 py-1.5 rounded-full ${statusCls} text-[10px] font-bold text-white uppercase tracking-wider leading-none shadow-sm`;
+    }
+
+    function getPaymentStatusAsOfDate() {
+        const selectedPayDate = document.getElementById('pay-date')?.value;
+        if (selectedPayDate) return selectedPayDate;
+
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function derivePaymentStatusFromSchedule(data = {}) {
+        const cus = data.customer || customerData || {};
+        const dailyRows = data.daily_rows || window._dailyRows || [];
+        const principalBal = Number(data.principal_bal ?? cus.principal_bal ?? cus.principal_balance ?? cus.outstanding ?? cus.principal ?? 0);
+
+        if (cus.case_status === 'ปิดบัญชี' || principalBal <= 0) return 'ปิดบัญชี';
+
+        const asOfDate = getPaymentStatusAsOfDate();
+        const firstDueDate = String(cus.first_due_date || '');
+
+        if (firstDueDate && asOfDate < firstDueDate) return 'ยังไม่ถึงกำหนด';
+
+        const rowsUntilAsOf = (dailyRows || [])
+            .filter(r => r && r.date && String(r.date) <= asOfDate)
+            .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+        const analysisRows = rowsUntilAsOf.filter(r =>
+            r.is_due_date ||
+            r.is_pay_date ||
+            r.dpd_months !== undefined ||
+            r.ncb_months !== undefined ||
+            r.ncb_code !== undefined
+        );
+
+        const latest = analysisRows.length ? analysisRows[analysisRows.length - 1] : null;
+        if (!latest) return data.computed_status || cus.status || 'ชำระปกติ';
+
+        const ncb = String(latest.ncb_months ?? latest.ncb_code ?? '').trim();
+        const dpd = Number(latest.dpd_months ?? latest.dpd_days ?? 0);
+
+        // ยึด NCB ก่อน DPD เพราะระบบมี grace period รายเดือน:
+        // ถ้ายังเป็น NCB 31 ให้ถือว่า Payment Status ยังปกติ แม้ daily DPD อาจเริ่มขยับหลัง due date
+        if (ncb === '31') return 'ชำระปกติ';
+        if (ncb && ncb !== '31') return 'ค้างชำระ';
+
+        return dpd > 0 ? 'ค้างชำระ' : 'ชำระปกติ';
+    }
+
+    function updateHeroPaymentStatusFromSchedule(data = {}) {
+        setHeroPaymentStatus(derivePaymentStatusFromSchedule(data));
+    }
+
     function setupPaymentBackButton() {
         const params = new URLSearchParams(window.location.search);
         const from = params.get('from');
@@ -1295,14 +1377,13 @@
             customerData = data.customer;
             accountNo    = acc;
 
-            const computedStatus = data.computed_status || customerData.status || 'ชำระปกติ';
-            const statusMap = { 'ชำระปกติ': ['bg-emerald-500','ชำระปกติ'], 'ค้างชำระ': ['bg-red-500','ค้างชำระ'], 'ปิดบัญชี': ['bg-slate-500','ปิดบัญชี'], 'ยังไม่ถึงกำหนด': ['bg-blue-400','ยังไม่ถึงกำหนด'] };
-            const [statusCls, statusLabel] = statusMap[computedStatus] || ['bg-slate-500', computedStatus];
+            document.getElementById('hero-account').textContent = fmtAccNo(customerData.account_no);
+            document.getElementById('hero-name').textContent    = customerData.name;
 
-            document.getElementById('hero-account').textContent   = fmtAccNo(customerData.account_no);
-            document.getElementById('hero-name').textContent      = customerData.name;
-            document.getElementById('hero-status').textContent    = statusLabel;
-            document.getElementById('hero-status').className      = `inline-flex px-4 py-1.5 rounded-full ${statusCls} text-[10px] font-bold text-white uppercase tracking-wider leading-none shadow-sm`;
+            // ตั้งค่าชั่วคราวจาก backend ก่อน แล้วค่อยอัปเดตอีกครั้งหลังโหลด daily_rows / payment schedule สำเร็จ
+            // เหตุผล: บางเคส customer.status หรือ computed_status อาจยังเป็นค่าเก่า เช่น ค้างชำระ
+            // ทั้งที่แถววิเคราะห์ล่าสุดมี DPD = 0 และ NCB = 31 แล้ว
+            setHeroPaymentStatus(data.computed_status || customerData.status || 'ชำระปกติ');
 
             populateCustomerDetail(data.customer);
             await loadScheduleAndPayments(data);
@@ -1639,6 +1720,7 @@
         const principalBal = data.principal_bal ?? cus.principal;
         document.getElementById('hero-principal').innerHTML = fmt(principalBal) + ' <span class="text-xs font-normal text-blue-100/70 ml-1">บาท</span>';
 
+        updateHeroPaymentStatusFromSchedule(data);
         toggleView();
     }
 

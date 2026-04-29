@@ -1803,6 +1803,13 @@
             if (!res.ok) { window.location.href = '/customer-list'; return; }
             const data = await res.json();
 
+            // สำคัญ: ต้อง set currentCus ก่อน set วันที่/เรียก applyJudgmentTypeInputRules
+            // เพราะเคส "พิพากษาฝ่ายเดียว" อนุญาตให้ first_due_date = judgment_date ได้
+            // ถ้ายังไม่ set currentCus, getActiveJudgmentType() จะมองไม่ออกว่าเป็นฝ่ายเดียว
+            // แล้ว updateDateConstraints() จะตั้ง min first_due_date เป็น judgment_date + 1
+            // ส่งผลให้วันที่ครบกำหนดงวดแรกที่ API ส่งมาโดน clear ทิ้งตอนเปิดหน้าใหม่
+            currentCus = data;
+
             document.getElementById('account-no').value      = data.account_no || '';
             document.getElementById('customer-name').value   = data.name || '';
 
@@ -1881,7 +1888,7 @@
             document.getElementById('ts-updated-at').textContent = fmtTs(data.updated_at);
 
             // โหลด case status และแสดง progress bar
-            currentCus = data
+            // currentCus ถูก set ไว้ตั้งแต่ต้น loadCustomerData แล้ว
             applyJudgmentTypeInputRules(false);
             updateDateConstraints();
             validateBusinessRules(false);
@@ -3513,30 +3520,44 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
     const FLOW_B = ['ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี']
 
     function renderProgressBar(caseStatus, statusLogs) {
-        const flow      = caseStatus === 'พิพากษาฝ่ายเดียว' ? FLOW_B : FLOW_A
-        const curIdx    = flow.indexOf(caseStatus)
         const container = document.getElementById('progress-steps')
         if (!container) return
 
-        const passedStatuses = new Set()
-        if (statusLogs && statusLogs.length > 0) {
-            statusLogs.forEach(log => {
-                if (log.from_status) passedStatuses.add(log.from_status)
-                if (log.to_status)   passedStatuses.add(log.to_status)
-            })
-        }
-        passedStatuses.add(caseStatus)
+        // ใช้ status log เป็นแหล่งอ้างอิงหลักว่าเคยผ่านสถานะไหนจริง
+        // สำคัญมากสำหรับเคสที่ "ปิดบัญชี" โดยไม่เคย "บังคับคดี"
+        const visitedStatuses = new Set()
+        const logs = Array.isArray(statusLogs) ? statusLogs : []
 
-        // เคสปิดบัญชีโดยไม่มีบังคับคดี
-        const skippedEnforcementToClosed =
-            caseStatus === 'ปิดบัญชี' && !passedStatuses.has('บังคับคดี')
+        logs.forEach(log => {
+            if (log.from_status) visitedStatuses.add(log.from_status)
+            if (log.to_status)   visitedStatuses.add(log.to_status)
+        })
+        if (caseStatus) visitedStatuses.add(caseStatus)
+
+        // เลือก flow จากประวัติจริงก่อน ไม่ใช้ caseStatus อย่างเดียว
+        // เพราะถ้า caseStatus = "ปิดบัญชี" จะดูไม่ออกว่าเคยเป็น
+        // "พิพากษาตามยอม" หรือ "พิพากษาฝ่ายเดียว" ถ้าไม่ดู log
+        let flow = FLOW_A
+        if (visitedStatuses.has('พิพากษาฝ่ายเดียว') || caseStatus === 'พิพากษาฝ่ายเดียว') {
+            flow = FLOW_B
+        } else if (visitedStatuses.has('พิพากษาตามยอม') || caseStatus === 'พิพากษาตามยอม') {
+            flow = FLOW_A
+        }
+
+        // ถ้าเป็นข้อมูลเก่าที่ไม่มี log เลย และสถานะปัจจุบันเป็น ปิดบัญชี
+        // จะไม่เดาเองว่าเคยผ่าน บังคับคดี เพื่อป้องกันการติ๊กถูกผิด
+        const hasRealLogs = logs.length > 0
+        if (!hasRealLogs && caseStatus === 'ปิดบัญชี') {
+            visitedStatuses.clear()
+            visitedStatuses.add('ปิดบัญชี')
+        }
 
         let dotsRow   = ''
         let labelsRow = ''
 
         flow.forEach((step, i) => {
-            const isActive = i === curIdx
-            const isDone   = i < curIdx && passedStatuses.has(step)
+            const isActive = step === caseStatus
+            const isDone   = !isActive && visitedStatuses.has(step)
 
             let displayLabel = step
             if (caseStatus === 'ยื่นฟ้อง' && i === 1) displayLabel = 'พิพากษา...'
@@ -3554,14 +3575,15 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             dotsRow += dot
 
             if (i < flow.length - 1) {
-                let lineFilled = isDone
+                const nextStep = flow[i + 1]
 
-                // ถ้าปิดบัญชีโดยไม่ผ่านบังคับคดี
-                // ให้เส้นจาก "บังคับคดี" ไป "ปิดบัญชี" สว่าง
-                // แต่ dot "บังคับคดี" ยังเป็นวงว่างเหมือนเดิม
-                if (skippedEnforcementToClosed && step === 'บังคับคดี') {
-                    lineFilled = true
-                }
+                // เส้น connector ให้แสดงเป็นเส้นทางความคืบหน้าไปจนถึงสถานะปัจจุบัน
+                // แต่ตัววงกลมยังอ้างอิงจาก visitedStatuses ตาม log จริงเท่านั้น
+                // ตัวอย่าง:
+                // ยื่นฟ้อง -> พิพากษาฝ่ายเดียว -> ปิดบัญชี
+                // เส้นจะลากผ่าน "บังคับคดี" เป็นสีขาว แต่ dot บังคับคดีจะยังว่าง
+                const currentIndex = flow.indexOf(caseStatus)
+                const lineFilled = currentIndex > -1 && i < currentIndex
 
                 dotsRow += `<div class="pb-line">
                     <div class="pb-line-fill ${lineFilled ? 'pb-line-fill-done' : 'pb-line-fill-none'}"></div>
@@ -3569,7 +3591,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             }
 
             const labelClass = isActive ? 'pb-label-active' : isDone ? 'pb-label-done' : 'pb-label-pending'
-            labelsRow += `<div class="pb-label-col" style="width:24px">${'<span class="' + labelClass + '">' + displayLabel + '</span>'}</div>`
+            labelsRow += `<div class="pb-label-col" style="width:24px"><span class="${labelClass}">${displayLabel}</span></div>`
             if (i < flow.length - 1) {
                 labelsRow += `<div class="pb-label-spacer"></div>`
             }
