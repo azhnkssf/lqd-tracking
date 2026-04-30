@@ -1,7 +1,7 @@
 import io
 import json
 import openpyxl
-from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, InvalidOperation
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.worksheet.worksheet import Worksheet
 from flask import Blueprint, request, jsonify, send_file
@@ -14,8 +14,9 @@ from app.services.report_service import (
     _get_report_group,
     _build_report30_row_from_db,
     _build_report31_row,
-    _build_report33_row,
+    _build_report11_row,
     _is_customer_effective_after_report,
+    _attach_case_status_log_context,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -33,6 +34,21 @@ def round_money(v, decimals=2, default=0.0):
     try:
         q = Decimal('1').scaleb(-decimals)
         return float(Decimal(str(v)).quantize(q, rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+
+
+def trunc_money(v, default=0):
+    """
+    ใช้เฉพาะขั้นตอนออกรายงาน/Export: ตัดทศนิยมทิ้ง ไม่ปัดขึ้น/ลง
+    เช่น 35924.07 -> 35924
+    ไม่กระทบ logic คำนวณหลักที่ยังใช้ round_money()/Decimal ตามเดิม
+    """
+    if v is None or v == '':
+        return default
+
+    try:
+        return int(Decimal(str(v)).to_integral_value(rounding=ROUND_DOWN))
     except (InvalidOperation, ValueError, TypeError):
         return default
 
@@ -69,14 +85,14 @@ def generate_report():
     # filter ตาม status_types ที่เลือก
     report_30 = result['report_30'] if '30' in status_types else []
     report_31 = result['report_31'] if '31' in status_types else []
-    report_33 = result.get('report_33', [])
+    report_11 = result.get('report_11', [])
 
     # บันทึก log
     db.execute(
         """INSERT INTO report_logs (generated_by, report_date, filename, status_types, count_30, count_31, count_33, count_alerts, count_missing)
         VALUES (?,?,?,?,?,?,?,?,?)""",
         (user['id'], report_date, file.filename, ','.join(status_types),
-        len(report_30), len(report_31), len(report_33),
+        len(report_30), len(report_31), len(report_11),
         len(result['alerts']), len(result['missing_db']))
     )
     db.commit()
@@ -86,13 +102,13 @@ def generate_report():
         'summary'     : {
             'report_30'  : len(report_30),
             'report_31'  : len(report_31),
-            'report_33'  : len(report_33),
+            'report_11'  : len(report_11),
             'alerts'     : len(result['alerts']),
             'missing_db' : len(result['missing_db']),
         },
         'report_30'   : report_30,
         'report_31'   : report_31,
-        'report_33'   : report_33,
+        'report_11'   : report_11,
         'alerts'      : result['alerts'],
         'missing_db'  : result['missing_db'],
     }), 200
@@ -167,7 +183,7 @@ def export_report(report_type):
             cell.alignment = center
 
         def fmt_num_30(v, decimals=2):
-            return round_money(v, decimals, default=0.0)
+            return trunc_money(v, default=0)
 
         for r in rows:
             ws.append([
@@ -187,10 +203,10 @@ def export_report(report_type):
                 cell.fill = fill_30
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0.00'
-            row[3].number_format = '#,##0.00'
-            row[5].number_format = '#,##0.00'
-            row[8].number_format = '#,##0.00'
+            row[2].number_format = '#,##0'
+            row[3].number_format = '#,##0'
+            row[5].number_format = '#,##0'
+            row[8].number_format = '#,##0'
 
     elif report_type == '31':
         ws.title = 'Report Status 31'
@@ -206,7 +222,7 @@ def export_report(report_type):
             cell.alignment = center
 
         def fmt_num(v, decimals=2):
-            return round_money(v, decimals, default=0.0)
+            return trunc_money(v, default=0)
 
         for r in rows:
             ws.append([
@@ -225,9 +241,9 @@ def export_report(report_type):
                 cell.fill = fill_31
                 
         for row in ws.iter_rows(min_row=2):
-            row[1].number_format = '#,##0.00'
-            row[2].number_format = '#,##0.00'
-            row[5].number_format = '#,##0.00'
+            row[1].number_format = '#,##0'
+            row[2].number_format = '#,##0'
+            row[5].number_format = '#,##0'
 
     # auto width
     for col in ws.columns:
@@ -254,11 +270,11 @@ def export_all_reports():
     report_date = data.get('report_date', '')
     report_30   = data.get('report_30', []) or []
     report_31   = data.get('report_31', []) or []
-    report_33   = data.get('report_33', []) or []
+    report_11   = data.get('report_11', []) or []
     alerts      = data.get('alerts', []) or []
     missing_db  = data.get('missing_db', []) or []
 
-    if not any([report_30, report_31, report_33, alerts, missing_db]):
+    if not any([report_30, report_31, report_11, alerts, missing_db]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
     def fmt_date_excel(val, default=''):
@@ -284,7 +300,7 @@ def export_all_reports():
         return s
 
     def fmt_num(v, decimals=2):
-        return round_money(v, decimals, default=0.0)
+        return trunc_money(v, default=0)
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
@@ -356,10 +372,10 @@ def export_all_reports():
             paint_row(ws, fill_30)
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0.00'  # ทุนทรัพย์ที่ฟ้อง
-            row[3].number_format = '#,##0.00'  # ยอดหนี้ตามคำพิพากษา
-            row[5].number_format = '#,##0.00'  # ยอดหนี้วันผิดนัดชำระ
-            row[8].number_format = '#,##0.00'  # ยอดหนี้คงเหลือ
+            row[2].number_format = '#,##0'  # ทุนทรัพย์ที่ฟ้อง
+            row[3].number_format = '#,##0'  # ยอดหนี้ตามคำพิพากษา
+            row[5].number_format = '#,##0'  # ยอดหนี้วันผิดนัดชำระ
+            row[8].number_format = '#,##0'  # ยอดหนี้คงเหลือ
 
         autofit(ws)
 
@@ -395,37 +411,28 @@ def export_all_reports():
             paint_row(ws, fill_31)
 
         for row in ws.iter_rows(min_row=2):
-            row[1].number_format = '#,##0.00'
-            row[2].number_format = '#,##0.00'
-            row[5].number_format = '#,##0.00'
+            row[1].number_format = '#,##0'
+            row[2].number_format = '#,##0'
+            row[5].number_format = '#,##0'
 
         autofit(ws)
 
-    if report_33:
-        ws = wb.create_sheet('Status 33')
+    if report_11:
+        ws = wb.create_sheet('Status 11')
         ws.append([
             'เลขที่บัญชี',
-            'ชื่อลูกค้า',
-            'วันที่พิพากษา',
-            'ยอดหนี้รวม',
+            'วันที่ปิดบัญชี',
             'NCB Status',
-            'สถานะ',
         ])
         style_header(ws)
 
-        for r in report_33:
+        for r in report_11:
             ws.append([
                 fmt_acc(r.get('account_no')),
-                r.get('name') or '-',
-                fmt_date_excel(r.get('judgment_date')),
-                fmt_num(r.get('total_debt'), 2),
-                r.get('ncb_status') or '33',
-                r.get('status_label') or 'ปิดบัญชี',
+                fmt_date_excel(r.get('closed_date')),
+                r.get('ncb_status') or '11',
             ])
             paint_row(ws, fill_33)
-
-        for row in ws.iter_rows(min_row=2):
-            row[3].number_format = '#,##0.00'
 
         autofit(ws)
 
@@ -502,10 +509,11 @@ def generate_report_db():
 
     report_30 = []
     report_31 = []
-    report_33 = []
+    report_11 = []
 
     for cus_row in customers:
         cus         = dict(cus_row)
+        cus         = _attach_case_status_log_context(cus, db)
         account_no  = cus['account_no']
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 
@@ -514,7 +522,7 @@ def generate_report_db():
             continue
 
         if case_status == 'ปิดบัญชี':
-            report_33.append(_build_report33_row(account_no, cus))
+            report_11.append(_build_report11_row(account_no, cus))
             continue
 
         if case_status == 'ยื่นฟ้อง':
@@ -572,8 +580,8 @@ def generate_report_db():
 
         group = _get_report_group(cus, snap)
 
-        if group == '33':
-            report_33.append(_build_report33_row(account_no, cus))
+        if group == '11':
+            report_11.append(_build_report11_row(account_no, cus))
 
         elif group == '30' and '30' in status_types:
             report_30.append(_build_report30_row_from_db(
@@ -595,7 +603,7 @@ def generate_report_db():
             count_30, count_31, count_33, count_alerts, count_missing)
            VALUES (?,?,?,?,?,?,?,?,?)""",
         (user['id'], report_date, '[DB Report]', ','.join(status_types),
-         len(report_30), len(report_31), len(report_33), 0, 0)
+         len(report_30), len(report_31), len(report_11), 0, 0)
     )
     db.commit()
 
@@ -604,13 +612,13 @@ def generate_report_db():
         'summary'     : {
             'report_30'  : len(report_30),
             'report_31'  : len(report_31),
-            'report_33'  : len(report_33),
+            'report_11'  : len(report_11),
             'alerts'     : 0,
             'missing_db' : 0,
         },
         'report_30'   : report_30,
         'report_31'   : report_31,
-        'report_33'   : report_33,
+        'report_11'   : report_11,
         'alerts'      : [],
         'missing_db'  : [],
     }), 200

@@ -27,7 +27,7 @@ CASE_STATUS_REPORT_MAP = {
     'พิพากษาฝ่ายเดียว': '30',
     'บังคับคดี'        : '30',
     'พิพากษาตามยอม'   : '31',
-    'ปิดบัญชี'         : '33',
+    'ปิดบัญชี'         : '11',
 }
 
 
@@ -36,7 +36,7 @@ def _get_report_group(cus, snap):
     principal_bal = snap.get('principal_bal', 0) if snap else 0
 
     if principal_bal == 0 or case == 'ปิดบัญชี':
-        return '33'
+        return '11'
 
     return CASE_STATUS_REPORT_MAP.get(case, '31')
 
@@ -229,14 +229,108 @@ def _is_customer_effective_after_report(cus, report_date_str):
     return bool(effective_date and report_date and effective_date > report_date)
 
 
+def _attach_case_status_log_context(cus, db):
+    """
+    แนบประวัติ case_status_logs เข้า cus เพื่อใช้กับรายงาน:
+    - Remark สำหรับ พิพากษาตามยอม -> บังคับคดี
+    - วันที่ปิดบัญชี สำหรับ Status 11
+
+    ไม่แก้ข้อมูลใน DB และไม่เปลี่ยน business logic เดิมของการจัดกลุ่มรายงาน
+    """
+    if not cus or not db:
+        return cus
+
+    account_no = cus.get('account_no')
+    if not account_no:
+        return cus
+
+    try:
+        rows = db.execute("""
+            SELECT from_status, to_status, changed_at, note
+            FROM case_status_logs
+            WHERE account_no = ?
+            ORDER BY changed_at ASC, id ASC
+        """, (account_no,)).fetchall()
+        logs = [dict(r) for r in rows]
+    except Exception:
+        logs = []
+
+    cus['_case_status_logs'] = logs
+
+    consent_to_enforcement_log = None
+    closed_log = None
+
+    for log in logs:
+        from_status = str(log.get('from_status') or '').strip()
+        to_status = str(log.get('to_status') or '').strip()
+
+        if consent_to_enforcement_log is None and from_status == 'พิพากษาตามยอม' and to_status == 'บังคับคดี':
+            consent_to_enforcement_log = log
+
+        if closed_log is None and to_status == 'ปิดบัญชี':
+            closed_log = log
+
+    cus['_consent_to_enforcement_log'] = consent_to_enforcement_log
+    cus['_has_consent_to_enforcement_log'] = bool(consent_to_enforcement_log)
+    cus['_closed_status_log'] = closed_log
+    cus['_closed_date'] = _extract_date_from_log(closed_log) if closed_log else None
+
+    return cus
+
+
+def _extract_date_from_log(log):
+    if not log:
+        return None
+    return _parse_report_date(log.get('changed_at'))
+
+
+def _get_closed_date(cus):
+    """
+    วันที่ปิดบัญชี = วันที่สถานะเปลี่ยนจากสถานะใด ๆ ไปเป็น ปิดบัญชี
+    แหล่งหลักคือ case_status_logs.changed_at
+    """
+    closed_date = cus.get('_closed_date')
+    if closed_date:
+        return closed_date.isoformat()
+
+    for log in cus.get('_case_status_logs') or []:
+        if str(log.get('to_status') or '').strip() == 'ปิดบัญชี':
+            d = _extract_date_from_log(log)
+            if d:
+                return d.isoformat()
+
+    # fallback เผื่ออนาคตมี column ปิดบัญชีโดยตรง แต่ไม่เปลี่ยน logic หลัก
+    for key in ['closed_date', 'closed_at', 'close_date', 'closed_account_date', 'paid_off_date']:
+        d = _parse_report_date(cus.get(key))
+        if d:
+            return d.isoformat()
+
+    return None
+
+
 def _is_consent_enforcement_case(cus):
     """
-    จำกัด remark เฉพาะเคสพิพากษาตามยอมที่เปลี่ยนมาเป็นบังคับคดี
-    รองรับหลายชื่อ field เผื่อ DB/FE ใช้ชื่อไม่เหมือนกัน
+    จำกัด Remark เฉพาะเคสพิพากษาตามยอมที่เปลี่ยนมาเป็นบังคับคดี
+
+    เหตุผลที่ต้องดู _report_file_status:
+    - ตอน Generate from File สถานะในระบบอาจเป็น "บังคับคดี" แล้ว
+    - แต่สถานะใน Master File ยังบอกต้นทางว่าเป็น "พิพากษาตามยอม"
+    - ถ้าไม่ส่ง file_status เข้ามา function นี้จะมองไม่ออกว่าเป็นตามยอมมาก่อน
+      ทำให้ Remark ไม่แสดง
     """
     if (cus.get('case_status') or '').strip() != 'บังคับคดี':
         return False
 
+    # Source of truth ที่ชัดที่สุด: ประวัติการเปลี่ยนสถานะใน case_status_logs
+    if cus.get('_has_consent_to_enforcement_log'):
+        return True
+
+    # Generate from File: ใช้สถานะจาก Master File เป็นตัวบอกว่าเคสนี้เป็นตามยอมมาก่อน
+    file_status = str(cus.get('_report_file_status') or cus.get('file_status') or '').strip()
+    if file_status == 'พิพากษาตามยอม':
+        return True
+
+    # Generate from Database: ไม่มี Master File ให้ดูจาก field ประเภทคำพิพากษา/สถานะเดิมใน DB
     candidates = [
         cus.get('judgment_type'),
         cus.get('judgment_kind'),
@@ -244,6 +338,13 @@ def _is_consent_enforcement_case(cus):
         cus.get('judgment_status'),
         cus.get('case_judgment_type'),
         cus.get('judgment_method'),
+        cus.get('judgment_category'),
+        cus.get('judgment_type_name'),
+        cus.get('previous_case_status'),
+        cus.get('prev_case_status'),
+        cus.get('case_status_before_enforcement'),
+        cus.get('before_enforcement_status'),
+        cus.get('original_case_status'),
     ]
     text = ' '.join(str(v or '') for v in candidates)
     return 'ตามยอม' in text
@@ -360,7 +461,7 @@ def get_snapshot_at_date(cus, payments, report_date):
 def process_registry_file(ws, db, report_date_str):
     report_30     = []
     report_31     = []
-    report_33     = []
+    report_11     = []
     alerts        = []
     file_accounts = set()
 
@@ -392,6 +493,11 @@ def process_registry_file(ws, db, report_date_str):
             (account_no,)
         ).fetchone()
         cus = dict(cus_row) if cus_row else None
+        if cus:
+            # เก็บสถานะจาก Master File ไว้ให้ logic Remark รู้ว่า
+            # เคสนี้มาจาก "พิพากษาตามยอม" แต่ในระบบเปลี่ยนเป็น "บังคับคดี" แล้ว
+            cus['_report_file_status'] = file_status
+            cus = _attach_case_status_log_context(cus, db)
 
         # Block เคสที่สถานะ/วันที่สำคัญเกิดหลัง As of Report Date
         # เช่น กรอกเคสยื่นฟ้องเดือนเมษายน แต่ขอ report สิ้นเดือนมีนาคม
@@ -442,8 +548,8 @@ def process_registry_file(ws, db, report_date_str):
 
         group = _get_report_group(cus, snap)
 
-        if group == '33':
-            report_33.append(_build_report33_row(account_no, cus))
+        if group == '11':
+            report_11.append(_build_report11_row(account_no, cus))
 
         elif group == '30':
             report_30.append(_build_report30_row_from_db(
@@ -477,7 +583,7 @@ def process_registry_file(ws, db, report_date_str):
     return {
         'report_30'  : report_30,
         'report_31'  : report_31,
-        'report_33'  : report_33,
+        'report_11'  : report_11,
         'alerts'     : alerts,
         'missing_db' : missing_db,
     }
@@ -660,13 +766,14 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
         'remark'             : '',
     }
     
-def _build_report33_row(account_no, cus):
-    """สร้าง row Report 33 (ปิดบัญชี)"""
+def _build_report11_row(account_no, cus):
+    """สร้าง row Status 11 (ปิดบัญชี)"""
     return {
-        'account_no'    : account_no,
-        'name'          : cus.get('name'),
-        'judgment_date' : cus.get('judgment_date'),
-        'total_debt'    : float(cus.get('total_debt') or 0),
-        'ncb_status'    : '33',
-        'status_label'  : 'ปิดบัญชี',
+        'account_no'   : account_no,
+        'closed_date'  : _get_closed_date(cus),
+        'ncb_status'   : '11',
+        'status_label' : 'ปิดบัญชี',
     }
+
+# Backward-compatible alias: old code that still imports _build_report33_row will continue to work.
+_build_report33_row = _build_report11_row
