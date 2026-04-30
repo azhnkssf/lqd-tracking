@@ -2177,7 +2177,7 @@
             const mGrid = document.getElementById('dp-months-' + id);
             mGrid.innerHTML = DP_P_MONTHS.map((m, i) => {
                 const isActive = i === s.month ? 'background:#2D3282;color:#fff;font-weight:700;' : '';
-                return `<div onclick="dpPSelectMonth('${id}',${i})" style="text-align:center;padding:7px 4px;border-radius:6px;font-size:0.78rem;cursor:pointer;${isActive}" onmouseover="if(!${i===s.month})this.style.background='#EEF2FF'" onmouseout="if(!${i===s.month})this.style.background=''">${m.substring(0,3)}</div>`;
+                return `<div onclick="dpPSelectMonth('${id}',${i})" style="text-align:center;padding:7px 4px;border-radius:6px;font-size:0.78rem;cursor:pointer;${isActive}" onmouseover="if(!${i===s.month})this.style.background='#EEF2FF'" onmouseout="if(!${i===s.month})this.style.background=''">${window.LQDThaiDate.shortMonth(i)}</div>`;
             }).join('');
         } else {
             document.getElementById('dp-cal-' + id).style.display  = 'block';

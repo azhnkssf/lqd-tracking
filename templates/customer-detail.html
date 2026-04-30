@@ -1015,7 +1015,7 @@
                                 </div>
                             </div>
                             <div class="col-span-2">
-                                <label class="form-label-styled text-blue-600">ยอดหนี้รวม <span class="text-red-500">*</span></label>
+                                <label class="form-label-styled text-blue-600">ยอดหนี้ตามคำพิพากษา <span class="text-red-500">*</span></label>
                                 <div class="relative">
                                     <input id="total-debt" class="form-input-styled font-medium text-right pr-4 pl-10" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off">
                                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
@@ -1023,7 +1023,7 @@
                                 <p id="warn-total-debt" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span>กรุณากรอกตัวเลขเท่านั้น</span></p>
                             </div>
                             <div>
-                                <label class="form-label-styled">เงินต้น <span class="text-red-500">*</span></label>
+                                <label class="form-label-styled">เงินต้น ตามคำพิพากษา <span class="text-red-500">*</span></label>
                                 <div class="relative">
                                     <input id="principal" class="form-input-styled font-medium text-right pr-4 pl-10" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off">
                                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
@@ -3336,7 +3336,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         const el  = document.getElementById('dp-months-' + id);
         el.innerHTML = TH_MONTHS.map((m, i) => {
             const cls = i === s.month ? 'dp-my-item active' : 'dp-my-item';
-            return `<div class="${cls}" onclick="dpSelectMonth('${id}',${i})">${m.substring(0,3)}</div>`;
+            return `<div class="${cls}" onclick="dpSelectMonth('${id}',${i})">${window.LQDThaiDate.shortMonth(i)}</div>`;
         }).join('');
     }
 

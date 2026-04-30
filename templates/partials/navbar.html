@@ -1,3 +1,28 @@
+<!-- Shared Thai Date Utilities -->
+<script>
+    window.LQDThaiDate = window.LQDThaiDate || (function () {
+        const monthsFull = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+
+        const monthsShort = [
+            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+        ];
+
+        function shortMonth(index) {
+            return monthsShort[Number(index)] || '';
+        }
+
+        function fullMonth(index) {
+            return monthsFull[Number(index)] || '';
+        }
+
+        return { monthsFull, monthsShort, shortMonth, fullMonth };
+    })();
+</script>
+
 <!-- Navbar -->
 <nav class="fixed top-0 w-full z-50 bg-white border-b border-blue-100 flex justify-between items-center px-8 h-16 shadow-sm">
     <div class="flex items-center gap-8">

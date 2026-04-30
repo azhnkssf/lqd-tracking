@@ -1216,7 +1216,7 @@
         const el  = document.getElementById('dp-months-' + id);
         el.innerHTML = TH_MONTHS.map((m, i) => {
             const cls = i === s.month ? 'dp-my-item active' : 'dp-my-item';
-            return `<div class="${cls}" onclick="dpSelectMonth('${id}',${i})">${m.substring(0,3)}</div>`;
+            return `<div class="${cls}" onclick="dpSelectMonth('${id}',${i})">${window.LQDThaiDate.shortMonth(i)}</div>`;
         }).join('');
     }
 

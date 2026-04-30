@@ -15,6 +15,7 @@ from app.services.report_service import (
     _build_report30_row_from_db,
     _build_report31_row,
     _build_report33_row,
+    _is_customer_effective_after_report,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -108,40 +109,31 @@ def export_report(report_type):
     report_date = data.get('report_date', '')
 
     def fmt_date_excel(val, default=''):
-        if val is None or val == '':
+        if not val:
             return default
-
         s = str(val).strip().split('T')[0].split(' ')[0]
         if not s or s.lower() in ['none', 'null', '-']:
             return default
 
-        # ถ้าเป็น YYYYMMDD อยู่แล้ว ให้คืนค่าเดิม
         if len(s) == 8 and s.isdigit():
             return s
 
-        # รองรับ YYYY-MM-DD -> YYYYMMDD
         parts = s.split('-')
         if len(parts) == 3 and len(parts[0]) == 4:
-            yyyy, mm, dd = parts
-            return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+            return f"{parts[0]}{parts[1]}{parts[2]}"
 
-        # รองรับ DD/MM/YYYY -> YYYYMMDD
         parts = s.split('/')
         if len(parts) == 3:
-            dd, mm, yyyy = parts
-            if len(yyyy) == 4:
-                return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+            if len(parts[0]) == 4:
+                return f"{parts[0]}{parts[1].zfill(2)}{parts[2].zfill(2)}"
+            return f"{parts[2]}{parts[1].zfill(2)}{parts[0].zfill(2)}"
 
         return s
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
-        if not s:
-            return '-'
-
-        # รายงานต้องใช้เลขบัญชีแบบไม่มี dash เช่น 700000294583
         digits = ''.join(ch for ch in s if ch.isdigit())
-        return digits or s
+        return digits or '-'
 
     wb = openpyxl.Workbook()
     ws: Worksheet = wb.active
@@ -165,6 +157,8 @@ def export_report(report_type):
             'วันผิดนัดชำระ',
             'DPD',
             'ยอดหนี้คงเหลือ',
+            'สถานะ',
+            'Remark',
         ]
         ws.append(headers)
         for cell in ws[1]:
@@ -186,6 +180,8 @@ def export_report(report_type):
                 fmt_date_excel(r.get('default_date')),
                 r.get('dpd') if r.get('dpd') is not None else '',
                 fmt_num_30(r.get('remaining_debt'), 2) if r.get('remaining_debt') is not None else '',
+                r.get('status_label') or r.get('case_status') or '',
+                r.get('remark') or '',
             ])
             for cell in ws[ws.max_row]:
                 cell.fill = fill_30
@@ -201,7 +197,7 @@ def export_report(report_type):
         headers = [
             'เลขที่บัญชี', 'Amount Owed', 'Amount Past Due',
             'DPD (เดือน)', 'Default Date', 'Installment Amount',
-            'จำนวนงวด', 'Frequency', 'Maturity Date'
+            'จำนวนงวด', 'Frequency', 'Maturity Date', 'Remark'
         ]
         ws.append(headers)
         for cell in ws[1]:
@@ -223,6 +219,7 @@ def export_report(report_type):
                 int(r.get('installment_count') or 0),
                 str(r.get('frequency') or '00'),
                 fmt_date_excel(r.get('maturity_date')),
+                r.get('remark') or '',
             ])
             for cell in ws[ws.max_row]:
                 cell.fill = fill_31
@@ -265,29 +262,24 @@ def export_all_reports():
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
     def fmt_date_excel(val, default=''):
-        if val is None or val == '':
+        if not val:
             return default
-
         s = str(val).strip().split('T')[0].split(' ')[0]
         if not s or s.lower() in ['none', 'null', '-']:
             return default
 
-        # ถ้าเป็น YYYYMMDD อยู่แล้ว ให้คืนค่าเดิม
         if len(s) == 8 and s.isdigit():
             return s
 
-        # รองรับ YYYY-MM-DD -> YYYYMMDD
         parts = s.split('-')
         if len(parts) == 3 and len(parts[0]) == 4:
-            yyyy, mm, dd = parts
-            return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+            return f"{parts[0]}{parts[1]}{parts[2]}"
 
-        # รองรับ DD/MM/YYYY -> YYYYMMDD
         parts = s.split('/')
         if len(parts) == 3:
-            dd, mm, yyyy = parts
-            if len(yyyy) == 4:
-                return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+            if len(parts[0]) == 4:
+                return f"{parts[0]}{parts[1].zfill(2)}{parts[2].zfill(2)}"
+            return f"{parts[2]}{parts[1].zfill(2)}{parts[0].zfill(2)}"
 
         return s
 
@@ -296,12 +288,8 @@ def export_all_reports():
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
-        if not s:
-            return '-'
-
-        # รายงานต้องใช้เลขบัญชีแบบไม่มี dash เช่น 700000294583
         digits = ''.join(ch for ch in s if ch.isdigit())
-        return digits or s
+        return digits or '-'
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -346,6 +334,8 @@ def export_all_reports():
             'วันผิดนัดชำระ',
             'DPD',
             'ยอดหนี้คงเหลือ',
+            'สถานะ',
+            'Remark',
         ])
         style_header(ws)
 
@@ -360,6 +350,8 @@ def export_all_reports():
                 fmt_date_excel(r.get('default_date')),
                 r.get('dpd') if r.get('dpd') is not None else '',
                 fmt_num(r.get('remaining_debt'), 2) if r.get('remaining_debt') is not None else '',
+                r.get('status_label') or r.get('case_status') or '',
+                r.get('remark') or '',
             ])
             paint_row(ws, fill_30)
 
@@ -383,6 +375,7 @@ def export_all_reports():
             'จำนวนงวด',
             'Frequency',
             'Maturity Date',
+            'Remark',
         ])
         style_header(ws)
 
@@ -397,6 +390,7 @@ def export_all_reports():
                 int(r.get('installment_count') or 0),
                 str(r.get('frequency') or '00'),
                 fmt_date_excel(r.get('maturity_date')),
+                r.get('remark') or '',
             ])
             paint_row(ws, fill_31)
 
@@ -514,6 +508,10 @@ def generate_report_db():
         cus         = dict(cus_row)
         account_no  = cus['account_no']
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+
+        # Block เคสที่วันที่สำคัญของสถานะปัจจุบันเกิดหลัง As of Report Date
+        if _is_customer_effective_after_report(cus, report_date):
+            continue
 
         if case_status == 'ปิดบัญชี':
             report_33.append(_build_report33_row(account_no, cus))

@@ -147,6 +147,132 @@ def get_maturity_date(cus):
     maturity_date = first_due + relativedelta(months=term_months - 1)
     return maturity_date.isoformat()
 
+
+def _parse_report_date(val):
+    """แปลงวันที่หลายรูปแบบเป็น date เพื่อใช้เทียบ as of report date"""
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+
+    s = str(val).strip().split('T')[0].split(' ')[0]
+    if not s or s.lower() in ['none', 'null', '-']:
+        return None
+
+    try:
+        if len(s) == 8 and s.isdigit():
+            return date(int(s[0:4]), int(s[4:6]), int(s[6:8]))
+        if '-' in s:
+            parts = s.split('-')
+            if len(parts) == 3 and len(parts[0]) == 4:
+                return date(int(parts[0]), int(parts[1]), int(parts[2]))
+        if '/' in s:
+            parts = s.split('/')
+            if len(parts) == 3:
+                if len(parts[0]) == 4:
+                    return date(int(parts[0]), int(parts[1]), int(parts[2]))
+                return date(int(parts[2]), int(parts[1]), int(parts[0]))
+    except Exception:
+        return None
+    return None
+
+
+def _fmt_date_yyyymmdd(val):
+    d = _parse_report_date(val)
+    return d.strftime('%Y%m%d') if d else ''
+
+
+def _fmt_month_yyyymm(val):
+    d = _parse_report_date(val)
+    return d.strftime('%Y%m') if d else ''
+
+
+def _same_month(d1, d2):
+    d1 = _parse_report_date(d1)
+    d2 = _parse_report_date(d2)
+    if not d1 or not d2:
+        return False
+    return d1.year == d2.year and d1.month == d2.month
+
+
+def _get_case_effective_date(cus):
+    """
+    วันที่ที่เคสควรถูกนับเข้า report ตามสถานะปัจจุบัน
+    ใช้เพื่อกันข้อมูลที่เกิดหลัง As of Report Date ไม่ให้ย้อนมาออกในรายงานเดือนก่อน
+    """
+    case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+
+    if case_status == 'ยื่นฟ้อง':
+        return _parse_report_date(cus.get('filing_date'))
+
+    if case_status == 'พิพากษาฝ่ายเดียว':
+        return _parse_report_date(cus.get('judgment_date')) or _parse_report_date(cus.get('filing_date'))
+
+    if case_status == 'บังคับคดี':
+        return (
+            _parse_report_date(cus.get('enforcement_judgment_date')) or
+            _parse_report_date(cus.get('enforcement_received_date')) or
+            _parse_report_date(cus.get('enforcement_date')) or
+            _parse_report_date(cus.get('judgment_date')) or
+            _parse_report_date(cus.get('filing_date'))
+        )
+
+    if case_status == 'พิพากษาตามยอม':
+        return _parse_report_date(cus.get('judgment_date')) or _parse_report_date(cus.get('filing_date'))
+
+    return _parse_report_date(cus.get('filing_date'))
+
+
+def _is_customer_effective_after_report(cus, report_date_str):
+    effective_date = _get_case_effective_date(cus)
+    report_date = _parse_report_date(report_date_str)
+    return bool(effective_date and report_date and effective_date > report_date)
+
+
+def _is_consent_enforcement_case(cus):
+    """
+    จำกัด remark เฉพาะเคสพิพากษาตามยอมที่เปลี่ยนมาเป็นบังคับคดี
+    รองรับหลายชื่อ field เผื่อ DB/FE ใช้ชื่อไม่เหมือนกัน
+    """
+    if (cus.get('case_status') or '').strip() != 'บังคับคดี':
+        return False
+
+    candidates = [
+        cus.get('judgment_type'),
+        cus.get('judgment_kind'),
+        cus.get('judgment_result'),
+        cus.get('judgment_status'),
+        cus.get('case_judgment_type'),
+        cus.get('judgment_method'),
+    ]
+    text = ' '.join(str(v or '') for v in candidates)
+    return 'ตามยอม' in text
+
+
+def _build_enforcement_remark(cus, snap, report_date_str):
+    """
+    Remark สำหรับเคสพิพากษาตามยอมที่เปลี่ยนเป็นบังคับคดี
+    แสดงเฉพาะเดือนที่เคสควรเริ่มเข้า Report 30 จากวันที่มีคำพิพากษา/หมายบังคับคดี
+    เดือนถัดไปไม่แสดงซ้ำ
+    """
+    if not _is_consent_enforcement_case(cus):
+        return ''
+
+    effective_date = _get_case_effective_date(cus)
+    report_date = _parse_report_date(report_date_str)
+    if not effective_date or not report_date or not _same_month(effective_date, report_date):
+        return ''
+
+    default_date = snap.get('default_date') if snap else None
+    default_yyyymmdd = _fmt_date_yyyymmdd(default_date)
+    if not default_yyyymmdd:
+        return ''
+
+    default_date_text = f'{default_yyyymmdd[:4]}-{default_yyyymmdd[4:6]}-{default_yyyymmdd[6:8]}'
+    default_month_text = f'{default_yyyymmdd[:4]}-{default_yyyymmdd[4:6]}'
+
+    return f'เคสนี้ผิดนัดตั้งแต่วันที่ {default_date_text} ต้องกลับไปแก้รายงานตั้งแต่ {default_month_text} มาด้วย'
+
 def get_snapshot_at_date(cus, payments, report_date):
     """
     คำนวณ daily schedule ถึงวันที่ report_date
@@ -252,6 +378,10 @@ def process_registry_file(ws, db, report_date_str):
         if account_no.endswith('.0') and account_no[:-2].isdigit():
             account_no = account_no[:-2]
 
+        # Block รายการที่วันที่ยื่นฟ้องจริงอยู่หลัง As of Report Date
+        if filing_date and _parse_report_date(filing_date) and _parse_report_date(report_date_str) and _parse_report_date(filing_date) > _parse_report_date(report_date_str):
+            continue
+
         if not account_no or file_status not in VALID_STATUSES:
             continue
 
@@ -262,6 +392,11 @@ def process_registry_file(ws, db, report_date_str):
             (account_no,)
         ).fetchone()
         cus = dict(cus_row) if cus_row else None
+
+        # Block เคสที่สถานะ/วันที่สำคัญเกิดหลัง As of Report Date
+        # เช่น กรอกเคสยื่นฟ้องเดือนเมษายน แต่ขอ report สิ้นเดือนมีนาคม
+        if cus and _is_customer_effective_after_report(cus, report_date_str):
+            continue
 
         # ============================================================
         # ไม่มีใน DB
@@ -278,6 +413,7 @@ def process_registry_file(ws, db, report_date_str):
                 report_30.append({
                     'account_no'      : account_no,
                     'status_label'    : f'{file_status} (ไม่มีใน DB)',
+                    'case_status'     : f'{file_status} (ไม่มีใน DB)',
                     'filing_date'     : filing_date,
                     'principal_sued'  : principal_sued,
                     'judgment_debt'   : judgment_debt,
@@ -287,6 +423,7 @@ def process_registry_file(ws, db, report_date_str):
                     'dpd'             : None,
                     'dpd_months'      : None,
                     'remaining_debt'  : None,
+                    'remark'          : '',
                 })
             continue
 
@@ -428,6 +565,7 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
     base = {
         'account_no'               : account_no,
         'status_label'             : case_status,
+        'case_status'              : case_status,
         'filing_date'              : filing_date or cus.get('filing_date'),
         'principal_sued'           : _num(_get_principal_sued(cus, principal_sued)),
         'judgment_debt'            : None,
@@ -437,6 +575,7 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         'dpd'                      : None,
         'dpd_months'               : None,  # กันโค้ดเก่าบางจุดที่ยังเรียก dpd_months
         'remaining_debt'           : None,
+        'remark'                   : '',
         'enforcement_order_no'     : cus.get('enforcement_order_no'),
         'enforcement_judgment_date': cus.get('enforcement_judgment_date'),
     }
@@ -473,6 +612,7 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             'dpd'            : snap.get('dpd_months') if snap else None,
             'dpd_months'     : snap.get('dpd_months') if snap else None,
             'remaining_debt' : _calc_remaining_debt(cus, snap),
+            'remark'         : _build_enforcement_remark(cus, snap, report_date_str),
         })
         return base
 
@@ -511,12 +651,13 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
         'amount_owed'        : _round_money(amount_owed),
         'amount_past_due'    : _round_money(amount_past_due),
         'dpd'                : snap.get('dpd_months') if is_monthly_default else 0,
-        'default_date'       : snap.get('default_date') if is_monthly_default else '19000101',
+        'default_date'       : snap.get('default_date') if is_monthly_default else '',
         'installment_amount' : inst_amount,
         'installment_count'  : installment_count,
         'frequency'          : frequency,
         'maturity_date'      : maturity_date,
         'ncb_status'         : snap.get('ncb_months'),
+        'remark'             : '',
     }
     
 def _build_report33_row(account_no, cus):

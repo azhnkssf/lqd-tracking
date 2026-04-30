@@ -866,7 +866,7 @@ tailwind.config = {
             document.getElementById('dp-year-lbl-' + id).textContent = 'พ.ศ. ' + (s.year + 543);
             document.getElementById('dp-months-' + id).innerHTML = DP_MONTHS.map((m, i) => {
                 const active = i === s.month ? 'background:#2D3282;color:#fff;font-weight:700;' : '';
-                return `<div onclick="dpSelectMonth('${id}',${i})" style="text-align:center;padding:7px 2px;border-radius:6px;font-size:0.78rem;cursor:pointer;${active}">${m.substring(0,3)}</div>`;
+                return `<div onclick="dpSelectMonth('${id}',${i})" style="text-align:center;padding:7px 2px;border-radius:6px;font-size:0.78rem;cursor:pointer;${active}">${window.LQDThaiDate.shortMonth(i)}</div>`;
             }).join('');
         } else {
             document.getElementById('dp-cal-' + id).style.display = 'block';
@@ -1142,10 +1142,10 @@ tailwind.config = {
         const body = document.getElementById('table-body');
 
         if (tab === '30') {
-            head.innerHTML = ['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','ยอดหนี้คำพิพากษา (฿)','วันที่พิพากษา','วันที่ผิดนัด','ยอดหนี้ผิดนัด (฿)','DPD (เดือน)','ยอดหนี้คงเหลือ (฿)']
+            head.innerHTML = ['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','ยอดหนี้คำพิพากษา (฿)','วันที่พิพากษา','วันที่ผิดนัด','ยอดหนี้ผิดนัด (฿)','DPD (เดือน)','ยอดหนี้คงเหลือ (฿)','สถานะ','Remark']
                 .map(h => `<th class="${TH}">${h}</th>`).join('');
             const rows = reportData.report_30;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="11" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr class="hover:bg-red-50/40 transition-colors">
                 <td class="px-5 py-3">
                     <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
@@ -1164,13 +1164,17 @@ tailwind.config = {
                 <td class="px-5 py-3 text-xs text-right font-semibold text-slate-700">
                     ${r.remaining_debt ? fmt(r.remaining_debt) : '<span class="text-slate-300">-</span>'}
                 </td>
+                <td class="px-5 py-3 text-xs text-center font-bold text-slate-600 whitespace-nowrap">
+                    ${r.status_label || r.case_status || '<span class="text-slate-300">-</span>'}
+                </td>
+                <td class="px-5 py-3 text-xs text-amber-700 font-semibold whitespace-normal min-w-[260px]">${r.remark || '<span class="text-slate-300">-</span>'}</td>
                 </tr>`).join('');
 
         } else if (tab === '31') {
-            head.innerHTML = ['เลขที่บัญชี','Amount Owed (฿)','Amount Past Due (฿)','DPD (เดือน)','Default Date','Installment Amount (฿)','จำนวนงวด','Frequency','Maturity Date']
+            head.innerHTML = ['เลขที่บัญชี','Amount Owed (฿)','Amount Past Due (฿)','DPD (เดือน)','Default Date','Installment Amount (฿)','จำนวนงวด','Frequency','Maturity Date','Remark']
                 .map(h => `<th class="${TH}">${h}</th>`).join('');
             const rows = reportData.report_31;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 31</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="10" class="${TD} py-10 text-center text-slate-300">ไม่มีข้อมูล Report 31</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr class="hover:bg-blue-50/40 transition-colors">
                 <td class="px-5 py-3">
                     <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
@@ -1189,6 +1193,7 @@ tailwind.config = {
                     <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold ${r.frequency === '30' ? 'bg-indigo-50 text-primary border border-indigo-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}">${r.frequency ?? '00'}</span>
                 </td>
                 <td class="px-5 py-3 text-xs text-slate-400">${r.maturity_date ? fmtDate(r.maturity_date) : '<span class="text-slate-300">-</span>'}</td>
+                <td class="px-5 py-3 text-xs text-amber-700 font-semibold whitespace-normal min-w-[260px]">${r.remark || '<span class="text-slate-300">-</span>'}</td>
             </tr>`).join('');
 
         } else if (tab === '33') {
