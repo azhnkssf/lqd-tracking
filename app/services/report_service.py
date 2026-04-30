@@ -511,7 +511,7 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
         'amount_owed'        : _round_money(amount_owed),
         'amount_past_due'    : _round_money(amount_past_due),
         'dpd'                : snap.get('dpd_months') if is_monthly_default else 0,
-        'default_date'       : snap.get('default_date') if is_monthly_default else '',
+        'default_date'       : snap.get('default_date') if is_monthly_default else '19000101',
         'installment_amount' : inst_amount,
         'installment_count'  : installment_count,
         'frequency'          : frequency,

@@ -1100,7 +1100,11 @@ tailwind.config = {
         document.getElementById('result-section').scrollIntoView({ behavior:'smooth' });
     }
 
-    function fmtAccNo(n) { if (!n || n.length !== 12) return n || '-'; return `${n.slice(0,4)}-${n.slice(4,8)}-${n.slice(8,12)}`; }
+    function fmtAccNo(n) {
+        if (!n) return '-';
+        const digits = String(n).replace(/\D/g, '');
+        return digits || '-';
+    }
     function fmt(n) {
         if (n === null || n === undefined || n === '') return '-';
         const fixed = Number(n).toFixed(2);
@@ -1111,8 +1115,12 @@ tailwind.config = {
     function fmtDate(d) {
         if (!d || d === '-') return '-';
         const s = String(d).split('T')[0].split(' ')[0];
-        const p = s.split('-');
-        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+        if (/^\d{8}$/.test(s)) return s;
+        const dashParts = s.split('-');
+        if (dashParts.length === 3) return `${dashParts[0]}${dashParts[1].padStart(2, '0')}${dashParts[2].padStart(2, '0')}`;
+        const slashParts = s.split('/');
+        if (slashParts.length === 3) return `${slashParts[2].padStart(4, '0')}${slashParts[1].padStart(2, '0')}${slashParts[0].padStart(2, '0')}`;
+        return s;
     }
 
     function switchTab(tab) {

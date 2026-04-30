@@ -107,22 +107,41 @@ def export_report(report_type):
     rows        = data.get('rows', [])
     report_date = data.get('report_date', '')
 
-    def fmt_date_excel(val):
-        if not val:
-            return ''
+    def fmt_date_excel(val, default=''):
+        if val is None or val == '':
+            return default
+
         s = str(val).strip().split('T')[0].split(' ')[0]
         if not s or s.lower() in ['none', 'null', '-']:
-            return ''
+            return default
+
+        # ถ้าเป็น YYYYMMDD อยู่แล้ว ให้คืนค่าเดิม
+        if len(s) == 8 and s.isdigit():
+            return s
+
+        # รองรับ YYYY-MM-DD -> YYYYMMDD
         parts = s.split('-')
         if len(parts) == 3 and len(parts[0]) == 4:
-            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+            yyyy, mm, dd = parts
+            return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+
+        # รองรับ DD/MM/YYYY -> YYYYMMDD
+        parts = s.split('/')
+        if len(parts) == 3:
+            dd, mm, yyyy = parts
+            if len(yyyy) == 4:
+                return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+
         return s
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
-        if len(s) == 12 and s.isdigit():
-            return f"{s[:4]}-{s[4:8]}-{s[8:]}"
-        return s or '-'
+        if not s:
+            return '-'
+
+        # รายงานต้องใช้เลขบัญชีแบบไม่มี dash เช่น 700000294583
+        digits = ''.join(ch for ch in s if ch.isdigit())
+        return digits or s
 
     wb = openpyxl.Workbook()
     ws: Worksheet = wb.active
@@ -158,7 +177,7 @@ def export_report(report_type):
 
         for r in rows:
             ws.append([
-                r.get('account_no'),
+                fmt_acc(r.get('account_no')),
                 fmt_date_excel(r.get('filing_date')),
                 fmt_num_30(r.get('principal_sued'), 2),
                 fmt_num_30(r.get('judgment_debt'), 2) if r.get('judgment_debt') is not None else '',
@@ -195,11 +214,11 @@ def export_report(report_type):
 
         for r in rows:
             ws.append([
-                r.get('account_no'),
+                fmt_acc(r.get('account_no')),
                 fmt_num(r.get('amount_owed'), 2),
                 fmt_num(r.get('amount_past_due'), 2),
                 int(r.get('dpd') or 0),
-                fmt_date_excel(r.get('default_date')),
+                fmt_date_excel(r.get('default_date'), default='19000101'),
                 fmt_num(r.get('installment_amount'), 2),
                 int(r.get('installment_count') or 0),
                 str(r.get('frequency') or '00'),
@@ -245,15 +264,31 @@ def export_all_reports():
     if not any([report_30, report_31, report_33, alerts, missing_db]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
-    def fmt_date_excel(val):
-        if not val:
-            return ''
+    def fmt_date_excel(val, default=''):
+        if val is None or val == '':
+            return default
+
         s = str(val).strip().split('T')[0].split(' ')[0]
         if not s or s.lower() in ['none', 'null', '-']:
-            return ''
+            return default
+
+        # ถ้าเป็น YYYYMMDD อยู่แล้ว ให้คืนค่าเดิม
+        if len(s) == 8 and s.isdigit():
+            return s
+
+        # รองรับ YYYY-MM-DD -> YYYYMMDD
         parts = s.split('-')
         if len(parts) == 3 and len(parts[0]) == 4:
-            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+            yyyy, mm, dd = parts
+            return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+
+        # รองรับ DD/MM/YYYY -> YYYYMMDD
+        parts = s.split('/')
+        if len(parts) == 3:
+            dd, mm, yyyy = parts
+            if len(yyyy) == 4:
+                return f"{yyyy.zfill(4)}{mm.zfill(2)}{dd.zfill(2)}"
+
         return s
 
     def fmt_num(v, decimals=2):
@@ -261,9 +296,12 @@ def export_all_reports():
 
     def fmt_acc(val):
         s = str(val).strip() if val else ''
-        if len(s) == 12 and s.isdigit():
-            return f"{s[:4]}-{s[4:8]}-{s[8:]}"
-        return s or '-'
+        if not s:
+            return '-'
+
+        # รายงานต้องใช้เลขบัญชีแบบไม่มี dash เช่น 700000294583
+        digits = ''.join(ch for ch in s if ch.isdigit())
+        return digits or s
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -354,7 +392,7 @@ def export_all_reports():
                 fmt_num(r.get('amount_owed'), 2),
                 fmt_num(r.get('amount_past_due'), 2),
                 int(r.get('dpd') or 0),
-                fmt_date_excel(r.get('default_date')),
+                fmt_date_excel(r.get('default_date'), default='19000101'),
                 fmt_num(r.get('installment_amount'), 2),
                 int(r.get('installment_count') or 0),
                 str(r.get('frequency') or '00'),
