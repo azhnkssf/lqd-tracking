@@ -160,11 +160,19 @@ def list_customers():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    page        = int(request.args.get('page', 1))
-    per_page    = int(request.args.get('per_page', 10))
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = min(100, max(1, int(request.args.get('per_page', 10))))
+    except (TypeError, ValueError):
+        per_page = 10
     account     = request.args.get('account_no', '').strip()
     name        = request.args.get('name', '').strip()
     case_status = request.args.get('case_status', '').strip()
+    sort_by     = request.args.get('sort_by', '').strip()
+    sort_dir    = request.args.get('sort_dir', 'desc').strip().lower()
     offset      = (page - 1) * per_page
 
     db = get_db()
@@ -183,13 +191,23 @@ def list_customers():
         params.append(case_status)
 
     where_clause = 'WHERE ' + ' AND '.join(where)
+    sort_columns = {
+        'account_no': 'account_no',
+        'filing_date': 'filing_date',
+        'judgment_date': 'judgment_date',
+    }
+    if sort_by in sort_columns:
+        direction = 'ASC' if sort_dir == 'asc' else 'DESC'
+        order_clause = f'ORDER BY {sort_columns[sort_by]} {direction}, id DESC'
+    else:
+        order_clause = 'ORDER BY id DESC'
 
     total = db.execute(
         f'SELECT COUNT(*) FROM customers {where_clause}', params
     ).fetchone()[0]
 
     rows = db.execute(
-        f'SELECT * FROM customers {where_clause} ORDER BY id DESC LIMIT ? OFFSET ?',
+        f'SELECT * FROM customers {where_clause} {order_clause} LIMIT ? OFFSET ?',
         params + [per_page, offset]
     ).fetchall()
 

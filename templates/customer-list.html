@@ -1117,10 +1117,10 @@
 
     // ---- Render pagination ----
     function renderPagination(total, page, perPage) {
-        const totalPages = Math.ceil(total / perPage);
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
         const container  = document.getElementById('pagination');
         const info       = document.getElementById('pagination-info');
-        const from       = (page - 1) * perPage + 1;
+        const from       = total === 0 ? 0 : (page - 1) * perPage + 1;
         const to         = Math.min(page * perPage, total);
 
         info.textContent = `Showing ${from}-${to} of ${total} entries`;
@@ -1150,7 +1150,7 @@
         const token   = getCookie('token');
 
         try {
-            const params = new URLSearchParams({ page: 1, per_page: 9999 });
+            const params = new URLSearchParams({ page, per_page: perPage });
 
             if (keyword) {
                 const accountKeyword = keyword.replace(/[-\s]/g, '');
@@ -1162,6 +1162,11 @@
                     params.append('name', keyword);
                 }
             }
+            if (activeCaseFilter) params.append('case_status', activeCaseFilter);
+            if (sortField) {
+                params.append('sort_by', sortField);
+                params.append('sort_dir', sortDir);
+            }
 
             const res = await fetch(`/api/customers?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -1171,11 +1176,13 @@
 
             const data = await res.json();
             allData = data.data || [];
+            totalRows = Number(data.total || 0);
+            currentPage = Number(data.page || page);
 
             document.getElementById('total-value').textContent  = '฿' + Number(data.summary.total_value).toLocaleString('th-TH', {minimumFractionDigits: 2});
             document.getElementById('total-active').textContent = data.summary.active_count.toLocaleString();
 
-            applyFilterSort(page);
+            applyFilterSort(currentPage);
 
         } catch (err) {
             document.getElementById('table-body').innerHTML =
@@ -1208,34 +1215,18 @@
             if (!el) return;
             el.className = 'case-tab ' + (k === val ? cfg.active : cfg.inactive);
         });
-        applyFilterSort(1);
+        currentPage = 1;
+        loadData(1);
     }
 
     function applyFilterSort(page = 1) {
-        let filtered = activeCaseFilter
-            ? allData.filter(r => r.case_status === activeCaseFilter)
-            : allData;
-
-        if (sortField) {
-            filtered = [...filtered].sort((a, b) => {
-                let va = a[sortField], vb = b[sortField];
-                if (sortField === 'filing_date' || sortField === 'judgment_date') { va = va || ''; vb = vb || ''; }
-                if (va < vb) return sortDir === 'asc' ? -1 : 1;
-                if (va > vb) return sortDir === 'asc' ? 1 : -1;
-                return 0;
-            });
-        }
-
-        totalRows        = filtered.length;
-        const offset     = (page - 1) * perPage;
-        const pageData   = filtered.slice(offset, offset + perPage);
-
-        renderTable(pageData);
+        currentPage = page;
+        renderTable(allData);
         renderPagination(totalRows, page, perPage);
     }
 
     // ---- Actions ----
-    function changePage(page) { currentPage = page; applyFilterSort(page); }
+    function changePage(page) { currentPage = page; loadData(page); }
     function handleSearch()            { currentPage = 1; loadData(1); }
     function handleClear() {
             document.getElementById('search-keyword').value = '';
@@ -1246,7 +1237,6 @@
                 if (el) { el.textContent = 'unfold_more'; el.style.opacity = '0.3'; el.style.color = ''; }
             });
             setCaseFilter('');
-            loadData(1);
         }
     function handleSort(field) {
         if (sortField === field) {
@@ -1271,7 +1261,7 @@
         });
 
         currentPage = 1;
-        applyFilterSort(1);
+        loadData(1);
     }
     function handlePayment(accountNo)  {
         window.location.href = `/payment-record?account=${encodeURIComponent(accountNo)}&from=customer-list`;
