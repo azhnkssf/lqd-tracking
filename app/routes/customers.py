@@ -388,8 +388,6 @@ def update_judgment(account_no):
 
     int_rate     = float(data.get('interest_rate', 0) or 0)
     default_rate = float(data.get('default_interest_rate', 0) or 0)
-    if int_rate == 0 and default_rate == 0:
-        return jsonify({'error': 'อัตราดอกเบี้ย/ปี และ ดอกเบี้ยเมื่อผิดนัด ต้องไม่เป็น 0 ทั้งคู่'}), 400
     total_debt = float(data.get('total_debt', 0) or 0)
     principal = float(data.get('principal', 0) or 0)
     court_fee = float(data.get('court_fee', 0) or 0)
@@ -638,9 +636,6 @@ def bulk_judgment():
             inst3          = float(row[12] or 0)
             inst4          = float(row[13] or 0)
             default_rate   = float(row[14] or 0)
-
-            if interest_rate == 0 and default_rate == 0:
-                raise ValueError('อัตราดอกเบี้ย/ปี และ ดอกเบี้ยเมื่อผิดนัด ต้องไม่เป็น 0 ทั้งคู่')
 
             last_due_date = (
                 date.fromisoformat(first_due_date) + _rd(months=inst_count - 1)

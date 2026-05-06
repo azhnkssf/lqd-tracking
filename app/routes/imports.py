@@ -542,9 +542,6 @@ def import_judgment():
             inst4          = parse_float(row[13])
             default_rate   = parse_float(str(row[14] or '').replace('%', '').strip())
 
-            if interest_rate == 0 and default_rate == 0:
-                raise ValueError('อัตราดอกเบี้ย/ปี และ ดอกเบี้ยเมื่อผิดนัด ต้องไม่เป็น 0 ทั้งคู่')
-
             if not last_due_date and first_due_date and inst_count > 0:
                 from datetime import date as _date
                 last_due_date = (
