@@ -43,6 +43,9 @@ def init_db(app):
                 status_types    TEXT DEFAULT '30,31',
                 count_30        INTEGER DEFAULT 0,
                 count_31        INTEGER DEFAULT 0,
+                count_skipped   INTEGER DEFAULT 0,
+                count_db_total  INTEGER DEFAULT 0,
+                count_generated_total INTEGER DEFAULT 0,
                 count_alerts    INTEGER DEFAULT 0,
                 count_missing   INTEGER DEFAULT 0,
                 generated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -223,6 +226,17 @@ def init_db(app):
             db.execute("ALTER TABLE report_logs ADD COLUMN count_33 INTEGER DEFAULT 0")
         except Exception:
             pass
+
+        report_log_columns = [
+            "ALTER TABLE report_logs ADD COLUMN count_skipped INTEGER DEFAULT 0",
+            "ALTER TABLE report_logs ADD COLUMN count_db_total INTEGER DEFAULT 0",
+            "ALTER TABLE report_logs ADD COLUMN count_generated_total INTEGER DEFAULT 0",
+        ]
+        for col in report_log_columns:
+            try:
+                db.execute(col)
+            except Exception:
+                pass
 
         try:
             db.execute("ALTER TABLE payments ADD COLUMN overpayment REAL DEFAULT 0")

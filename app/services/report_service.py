@@ -229,6 +229,62 @@ def _is_customer_effective_after_report(cus, report_date_str):
     return bool(effective_date and report_date and effective_date > report_date)
 
 
+def _future_effective_reason(cus, report_date_str):
+    effective_date = _get_case_effective_date(cus)
+    report_date = _parse_report_date(report_date_str)
+    if not effective_date or not report_date or effective_date <= report_date:
+        return None
+
+    case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+    reason_map = {
+        'ยื่นฟ้อง': (
+            'FILING_DATE_AFTER_REPORT',
+            'วันที่ยื่นฟ้องอยู่หลังวันที่ Report',
+        ),
+        'พิพากษาฝ่ายเดียว': (
+            'JUDGMENT_DATE_AFTER_REPORT',
+            'วันที่พิพากษาอยู่หลังวันที่ Report',
+        ),
+        'พิพากษาตามยอม': (
+            'JUDGMENT_DATE_AFTER_REPORT',
+            'วันที่พิพากษาอยู่หลังวันที่ Report',
+        ),
+        'บังคับคดี': (
+            'ENFORCEMENT_DATE_AFTER_REPORT',
+            'วันที่บังคับคดี/วันที่มีผลของสถานะอยู่หลังวันที่ Report',
+        ),
+        'ปิดบัญชี': (
+            'CLOSED_DATE_AFTER_REPORT',
+            'วันที่ปิดบัญชีอยู่หลังวันที่ Report',
+        ),
+    }
+    code, text = reason_map.get(case_status, (
+        'EFFECTIVE_DATE_AFTER_REPORT',
+        'วันที่มีผลของสถานะอยู่หลังวันที่ Report',
+    ))
+    return code, text, effective_date.isoformat()
+
+
+def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, effective_date=None):
+    return {
+        'account_no'     : cus.get('account_no'),
+        'name'           : cus.get('name'),
+        'case_status'    : cus.get('case_status'),
+        'filing_date'    : cus.get('filing_date'),
+        'judgment_date'  : cus.get('judgment_date'),
+        'enforcement_date': (
+            cus.get('enforcement_judgment_date') or
+            cus.get('enforcement_received_date') or
+            cus.get('enforcement_date')
+        ),
+        'closed_date'    : _get_closed_date(cus),
+        'effective_date' : effective_date,
+        'report_date'    : report_date_str,
+        'reason_code'    : reason_code,
+        'reason'         : reason_text,
+    }
+
+
 def _attach_case_status_log_context(cus, db):
     """
     แนบประวัติ case_status_logs เข้า cus เพื่อใช้กับรายงาน:
@@ -463,6 +519,7 @@ def process_registry_file(ws, db, report_date_str):
     report_31     = []
     report_11     = []
     alerts        = []
+    not_generated = []
     file_accounts = set()
 
     for row in ws.iter_rows(min_row=4, values_only=True):
@@ -481,6 +538,19 @@ def process_registry_file(ws, db, report_date_str):
 
         # Block รายการที่วันที่ยื่นฟ้องจริงอยู่หลัง As of Report Date
         if filing_date and _parse_report_date(filing_date) and _parse_report_date(report_date_str) and _parse_report_date(filing_date) > _parse_report_date(report_date_str):
+            not_generated.append({
+                'account_no'     : account_no,
+                'name'           : None,
+                'case_status'    : file_status,
+                'filing_date'    : filing_date,
+                'judgment_date'  : judgment_date,
+                'enforcement_date': None,
+                'closed_date'    : None,
+                'effective_date' : filing_date,
+                'report_date'    : report_date_str,
+                'reason_code'    : 'FILING_DATE_AFTER_REPORT',
+                'reason'         : 'วันที่ยื่นฟ้องจากไฟล์อยู่หลังวันที่ Report',
+            })
             continue
 
         if not account_no or file_status not in VALID_STATUSES:
@@ -502,6 +572,11 @@ def process_registry_file(ws, db, report_date_str):
         # Block เคสที่สถานะ/วันที่สำคัญเกิดหลัง As of Report Date
         # เช่น กรอกเคสยื่นฟ้องเดือนเมษายน แต่ขอ report สิ้นเดือนมีนาคม
         if cus and _is_customer_effective_after_report(cus, report_date_str):
+            reason = _future_effective_reason(cus, report_date_str)
+            if reason:
+                not_generated.append(_build_not_generated_row(
+                    cus, reason[0], reason[1], report_date_str, reason[2]
+                ))
             continue
 
         # ============================================================
@@ -544,6 +619,12 @@ def process_registry_file(ws, db, report_date_str):
 
         snap = get_snapshot_at_date(cus, payments, report_date_str)
         if not snap:
+            not_generated.append(_build_not_generated_row(
+                cus,
+                'NO_SNAPSHOT',
+                'ไม่สามารถคำนวณ snapshot ณ วันที่ Report ได้',
+                report_date_str,
+            ))
             continue
 
         group = _get_report_group(cus, snap)
@@ -586,6 +667,7 @@ def process_registry_file(ws, db, report_date_str):
         'report_11'  : report_11,
         'alerts'     : alerts,
         'missing_db' : missing_db,
+        'not_generated': not_generated,
     }
 
 

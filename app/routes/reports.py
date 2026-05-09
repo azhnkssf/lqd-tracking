@@ -17,6 +17,8 @@ from app.services.report_service import (
     _build_report11_row,
     _is_customer_effective_after_report,
     _attach_case_status_log_context,
+    _future_effective_reason,
+    _build_not_generated_row,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -53,6 +55,41 @@ def trunc_money(v, default=0):
         return default
 
 
+def build_reconcile_summary(db_total, report_30, report_31, report_11, alerts, missing_db, not_generated):
+    generated_total = len(report_30) + len(report_31) + len(report_11)
+    not_generated_total = len(not_generated)
+    missing_total = len(missing_db)
+
+    return {
+        'report_30'          : len(report_30),
+        'report_31'          : len(report_31),
+        'report_11'          : len(report_11),
+        'alerts'             : len(alerts),
+        'missing_db'         : missing_total,
+        'db_total'           : db_total,
+        'generated_total'    : generated_total,
+        'not_generated'      : not_generated_total,
+        'reconcile_total'    : generated_total + not_generated_total + missing_total,
+        'reconcile_matched'  : db_total == generated_total + not_generated_total + missing_total,
+    }
+
+
+def build_not_selected_rows(rows, report_type, report_date):
+    return [{
+        'account_no'     : r.get('account_no'),
+        'name'           : r.get('name'),
+        'case_status'    : r.get('case_status') or r.get('status_label'),
+        'filing_date'    : r.get('filing_date'),
+        'judgment_date'  : r.get('judgment_date'),
+        'enforcement_date': r.get('enforcement_judgment_date'),
+        'closed_date'    : r.get('closed_date'),
+        'effective_date' : None,
+        'report_date'    : report_date,
+        'reason_code'    : 'REPORT_TYPE_NOT_SELECTED',
+        'reason'         : f'Report {report_type} ไม่ได้ถูกเลือกตอน Generate',
+    } for r in rows]
+
+
 @bp.route('/generate', methods=['POST'])
 def generate_report():
     user = get_current_user()
@@ -82,35 +119,55 @@ def generate_report():
         import traceback; traceback.print_exc()
         return jsonify({'error': f'เกิดข้อผิดพลาดในการประมวลผล: {str(e)}'}), 500
 
+    db_total = db.execute(
+        'SELECT COUNT(*) AS total FROM customers WHERE is_deleted = 0'
+    ).fetchone()['total']
+
+    not_generated = list(result.get('not_generated', []))
+
     # filter ตาม status_types ที่เลือก
     report_30 = result['report_30'] if '30' in status_types else []
     report_31 = result['report_31'] if '31' in status_types else []
     report_11 = result.get('report_11', [])
 
+    if '30' not in status_types:
+        not_generated.extend(build_not_selected_rows(result.get('report_30', []), '30', report_date))
+    if '31' not in status_types:
+        not_generated.extend(build_not_selected_rows(result.get('report_31', []), '31', report_date))
+
+    summary = build_reconcile_summary(
+        db_total,
+        report_30,
+        report_31,
+        report_11,
+        result['alerts'],
+        result['missing_db'],
+        not_generated,
+    )
+
     # บันทึก log
     db.execute(
-        """INSERT INTO report_logs (generated_by, report_date, filename, status_types, count_30, count_31, count_33, count_alerts, count_missing)
-        VALUES (?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO report_logs
+           (generated_by, report_date, filename, status_types,
+            count_30, count_31, count_33, count_alerts, count_missing,
+            count_skipped, count_db_total, count_generated_total)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (user['id'], report_date, file.filename, ','.join(status_types),
         len(report_30), len(report_31), len(report_11),
-        len(result['alerts']), len(result['missing_db']))
+        len(result['alerts']), len(result['missing_db']),
+        len(not_generated), db_total, summary['generated_total'])
     )
     db.commit()
 
     return jsonify({
         'report_date' : report_date,
-        'summary'     : {
-            'report_30'  : len(report_30),
-            'report_31'  : len(report_31),
-            'report_11'  : len(report_11),
-            'alerts'     : len(result['alerts']),
-            'missing_db' : len(result['missing_db']),
-        },
+        'summary'     : summary,
         'report_30'   : report_30,
         'report_31'   : report_31,
         'report_11'   : report_11,
         'alerts'      : result['alerts'],
         'missing_db'  : result['missing_db'],
+        'not_generated': not_generated,
     }), 200
 
 
@@ -273,8 +330,9 @@ def export_all_reports():
     report_11   = data.get('report_11', []) or []
     alerts      = data.get('alerts', []) or []
     missing_db  = data.get('missing_db', []) or []
+    not_generated = data.get('not_generated', []) or []
 
-    if not any([report_30, report_31, report_11, alerts, missing_db]):
+    if not any([report_30, report_31, report_11, alerts, missing_db, not_generated]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
     def fmt_date_excel(val, default=''):
@@ -321,6 +379,7 @@ def export_all_reports():
     fill_33      = PatternFill(start_color='D1FAE5', end_color='D1FAE5', fill_type='solid')
     fill_alert   = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
     fill_missing = PatternFill(start_color='FFEDD5', end_color='FFEDD5', fill_type='solid')
+    fill_skipped = PatternFill(start_color='E5E7EB', end_color='E5E7EB', fill_type='solid')
 
     def style_header(ws):
         for cell in ws[1]:
@@ -476,6 +535,41 @@ def export_all_reports():
 
         autofit(ws)
 
+    if not_generated:
+        ws = wb.create_sheet('Not Generated')
+        ws.append([
+            'เลขที่บัญชี',
+            'ชื่อลูกค้า',
+            'สถานะปัจจุบัน',
+            'วันที่ยื่นฟ้อง',
+            'วันที่พิพากษา',
+            'วันที่บังคับคดี',
+            'วันที่ปิดบัญชี',
+            'วันที่มีผล',
+            'Report Date',
+            'Reason Code',
+            'เหตุผล',
+        ])
+        style_header(ws)
+
+        for r in not_generated:
+            ws.append([
+                fmt_acc(r.get('account_no')),
+                r.get('name') or '-',
+                r.get('case_status') or '-',
+                fmt_date_excel(r.get('filing_date')),
+                fmt_date_excel(r.get('judgment_date')),
+                fmt_date_excel(r.get('enforcement_date')),
+                fmt_date_excel(r.get('closed_date')),
+                fmt_date_excel(r.get('effective_date')),
+                fmt_date_excel(r.get('report_date') or report_date),
+                r.get('reason_code') or '-',
+                r.get('reason') or '-',
+            ])
+            paint_row(ws, fill_skipped)
+
+        autofit(ws)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -510,6 +604,8 @@ def generate_report_db():
     report_30 = []
     report_31 = []
     report_11 = []
+    not_generated = []
+    db_total = len(customers)
 
     for cus_row in customers:
         cus         = dict(cus_row)
@@ -519,6 +615,11 @@ def generate_report_db():
 
         # Block เคสที่วันที่สำคัญของสถานะปัจจุบันเกิดหลัง As of Report Date
         if _is_customer_effective_after_report(cus, report_date):
+            reason = _future_effective_reason(cus, report_date)
+            if reason:
+                not_generated.append(_build_not_generated_row(
+                    cus, reason[0], reason[1], report_date, reason[2]
+                ))
             continue
 
         if case_status == 'ปิดบัญชี':
@@ -535,6 +636,13 @@ def generate_report_db():
                     cus,
                     None,
                     report_date
+                ))
+            else:
+                not_generated.append(_build_not_generated_row(
+                    cus,
+                    'REPORT_TYPE_NOT_SELECTED',
+                    'Report 30 ไม่ได้ถูกเลือกตอน Generate',
+                    report_date,
                 ))
             continue
 
@@ -560,6 +668,13 @@ def generate_report_db():
                     snap,
                     report_date
                 ))
+            else:
+                not_generated.append(_build_not_generated_row(
+                    cus,
+                    'REPORT_TYPE_NOT_SELECTED',
+                    'Report 30 ไม่ได้ถูกเลือกตอน Generate',
+                    report_date,
+                ))
             continue
 
         if case_status == 'บังคับคดี':
@@ -573,9 +688,22 @@ def generate_report_db():
                     snap,
                     report_date
                 ))
+            else:
+                not_generated.append(_build_not_generated_row(
+                    cus,
+                    'REPORT_TYPE_NOT_SELECTED',
+                    'Report 30 ไม่ได้ถูกเลือกตอน Generate',
+                    report_date,
+                ))
             continue
 
         if not snap:
+            not_generated.append(_build_not_generated_row(
+                cus,
+                'NO_SNAPSHOT',
+                'ไม่สามารถคำนวณ snapshot ณ วันที่ Report ได้',
+                report_date,
+            ))
             continue
 
         group = _get_report_group(cus, snap)
@@ -596,31 +724,45 @@ def generate_report_db():
 
         elif group == '31' and '31' in status_types:
             report_31.append(_build_report31_row(account_no, cus, snap, report_date))
+        elif group in ['30', '31']:
+            not_generated.append(_build_not_generated_row(
+                cus,
+                'REPORT_TYPE_NOT_SELECTED',
+                f'Report {group} ไม่ได้ถูกเลือกตอน Generate',
+                report_date,
+            ))
+
+    summary = build_reconcile_summary(
+        db_total,
+        report_30,
+        report_31,
+        report_11,
+        [],
+        [],
+        not_generated,
+    )
 
     db.execute(
         """INSERT INTO report_logs
            (generated_by, report_date, filename, status_types,
-            count_30, count_31, count_33, count_alerts, count_missing)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
+            count_30, count_31, count_33, count_alerts, count_missing,
+            count_skipped, count_db_total, count_generated_total)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (user['id'], report_date, '[DB Report]', ','.join(status_types),
-         len(report_30), len(report_31), len(report_11), 0, 0)
+         len(report_30), len(report_31), len(report_11), 0, 0,
+         len(not_generated), db_total, summary['generated_total'])
     )
     db.commit()
 
     return jsonify({
         'report_date' : report_date,
-        'summary'     : {
-            'report_30'  : len(report_30),
-            'report_31'  : len(report_31),
-            'report_11'  : len(report_11),
-            'alerts'     : 0,
-            'missing_db' : 0,
-        },
+        'summary'     : summary,
         'report_30'   : report_30,
         'report_31'   : report_31,
         'report_11'   : report_11,
         'alerts'      : [],
         'missing_db'  : [],
+        'not_generated': not_generated,
     }), 200
 
 @bp.route('/history', methods=['GET'])

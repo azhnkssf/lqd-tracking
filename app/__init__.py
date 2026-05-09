@@ -84,6 +84,15 @@ def create_app():
             return redirect('/login')
         return render_template('customer-list.html')
 
+    @app.route('/customer-list-mockup')
+    def customer_list_mockup_page():
+        from flask import render_template, request, redirect
+        from app.services.auth_service import get_user_by_token
+        token = request.cookies.get('token')
+        if not token or not get_user_by_token(token):
+            return redirect('/login')
+        return render_template('customer-list-mockup.html')
+
     @app.route('/report')
     def report_page():
         from flask import render_template, request, redirect

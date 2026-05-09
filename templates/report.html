@@ -636,6 +636,39 @@ tailwind.config = {
                 </div>
             </div>
 
+            <div class="bg-white rounded-3xl border border-blue-100 shadow-sm p-5">
+                <div class="flex flex-col lg:flex-row lg:items-center gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="report-icon-box bg-slate-50 text-slate-600">
+                            <span class="material-symbols-outlined text-[24px] section-title-icon">fact_check</span>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 class="font-extrabold text-slate-800 text-base tracking-tight">Report Reconcile</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">ตรวจจำนวนข้อมูลใน DB เทียบกับรายการที่ Generate และรายการที่ไม่ถูก Generate</p>
+                        </div>
+                    </div>
+
+                    <div class="lg:ml-auto grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                        <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">DB Records</p>
+                            <p id="sum-db-total" class="text-xl font-black text-slate-800 mt-1">0</p>
+                        </div>
+                        <div class="rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3">
+                            <p class="text-[10px] text-emerald-500 font-extrabold uppercase tracking-widest">Generated</p>
+                            <p id="sum-generated-total" class="text-xl font-black text-emerald-700 mt-1">0</p>
+                        </div>
+                        <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Not Generated</p>
+                            <p id="sum-not-generated" class="text-xl font-black text-slate-700 mt-1">0</p>
+                        </div>
+                        <div id="sum-reconcile-box" class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Status</p>
+                            <p id="sum-reconcile-status" class="text-sm font-black text-slate-700 mt-2">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="report-page-card">
                 <div class="report-section-header flex flex-col xl:flex-row xl:items-center gap-4">
                     <div class="flex items-center gap-3 min-w-0">
@@ -654,6 +687,7 @@ tailwind.config = {
                         <button onclick="switchTab('11')" id="tab-11" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">Status 11</button>
                         <button onclick="switchTab('alerts')" id="tab-alerts" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">แจ้งเตือน</button>
                         <button onclick="switchTab('missing')" id="tab-missing" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">หายจากไฟล์</button>
+                        <button onclick="switchTab('skipped')" id="tab-skipped" class="px-4 py-2 text-xs font-extrabold rounded-xl uppercase tracking-wider transition-all tab-inactive">Not Generated</button>
 
                         <style>
                             .tab-disabled { color:#cbd5e1; cursor:not-allowed; background:transparent; box-shadow:none; }
@@ -715,6 +749,9 @@ tailwind.config = {
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400">Generator</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400 text-center">Report Date</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-indigo-400">File Name</th>
+                            <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-slate-500">DB</th>
+                            <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-emerald-600">Generated</th>
+                            <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-slate-500">Skipped</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-red-500">Report 30</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-primary">Report 31</th>
                             <th class="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-center text-emerald-600">Report 11</th>
@@ -724,7 +761,7 @@ tailwind.config = {
                     </thead>
                     <tbody id="history-table" class="divide-y divide-slate-50 text-xs">
                         <tr>
-                            <td colspan="9" class="px-6 py-10 text-center text-indigo-300 text-xs">กำลังโหลด...</td>
+                            <td colspan="12" class="px-6 py-10 text-center text-indigo-300 text-xs">กำลังโหลด...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1077,6 +1114,21 @@ tailwind.config = {
         document.getElementById('sum-11').textContent      = data.summary.report_11 || 0;
         document.getElementById('sum-alerts').textContent  = data.summary.alerts;
         document.getElementById('sum-missing').textContent = data.summary.missing_db;
+        document.getElementById('sum-db-total').textContent = data.summary.db_total ?? 0;
+        document.getElementById('sum-generated-total').textContent = data.summary.generated_total ?? 0;
+        document.getElementById('sum-not-generated').textContent = data.summary.not_generated ?? 0;
+
+        const reconcileBox = document.getElementById('sum-reconcile-box');
+        const reconcileStatus = document.getElementById('sum-reconcile-status');
+        const matched = !!data.summary.reconcile_matched;
+        reconcileBox.className = matched
+            ? 'rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3'
+            : 'rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3';
+        reconcileStatus.className = matched
+            ? 'text-sm font-black text-emerald-700 mt-2'
+            : 'text-sm font-black text-amber-700 mt-2';
+        reconcileStatus.textContent = matched ? 'Matched' : 'Review';
+
         document.getElementById('result-section').classList.remove('hidden');
 
         // disable tab ที่ไม่ได้เลือก
@@ -1091,6 +1143,7 @@ tailwind.config = {
         else if (status31 && data.summary.report_31 > 0)     switchTab('31');
         else if ((data.summary.report_11 || 0) > 0)          switchTab('11');
         else if (data.summary.alerts > 0)                    switchTab('alerts');
+        else if ((data.summary.not_generated || 0) > 0)      switchTab('skipped');
         else                                                  switchTab('missing');
         document.getElementById('result-section').scrollIntoView({ behavior:'smooth' });
     }
@@ -1123,7 +1176,7 @@ tailwind.config = {
 
     function switchTab(tab) {
         activeTab = tab;
-        ['30','31','11','alerts','missing'].forEach(t => {
+        ['30','31','11','alerts','missing','skipped'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             el.classList.toggle('tab-active', t === tab);
             el.classList.toggle('tab-inactive', t !== tab);
@@ -1234,6 +1287,27 @@ tailwind.config = {
                 <td class="px-5 py-3 text-xs font-semibold text-slate-700">${r.name}</td>
                 <td class="px-5 py-3 text-xs text-orange-500">${r.message}</td>
             </tr>`).join('');
+
+        } else if (tab === 'skipped') {
+            head.innerHTML = ['เลขที่บัญชี','ชื่อลูกค้า','สถานะปัจจุบัน','วันที่ยื่นฟ้อง','วันที่พิพากษา','วันที่บังคับคดี','วันที่มีผล','Reason','เหตุผล']
+                .map(h => `<th class="${TH}">${h}</th>`).join('');
+            const rows = reportData.not_generated || [];
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="${TD} py-10 text-center text-slate-300">ไม่มีรายการ Not Generated</td></tr>`; return; }
+            body.innerHTML = rows.map(r => `<tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-5 py-3">
+                    <span class="text-xs font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span>
+                </td>
+                <td class="px-5 py-3 text-xs font-semibold text-slate-700">${r.name || '-'}</td>
+                <td class="px-5 py-3">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-100">${r.case_status || '-'}</span>
+                </td>
+                <td class="px-5 py-3 text-xs text-slate-400">${fmtDate(r.filing_date)}</td>
+                <td class="px-5 py-3 text-xs text-slate-400">${fmtDate(r.judgment_date)}</td>
+                <td class="px-5 py-3 text-xs text-slate-400">${fmtDate(r.enforcement_date)}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${fmtDate(r.effective_date)}</td>
+                <td class="px-5 py-3 text-[10px] font-bold text-slate-500">${r.reason_code || '-'}</td>
+                <td class="px-5 py-3 text-xs text-slate-600 whitespace-normal min-w-[260px]">${r.reason || '-'}</td>
+            </tr>`).join('');
         }
     }
 
@@ -1250,6 +1324,7 @@ tailwind.config = {
             report_11: reportData.report_11 || [],
             alerts: reportData.alerts || [],
             missing_db: reportData.missing_db || [],
+            not_generated: reportData.not_generated || [],
         };
 
         const totalRows =
@@ -1257,7 +1332,8 @@ tailwind.config = {
             payload.report_31.length +
             payload.report_11.length +
             payload.alerts.length +
-            payload.missing_db.length;
+            payload.missing_db.length +
+            payload.not_generated.length;
 
         if (totalRows === 0) {
             showToast('warning', 'ไม่มีข้อมูล', 'ไม่มีข้อมูล Report สำหรับ Export ในรอบนี้');
@@ -1325,7 +1401,7 @@ tailwind.config = {
             const res  = await fetch('/api/report/history');
             const data = await res.json();
             if (!data.history || !data.history.length) {
-                tbody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-indigo-300 text-xs">ยังไม่มีประวัติการ Generate</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" class="px-6 py-8 text-center text-indigo-300 text-xs">ยังไม่มีประวัติการ Generate</td></tr>';
                 return;
             }
             tbody.innerHTML = data.history.map(h => {
@@ -1350,6 +1426,9 @@ tailwind.config = {
                     <td class="px-6 py-3.5 max-w-[180px]">
                         <p class="text-xs text-slate-400 truncate">${h.filename||'-'}</p>
                     </td>
+                    <td class="px-6 py-3.5 text-center"><span class="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-full text-xs font-bold ${(h.count_db_total||0)>0?'bg-slate-50 text-slate-600 border border-slate-100':'text-slate-300'}">${h.count_db_total||0}</span></td>
+                    <td class="px-6 py-3.5 text-center"><span class="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-full text-xs font-bold ${(h.count_generated_total||0)>0?'bg-emerald-50 text-emerald-600 border border-emerald-100':'text-slate-300'}">${h.count_generated_total||0}</span></td>
+                    <td class="px-6 py-3.5 text-center"><span class="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-full text-xs font-bold ${(h.count_skipped||0)>0?'bg-slate-100 text-slate-600 border border-slate-200':'text-slate-300'}">${h.count_skipped||0}</span></td>
                     <td class="px-6 py-3.5 text-center">${(h.status_types||'30,31').includes('30') ? `<span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${h.count_30>0?'bg-red-50 text-red-600 border border-red-100':'text-slate-300'}">${h.count_30}</span>` : '<span class="text-slate-200 text-xs">-</span>'}</td>
                     <td class="px-6 py-3.5 text-center">${(h.status_types||'30,31').includes('31') ? `<span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${h.count_31>0?'bg-blue-50 text-primary border border-blue-100':'text-slate-300'}">${h.count_31}</span>` : '<span class="text-slate-200 text-xs">-</span>'}</td>
                     <td class="px-6 py-3.5 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${(h.count_33||0)>0?'bg-emerald-50 text-emerald-600 border border-emerald-100':'text-slate-300'}">${h.count_33||0}</span></td>
@@ -1358,7 +1437,7 @@ tailwind.config = {
                 </tr>`;
             }).join('');
         } catch(e) {
-            tbody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-red-300 text-xs">โหลดข้อมูลไม่ได้</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="px-6 py-8 text-center text-red-300 text-xs">โหลดข้อมูลไม่ได้</td></tr>';
         }
     }
 
