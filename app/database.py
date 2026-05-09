@@ -268,4 +268,36 @@ def init_db(app):
             except Exception:
                 pass
 
+        list_cache_columns = [
+            "ALTER TABLE customers ADD COLUMN ui_payment_status TEXT",
+            "ALTER TABLE customers ADD COLUMN ui_remaining_debt REAL DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_principal_bal REAL DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_outstanding REAL DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_dpd_days INTEGER DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_dpd_months INTEGER DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_next_due_date TEXT",
+            "ALTER TABLE customers ADD COLUMN ui_last_payment_date TEXT",
+            "ALTER TABLE customers ADD COLUMN ui_last_payment_amount REAL DEFAULT 0",
+            "ALTER TABLE customers ADD COLUMN ui_snapshot_date TEXT",
+            "ALTER TABLE customers ADD COLUMN ui_snapshot_updated_at DATETIME",
+        ]
+        for col_def in list_cache_columns:
+            try:
+                db.execute(col_def)
+            except Exception:
+                pass
+
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_customers_ui_payment_status ON customers(ui_payment_status)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_ui_next_due_date ON customers(ui_next_due_date)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_ui_remaining_debt ON customers(ui_remaining_debt)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_case_status ON customers(case_status)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_account_date ON payments(account_no, payment_date)",
+        ]
+        for statement in indexes:
+            try:
+                db.execute(statement)
+            except Exception:
+                pass
+
         db.commit()

@@ -8,6 +8,10 @@ from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
 from app.services.report_service import get_snapshot_at_date
+from app.services.customer_list_cache_service import (
+    refresh_all_customer_list_cache,
+    refresh_customer_list_cache,
+)
 from dateutil.relativedelta import relativedelta
 
 bp = Blueprint('customers', __name__, url_prefix='/api/customers')
@@ -98,7 +102,7 @@ def _payment_status_from_snapshot(cus, snap, payments=None, today=None):
     if outstanding > 0 or dpd_days > 0 or dpd_months > 0:
         return 'ค้างชำระ'
 
-    return 'จ่ายปกติ'
+    return 'ชำระปกติ'
 
 
 def _can_record_enforcement(cus, snap, today=None):
@@ -144,6 +148,13 @@ def _decorate_customer_for_ui(cus, payments=None, today=None):
     # ค่าที่คำนวณสดสำหรับ UI
     cus['computed_payment_status'] = computed_payment_status
     cus['display_payment_status'] = computed_payment_status
+    if payments:
+        latest_payment = max(payments, key=lambda p: p.get('payment_date') or '')
+        cus['last_payment_date'] = latest_payment.get('payment_date')
+        cus['last_payment_amount'] = latest_payment.get('amount')
+    else:
+        cus['last_payment_date'] = None
+        cus['last_payment_amount'] = 0
 
     cus['can_record_enforcement'] = _can_record_enforcement(cus, snap, today)
     cus['has_enforcement_order'] = bool(
@@ -151,6 +162,97 @@ def _decorate_customer_for_ui(cus, payments=None, today=None):
         cus.get('enforcement_recorded_at')
     )
 
+    return cus
+
+
+def _csv_values(*names):
+    values = []
+    for name in names:
+        for raw in request.args.getlist(name):
+            for item in str(raw or '').split(','):
+                item = item.strip()
+                if item:
+                    values.append(item)
+    return values
+
+
+def _parse_float_arg(name):
+    value = request.args.get(name, '').strip()
+    if not value:
+        return None
+    try:
+        return float(value.replace(',', ''))
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_payments_by_account(db, account_nos):
+    account_nos = [str(a) for a in account_nos if a]
+    if not account_nos:
+        return {}
+
+    grouped = {account_no: [] for account_no in account_nos}
+    for i in range(0, len(account_nos), 500):
+        batch = account_nos[i:i + 500]
+        placeholders = ','.join(['?'] * len(batch))
+        rows = db.execute(
+            f'''
+            SELECT *
+            FROM payments
+            WHERE account_no IN ({placeholders})
+            ORDER BY account_no ASC, payment_date ASC
+            ''',
+            batch
+        ).fetchall()
+
+        for row in rows:
+            payment = dict(row)
+            grouped.setdefault(payment.get('account_no'), []).append(payment)
+    return grouped
+
+
+def _payment_status_filter_values(values):
+    aliases = {
+        'ชำระปกติ': ['ชำระปกติ'],
+        'จ่ายปกติ': ['ชำระปกติ'],
+        'ยังไม่เริ่มชำระ': ['ยังไม่ถึงกำหนด'],
+        'ยังไม่ถึงกำหนด': ['ยังไม่ถึงกำหนด'],
+    }
+    normalized = set()
+    for value in values:
+        for item in aliases.get(value, [value]):
+            normalized.add(item)
+    return normalized
+
+
+def _remaining_debt_sql_expr():
+    return 'COALESCE(ui_remaining_debt, 0)'
+
+
+def _decorate_customer_from_list_cache(cus):
+    snap = {
+        'remaining_debt_raw': cus.get('ui_remaining_debt') or 0,
+        'principal_bal': cus.get('ui_principal_bal') or 0,
+        'principal_bal_raw': cus.get('ui_principal_bal') or 0,
+        'outstanding': cus.get('ui_outstanding') or 0,
+        'outstanding_raw': cus.get('ui_outstanding') or 0,
+        'dpd_days': cus.get('ui_dpd_days') or 0,
+        'dpd_months': cus.get('ui_dpd_months') or 0,
+        'oldest_due': cus.get('ui_next_due_date'),
+    }
+    payment_status = cus.get('ui_payment_status') or cus.get('status') or '-'
+    cus['latest_snapshot'] = snap
+    cus['db_payment_status'] = cus.get('status')
+    cus['computed_payment_status'] = payment_status
+    cus['display_payment_status'] = payment_status
+    cus['remaining_debt'] = cus.get('ui_remaining_debt') or 0
+    cus['last_payment_date'] = cus.get('ui_last_payment_date')
+    cus['last_payment_amount'] = cus.get('ui_last_payment_amount') or 0
+    cus['can_record_enforcement'] = _can_record_enforcement(cus, snap)
+    cus['has_enforcement_order'] = bool(
+        cus.get('enforcement_order_no') or
+        cus.get('enforcement_recorded_at')
+    )
     return cus
 
 
@@ -171,9 +273,19 @@ def list_customers():
     account     = request.args.get('account_no', '').strip()
     name        = request.args.get('name', '').strip()
     case_status = request.args.get('case_status', '').strip()
+    case_statuses = _csv_values('case_statuses', 'case_status[]')
+    payment_statuses = _payment_status_filter_values(_csv_values('payment_statuses', 'payment_status[]'))
+    date_field = request.args.get('date_field', 'due').strip() or 'due'
+    date_from = _parse_iso_date(request.args.get('date_from', '').strip())
+    date_to = _parse_iso_date(request.args.get('date_to', '').strip())
+    outstanding_min = _parse_float_arg('outstanding_min')
+    outstanding_max = _parse_float_arg('outstanding_max')
     sort_by     = request.args.get('sort_by', '').strip()
     sort_dir    = request.args.get('sort_dir', 'desc').strip().lower()
     offset      = (page - 1) * per_page
+    allowed_date_fields = {'due', 'filingDate', 'judgmentDate', 'lastPaymentDate'}
+    if date_field not in allowed_date_fields:
+        date_field = 'due'
 
     db = get_db()
 
@@ -189,6 +301,43 @@ def list_customers():
     if case_status:
         where.append('case_status = ?')
         params.append(case_status)
+    if case_statuses:
+        placeholders = ','.join(['?'] * len(case_statuses))
+        where.append(f'case_status IN ({placeholders})')
+        params.extend(case_statuses)
+    if payment_statuses:
+        placeholders = ','.join(['?'] * len(payment_statuses))
+        where.append(f'ui_payment_status IN ({placeholders})')
+        params.extend(sorted(payment_statuses))
+    if outstanding_min is not None or outstanding_max is not None:
+        remaining_debt_expr = _remaining_debt_sql_expr()
+        if outstanding_min is not None:
+            where.append(f'({remaining_debt_expr}) >= ?')
+            params.append(outstanding_min)
+        if outstanding_max is not None:
+            where.append(f'({remaining_debt_expr}) <= ?')
+            params.append(outstanding_max)
+
+    sql_date_columns = {
+        'due': 'ui_next_due_date',
+        'filingDate': 'filing_date',
+        'judgmentDate': 'judgment_date',
+    }
+    if (date_from or date_to) and date_field in sql_date_columns:
+        date_column = sql_date_columns[date_field]
+        if date_from:
+            where.append(f'{date_column} >= ?')
+            params.append(date_from.isoformat())
+        if date_to:
+            where.append(f'{date_column} <= ?')
+            params.append(date_to.isoformat())
+    elif (date_from or date_to) and date_field == 'lastPaymentDate':
+        if date_from:
+            where.append('ui_last_payment_date >= ?')
+            params.append(date_from.isoformat())
+        if date_to:
+            where.append('ui_last_payment_date <= ?')
+            params.append(date_to.isoformat())
 
     where_clause = 'WHERE ' + ' AND '.join(where)
     sort_columns = {
@@ -202,6 +351,18 @@ def list_customers():
     else:
         order_clause = 'ORDER BY id DESC'
 
+    summary = db.execute(
+        'SELECT COALESCE(SUM(total_debt), 0) as total_value, COUNT(*) as active_count FROM customers WHERE case_status != "ปิดบัญชี" AND is_deleted = 0'
+    ).fetchone()
+
+    status_rows = db.execute(
+        'SELECT case_status, COUNT(*) as count FROM customers WHERE is_deleted = 0 GROUP BY case_status'
+    ).fetchall()
+    case_counts = {r['case_status'] or '': r['count'] for r in status_rows}
+    case_counts['ทั้งหมด'] = sum(case_counts.values())
+
+    decorated_rows = []
+
     total = db.execute(
         f'SELECT COUNT(*) FROM customers {where_clause}', params
     ).fetchone()[0]
@@ -210,23 +371,10 @@ def list_customers():
         f'SELECT * FROM customers {where_clause} {order_clause} LIMIT ? OFFSET ?',
         params + [per_page, offset]
     ).fetchall()
+    page_rows = [dict(r) for r in rows]
 
-    summary = db.execute(
-        'SELECT COALESCE(SUM(total_debt), 0) as total_value, COUNT(*) as active_count FROM customers WHERE case_status != "ปิดบัญชี" AND is_deleted = 0'
-    ).fetchone()
-
-    decorated_rows = []
-
-    for r in rows:
-        cus = dict(r)
-
-        payments = db.execute(
-            'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
-            (cus['account_no'],)
-        ).fetchall()
-        payments = [dict(p) for p in payments]
-
-        decorated_rows.append(_decorate_customer_for_ui(cus, payments))
+    for cus in page_rows:
+        decorated_rows.append(_decorate_customer_from_list_cache(cus))
 
     return jsonify({
         'data':     decorated_rows,
@@ -235,9 +383,38 @@ def list_customers():
         'per_page': per_page,
         'summary': {
             'total_value':  summary['total_value'],
-            'active_count': summary['active_count']
+            'active_count': summary['active_count'],
+            'case_counts':  case_counts
         }
     }), 200
+
+
+@bp.route('/cache/refresh-all', methods=['POST'])
+def refresh_customer_list_cache_all():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user['role'] != 'admin':
+        return jsonify({'error': 'เฉพาะ Admin เท่านั้น'}), 403
+
+    db = get_db()
+    result = refresh_all_customer_list_cache(db=db)
+    return jsonify({'message': 'refresh customer list cache สำเร็จ', **result}), 200
+
+
+@bp.route('/<account_no>/cache/refresh', methods=['POST'])
+def refresh_customer_list_cache_one(account_no):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user['role'] != 'admin':
+        return jsonify({'error': 'เฉพาะ Admin เท่านั้น'}), 403
+
+    db = get_db()
+    ok = refresh_customer_list_cache(account_no, db=db)
+    if not ok:
+        return jsonify({'error': 'ไม่พบข้อมูล'}), 404
+    return jsonify({'message': 'refresh customer list cache สำเร็จ', 'account_no': account_no}), 200
 
 
 @bp.route('', methods=['POST'])
