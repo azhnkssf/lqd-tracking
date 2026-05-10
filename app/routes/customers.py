@@ -12,6 +12,7 @@ from app.services.customer_list_cache_service import (
     refresh_all_customer_list_cache,
     refresh_customer_list_cache,
 )
+from app.services.judgment_service import calculate_judgment_difference, with_judgment_difference
 from dateutil.relativedelta import relativedelta
 
 bp = Blueprint('customers', __name__, url_prefix='/api/customers')
@@ -518,7 +519,7 @@ def get_customer(account_no):
     if not row:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus = dict(row)
+    cus = with_judgment_difference(dict(row))
 
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
@@ -589,7 +590,12 @@ def update_judgment(account_no):
     lawyer_fee = float(data.get('lawyer_fee', 0) or 0)
 
     # ใช้ BE เป็น source of truth สำหรับยอดหนี้ส่วนต่าง
-    judgment_difference = (court_fee + lawyer_fee + total_debt) - principal
+    judgment_difference = calculate_judgment_difference({
+        'court_fee': court_fee,
+        'lawyer_fee': lawyer_fee,
+        'total_debt': total_debt,
+        'principal': principal,
+    })
 
     try:
         first_due_d   = date.fromisoformat(first_due_date)
@@ -824,7 +830,12 @@ def bulk_judgment():
             interest_rate  = float(row[5] or 0)
             court_fee      = float(row[6] or 0)
             lawyer_fee     = float(row[7] or 0)
-            judgment_difference = (court_fee + lawyer_fee + total_debt) - principal
+            judgment_difference = calculate_judgment_difference({
+                'court_fee': court_fee,
+                'lawyer_fee': lawyer_fee,
+                'total_debt': total_debt,
+                'principal': principal,
+            })
             inst_count     = int(float(row[8] or 0))
             first_due_date = str(row[9]).strip() if row[9] else None
             inst1          = float(row[10] or 0)
@@ -1003,9 +1014,7 @@ def update_customer(account_no):
         'installment_3':         float(data.get('installment_3', 0)),
         'installment_4':         float(data.get('installment_4', 0)),
     }
-    new_vals['judgment_difference'] = (
-            new_vals['court_fee'] + new_vals['lawyer_fee'] + new_vals['total_debt']
-        ) - new_vals['principal']
+    new_vals['judgment_difference'] = calculate_judgment_difference(new_vals)
 
     import json
     changes = {}

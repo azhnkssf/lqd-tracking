@@ -7,6 +7,7 @@ from app.services.schedule_service import (
 )
 from app.services.status_service import refresh_customer_status
 from app.services.customer_list_cache_service import refresh_customer_list_cache
+from app.services.judgment_service import calculate_judgment_difference, with_judgment_difference
 from datetime import date
 
 bp = Blueprint('payments', __name__, url_prefix='/api/payments')
@@ -100,7 +101,7 @@ def get_payments(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus      = dict(cus)
+    cus      = with_judgment_difference(dict(cus))
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
         (account_no,)
@@ -141,7 +142,7 @@ def get_payments(account_no):
         principal      = cus['principal'],
         interest_rate  = cus['interest_rate'],
         term_months    = cus['installment_count'],
-        diff_debt      = cus.get('judgment_difference') or 0,
+        diff_debt      = calculate_judgment_difference(cus),
         first_pay_date = cus['first_due_date'],
         installment_1  = cus['installment_1'],
         installment_2  = cus.get('installment_2', 0),
@@ -176,7 +177,7 @@ def preview_payment(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus  = dict(cus)
+    cus  = with_judgment_difference(dict(cus))
     data = request.get_json()
     payment_date = data.get('payment_date')
     amount       = float(data.get('amount', 0))
@@ -248,7 +249,7 @@ def create_payment(account_no):
     except Exception:
         return jsonify({'error': 'payment_date ต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
-    cus_dict = dict(cus)
+    cus_dict = with_judgment_difference(dict(cus))
 
     previous_payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC, id ASC',
@@ -347,7 +348,7 @@ def export_payments(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus      = dict(cus)
+    cus      = with_judgment_difference(dict(cus))
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
         (account_no,)
@@ -360,7 +361,7 @@ def export_payments(account_no):
         principal      = cus['principal'],
         interest_rate  = cus['interest_rate'],
         term_months    = cus['installment_count'],
-        diff_debt      = cus.get('judgment_difference') or 0,
+        diff_debt      = calculate_judgment_difference(cus),
         first_pay_date = cus['first_due_date'],
         installment_1  = cus['installment_1'],
         installment_2  = cus.get('installment_2', 0),

@@ -289,6 +289,27 @@ def init_db(app):
             except Exception:
                 pass
 
+        try:
+            db.execute('''
+                UPDATE customers
+                SET judgment_difference = ROUND(
+                        COALESCE(court_fee, 0) +
+                        COALESCE(lawyer_fee, 0) +
+                        COALESCE(total_debt, 0) -
+                        COALESCE(principal, 0),
+                        2
+                    )
+                WHERE ROUND(COALESCE(judgment_difference, 0), 2) != ROUND(
+                        COALESCE(court_fee, 0) +
+                        COALESCE(lawyer_fee, 0) +
+                        COALESCE(total_debt, 0) -
+                        COALESCE(principal, 0),
+                        2
+                    )
+            ''')
+        except Exception:
+            pass
+
         indexes = [
             "CREATE INDEX IF NOT EXISTS idx_customers_ui_payment_status ON customers(ui_payment_status)",
             "CREATE INDEX IF NOT EXISTS idx_customers_ui_next_due_date ON customers(ui_next_due_date)",
