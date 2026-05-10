@@ -107,6 +107,7 @@ def init_db(app):
 
                 -- รายละเอียดคำพิพากษา
                 filing_date             TEXT,
+                black_case_no           TEXT,
                 filing_capital          REAL DEFAULT 0,
                 judgment_date           TEXT,
                 total_debt              REAL DEFAULT 0,
@@ -158,6 +159,7 @@ def init_db(app):
 
         new_columns = [
             'ALTER TABLE customers ADD COLUMN filing_date TEXT',
+            'ALTER TABLE customers ADD COLUMN black_case_no TEXT',
             'ALTER TABLE customers ADD COLUMN filing_capital REAL DEFAULT 0',
             'ALTER TABLE customers ADD COLUMN principal REAL DEFAULT 0',
             'ALTER TABLE customers ADD COLUMN judgment_difference REAL DEFAULT 0',

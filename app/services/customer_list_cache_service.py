@@ -78,6 +78,15 @@ def _remaining_debt(cus, snap):
     )
 
 
+def _display_dpd_days(snap):
+    if not snap:
+        return 0
+    monthly_policy_days = int(float(snap.get('dpd_months') or 0))
+    if monthly_policy_days > 0:
+        return monthly_policy_days
+    return int(float(snap.get('dpd_days') or 0))
+
+
 def calculate_customer_list_cache(cus, payments=None, today=None):
     today = today or date.today()
     payments = payments or []
@@ -96,7 +105,7 @@ def calculate_customer_list_cache(cus, payments=None, today=None):
         'ui_remaining_debt': round(_remaining_debt(cus, snap), 2),
         'ui_principal_bal': round(float((snap or {}).get('principal_bal_raw') or (snap or {}).get('principal_bal') or 0), 2),
         'ui_outstanding': round(float((snap or {}).get('outstanding_raw') or (snap or {}).get('outstanding') or 0), 2),
-        'ui_dpd_days': int(float((snap or {}).get('dpd_days') or 0)),
+        'ui_dpd_days': _display_dpd_days(snap),
         'ui_dpd_months': int(float((snap or {}).get('dpd_months') or 0)),
         'ui_next_due_date': (snap or {}).get('oldest_due') or cus.get('first_due_date'),
         'ui_last_payment_date': latest_payment.get('payment_date') if latest_payment else None,

@@ -6,6 +6,7 @@ from app.services.schedule_service import (
     get_due_date, get_term_number, get_installment_for_term
 )
 from app.services.status_service import refresh_customer_status
+from app.services.customer_list_cache_service import refresh_customer_list_cache
 from datetime import date
 
 bp = Blueprint('payments', __name__, url_prefix='/api/payments')
@@ -433,6 +434,7 @@ def mark_refunded(account_no, payment_id):
         'UPDATE payments SET refunded = 1, note = ? WHERE id = ?',
         (refund_note, payment_id)
     )
+    refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()
 
     return jsonify({'message': 'บันทึกการคืนเงินสำเร็จ'}), 200

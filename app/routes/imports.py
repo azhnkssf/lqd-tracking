@@ -8,6 +8,7 @@ from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
 from app.services.report_service import get_snapshot_at_date
+from app.services.customer_list_cache_service import refresh_customer_list_cache
 from dateutil.relativedelta import relativedelta
 
 bp = Blueprint('imports', __name__, url_prefix='/api/import')
@@ -432,6 +433,11 @@ def import_customers():
     )
     db.commit()
 
+    for r in results:
+        if r['status'] == 'success':
+            refresh_customer_list_cache(r['account_no'], db=db, commit=False)
+    db.commit()
+
     return jsonify({
         'summary': {'success': success, 'skip': skip, 'error': error, 'total': success + skip + error},
         'results': results, 'log_id': cur.lastrowid
@@ -736,6 +742,11 @@ def import_enforcement():
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error', 'message': str(e)})
             error += 1
 
+    db.commit()
+
+    for r in results:
+        if r['status'] == 'success':
+            refresh_customer_list_cache(r['account_no'], db=db, commit=False)
     db.commit()
 
     cur = db.execute(

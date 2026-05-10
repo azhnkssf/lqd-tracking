@@ -351,9 +351,19 @@ def list_customers():
     else:
         order_clause = 'ORDER BY id DESC'
 
-    summary = db.execute(
-        'SELECT COALESCE(SUM(total_debt), 0) as total_value, COUNT(*) as active_count FROM customers WHERE case_status != "ปิดบัญชี" AND is_deleted = 0'
-    ).fetchone()
+    summary = db.execute('''
+        SELECT
+            COALESCE(SUM(
+                CASE
+                    WHEN case_status = 'ยื่นฟ้อง' THEN COALESCE(filing_capital, 0)
+                    ELSE COALESCE(total_debt, 0)
+                END
+            ), 0) as total_value,
+            COUNT(*) as active_count
+        FROM customers
+        WHERE COALESCE(case_status, '') != 'ปิดบัญชี'
+          AND is_deleted = 0
+    ''').fetchone()
 
     status_rows = db.execute(
         'SELECT case_status, COUNT(*) as count FROM customers WHERE is_deleted = 0 GROUP BY case_status'
@@ -438,6 +448,8 @@ def create_customer():
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing_labels)}'}), 400
 
     account_no = str(data.get('account_no') or '').strip()
+    black_case_no = re.sub(r'\s+', ' ', str(data.get('black_case_no') or '').replace(' / ', '/').strip())
+    black_case_no = re.sub(r'\s*/\s*', '/', black_case_no)
     name = str(data.get('name') or '').strip()
     filing_date = str(data.get('filing_date') or '').strip()
     filing_capital_text = str(data.get('filing_capital') or '').replace(',', '').strip()
@@ -447,6 +459,9 @@ def create_customer():
 
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', filing_date):
         return jsonify({'error': 'วันที่ยื่นฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
+
+    if black_case_no and not re.fullmatch(r'[A-Za-zก-ฮ]{1,8}\s*[A-Za-z0-9]{1,8}/25\d{2}', black_case_no):
+        return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE814/2569'}), 400
 
     if not re.fullmatch(r'\d+(\.\d{1,2})?', filing_capital_text):
         return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลข และมีทศนิยมได้สูงสุด 2 ตำแหน่ง'}), 400
@@ -465,23 +480,26 @@ def create_customer():
 
     db.execute('''
         INSERT INTO customers (
-            account_no, name, filing_date, filing_capital,
+            account_no, name, filing_date, black_case_no, filing_capital,
             case_status, created_by
-        ) VALUES (?, ?, ?, ?, 'ยื่นฟ้อง', ?)
+        ) VALUES (?, ?, ?, ?, ?, 'ยื่นฟ้อง', ?)
     ''', (
         account_no,
         name,
         filing_date,
+        black_case_no or None,
         filing_capital,
         user['id']
     ))
 
     _log_case_status(db, account_no, None, 'ยื่นฟ้อง', user['id'], 'สร้างข้อมูลใหม่')
+    refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()
 
     return jsonify({
         'message': 'บันทึกข้อมูลสำเร็จ',
         'account_no': account_no,
+        'black_case_no': black_case_no,
         'filing_capital': filing_capital
     }), 201
 
@@ -716,6 +734,7 @@ def update_enforcement(account_no):
     ))
 
     _log_case_status(db, account_no, cus['case_status'], 'บังคับคดี', user['id'], 'บันทึกหมายบังคับคดี')
+    refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()
 
     return jsonify({'message': 'บันทึกหมายบังคับคดีสำเร็จ', 'account_no': account_no}), 200
