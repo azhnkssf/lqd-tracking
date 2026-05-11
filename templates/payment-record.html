@@ -1570,6 +1570,93 @@
         return Math.max(1, diffMonths + 1);
     }
 
+    function findPaymentDisplayTerm(payment, planRows, assignedTerms) {
+        const paymentDate = String(payment?.payment_date || '');
+        const orderedPlans = [...(planRows || [])]
+            .map((row, idx) => ({
+                ...row,
+                _displayTerm: Number(row.term || idx + 1),
+                _displayDate: String(row.date || '')
+            }))
+            .filter(row => row._displayTerm && row._displayDate)
+            .sort((a, b) => a._displayTerm - b._displayTerm);
+
+        const overduePlan = orderedPlans.find(row =>
+            !assignedTerms.has(row._displayTerm) &&
+            row._displayDate <= paymentDate
+        );
+        if (overduePlan) return overduePlan._displayTerm;
+
+        const nextPlan = orderedPlans.find(row =>
+            !assignedTerms.has(row._displayTerm) &&
+            row._displayDate >= paymentDate
+        );
+        if (nextPlan) return nextPlan._displayTerm;
+
+        const remainingPlan = orderedPlans.find(row => !assignedTerms.has(row._displayTerm));
+        if (remainingPlan) return remainingPlan._displayTerm;
+
+        return getVirtualTermForDate(paymentDate, customerData?.first_due_date);
+    }
+
+    function buildPaymentDisplayMap(planRows, payments, dailyRows) {
+        const planDateByTerm = {};
+        (planRows || []).forEach((row, idx) => {
+            const term = Number(row.term || idx + 1);
+            if (term) planDateByTerm[term] = String(row.date || '');
+        });
+
+        const payRows = (dailyRows || [])
+            .filter(r => r.is_pay_date)
+            .sort((a, b) => {
+                const da = String(a.date || '');
+                const db = String(b.date || '');
+                if (da < db) return -1;
+                if (da > db) return 1;
+                return Number(a._payment_id || 0) - Number(b._payment_id || 0);
+            });
+
+        const usedPayRowIndexes = new Set();
+        const assignedTerms = new Set();
+        const displayByTerm = {};
+
+        [...(payments || [])].sort(sortByDateThenId).forEach(payment => {
+            const matchedPayRow = findMatchingPayRowForPayment(payment, payRows, usedPayRowIndexes);
+            let term = findPaymentDisplayTerm(payment, planRows, assignedTerms);
+            const amount = Number(payment.amount || payment.pay_amount || 0);
+
+            if (amount <= 0) {
+                const previousAssignedTerm = [...assignedTerms]
+                    .sort((a, b) => b - a)
+                    .find(assignedTerm => {
+                        const dueDate = planDateByTerm[assignedTerm];
+                        const nextDueDate = planDateByTerm[assignedTerm + 1];
+                        const paymentDate = String(payment.payment_date || '');
+
+                        return dueDate &&
+                            paymentDate >= dueDate &&
+                            (!nextDueDate || paymentDate < nextDueDate);
+                    });
+
+                if (previousAssignedTerm) {
+                    term = previousAssignedTerm;
+                }
+            }
+
+            while (assignedTerms.has(term) && amount > 0) {
+                term += 1;
+            }
+
+            assignedTerms.add(term);
+            displayByTerm[term] = {
+                payment,
+                payRow: matchedPayRow
+            };
+        });
+
+        return displayByTerm;
+    }
+
     function buildMonthlyRowsForDisplay(cus, planMonthly, dailyRows) {
         const baseRows = (planMonthly || []).map((r, idx) => ({
             ...r,
@@ -1732,27 +1819,14 @@
             return;
         }
 
-        // map จาก term → payment row ใช้กับเคสทั่วไปเท่านั้น
-        // เคสพิพากษาฝ่ายเดียวจะใช้ _actual_pay_row / _actual_payment ที่ผูกตามลำดับการจ่ายจริงแล้ว
-        const payByTerm = {};
-        dailyAll.forEach(r => {
-            if (r.is_pay_date) {
-                const t = Number(r.term || 0);
-                if (!payByTerm[t]) payByTerm[t] = [];
-                payByTerm[t].push(r);
-            }
-        });
+        // Monthly display maps payments to the due row they settle, not the calendar term of the pay date.
+        const paymentDisplayByTerm = buildPaymentDisplayMap(planRows, payments, dailyAll);
 
         tbody.innerHTML = planRows.map((plan, i) => {
             const termNum = Number(plan.term || i + 1);
-            const isDefaultRow = isDefaultSingleJudgment(customerData || {}) && plan._actual_payment;
-
-            const termPayRows = payByTerm[termNum] || [];
-            const lastPay = isDefaultRow
-                ? (plan._actual_pay_row || null)
-                : (termPayRows.length > 0 ? termPayRows[termPayRows.length - 1] : null);
-
-            const actualPayment = plan._actual_payment || null;
+            const displayPayment = paymentDisplayByTerm[termNum] || null;
+            const lastPay = displayPayment?.payRow || plan._actual_pay_row || null;
+            const actualPayment = displayPayment?.payment || plan._actual_payment || null;
             const projected = plan._projected_row || null;
             const analysisRow = lastPay || projected;
             const isPaid = !!(lastPay || actualPayment);
