@@ -67,6 +67,50 @@
     .drop-zone:hover, .drop-zone.is-dragging { @apply border-primary bg-indigo-50/60; }
     .footer-bar { @apply fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100 bg-white/95 px-5 py-3 shadow-xl shadow-slate-900/5 backdrop-blur md:left-64 md:px-8; }
     .modal-shell { @apply relative w-full overflow-hidden border border-blue-100 bg-white shadow-2xl shadow-slate-900/20; }
+    .processing-shell {
+        background:
+            radial-gradient(circle at 50% 0%, rgba(219,234,254,0.9), rgba(255,255,255,0) 34%),
+            linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+    .processing-icon-wrap {
+        background: #ffffff;
+        box-shadow: 0 18px 42px rgba(45,50,130,0.18);
+    }
+    .processing-orbit {
+        width: 6rem;
+        height: 6rem;
+        animation: processing-spin 1.35s linear infinite;
+    }
+    .processing-orbit-track {
+        fill: none;
+        stroke: rgba(45,50,130,0.12);
+        stroke-width: 4;
+    }
+    .processing-orbit-line {
+        fill: none;
+        stroke: #2D3282;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-dasharray: 58 170;
+    }
+    .processing-bar { @apply relative h-1.5 w-full overflow-hidden rounded-full bg-blue-100; }
+    .processing-bar::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 42%;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, rgba(45,50,130,0.05), rgba(45,50,130,0.95), rgba(45,50,130,0.12));
+        animation: processing-slide 1.35s ease-in-out infinite;
+    }
+    @keyframes processing-spin {
+        to { transform: rotate(360deg); }
+    }
+    @keyframes processing-slide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(250%); }
+    }
 </style>
 </head>
 <body class="min-h-screen selection:bg-indigo-100 selection:text-primary">
@@ -382,20 +426,28 @@
 
 <div id="import-processing-modal" class="hidden fixed inset-0 z-[250] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-[6px]"></div>
-    <div class="modal-shell max-w-md rounded-2xl">
-        <div class="flex flex-col items-center px-6 py-8 text-center">
-            <div class="relative mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-primary">
-                <div class="absolute inset-0 rounded-2xl border-4 border-indigo-100"></div>
-                <div class="absolute inset-0 rounded-2xl border-4 border-transparent border-t-primary animate-spin"></div>
-                <span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>cloud_sync</span>
+    <div class="modal-shell processing-shell max-w-[520px] rounded-2xl">
+        <div class="flex flex-col items-center px-8 py-9 text-center">
+            <div class="mb-5 inline-flex items-center rounded-full border border-blue-100 bg-white/90 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-primary shadow-sm shadow-blue-100/60">
+                Data Import Center
             </div>
-            <h3 class="text-base font-extrabold text-slate-800">กำลังนำเข้าข้อมูล</h3>
-            <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
+            <div class="relative mb-6 flex h-28 w-28 items-center justify-center">
+                <svg class="processing-orbit absolute" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle class="processing-orbit-track" cx="50" cy="50" r="42"></circle>
+                    <circle class="processing-orbit-line" cx="50" cy="50" r="42"></circle>
+                </svg>
+                <div class="processing-icon-wrap relative flex h-20 w-20 items-center justify-center rounded-full border border-blue-100">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-full border border-blue-100 bg-white text-primary shadow-lg shadow-indigo-100/70">
+                        <span class="material-symbols-outlined text-[31px]" style='font-variation-settings:"FILL" 1'>cloud_sync</span>
+                    </div>
+                </div>
+            </div>
+            <h3 class="text-xl font-extrabold tracking-tight text-slate-800">กำลังนำเข้าข้อมูล</h3>
+            <p class="mt-2 max-w-sm text-sm font-medium leading-6 text-slate-500">
                 ระบบกำลังตรวจสอบและบันทึกข้อมูลจากไฟล์ Excel กรุณารอสักครู่และอย่าปิดหน้านี้
             </p>
-            <div class="mt-5 flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-extrabold text-primary">
-                <span class="h-2 w-2 rounded-full bg-primary animate-pulse"></span>
-                Processing import request
+            <div class="mt-7 w-full max-w-sm">
+                <div class="processing-bar"></div>
             </div>
         </div>
     </div>
