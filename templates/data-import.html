@@ -63,6 +63,13 @@
     .data-table th { @apply border-b border-blue-100 px-5 py-3 text-left whitespace-nowrap; }
     .data-table td { @apply border-b border-blue-50 px-5 py-3 align-middle; }
     .data-table tbody tr { @apply transition-colors hover:bg-blue-50/40; }
+    .import-history-table thead th { @apply text-center; }
+    .outcome-stat { @apply rounded-xl border border-blue-100 bg-slate-50 px-3 py-3 text-center; }
+    .outcome-stat-label { @apply text-[10px] font-extrabold uppercase tracking-widest text-slate-400; }
+    .outcome-stat-value { @apply mt-1 text-xl font-extrabold text-slate-800; }
+    #outcome-success { @apply text-emerald-600; }
+    #outcome-skip { @apply text-amber-600; }
+    #outcome-error { @apply text-red-500; }
     .drop-zone { @apply border-2 border-dashed border-blue-200 bg-slate-50/80 p-5 transition-all cursor-pointer; }
     .drop-zone:hover, .drop-zone.is-dragging { @apply border-primary bg-indigo-50/60; }
     .footer-bar { @apply fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100 bg-white/95 px-5 py-3 shadow-xl shadow-slate-900/5 backdrop-blur md:left-64 md:px-8; }
@@ -119,26 +126,33 @@
 {% include "partials/navbar.html" %}
 {% include "partials/sidebar.html" %}
 
-<main class="md:ml-64 min-h-screen pt-16 pb-24">
-    <section class="hero-gradient sticky top-16 z-30 border-b border-white/10 px-5 py-4 shadow-lg md:px-8">
-        <div class="mx-auto flex max-w-[1600px] flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div class="min-w-0">
-                <p class="text-[11px] font-extrabold uppercase tracking-widest text-blue-200/80">Bulk Operation</p>
-                <h1 class="mt-1 text-2xl font-extrabold tracking-wide text-white">Data Import</h1>
-                <p class="mt-1 text-sm font-medium text-blue-100/85">นำเข้าข้อมูลคดีจาก Excel โดยตรวจ template ก่อนส่งเข้าระบบ</p>
-            </div>
-            <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
-                <div class="rounded-xl border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-sm">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200/75">Selected Type</p>
-                    <p id="hero-mode" class="mt-0.5 text-sm font-extrabold text-white">ยื่นฟ้อง</p>
+<main class="md:ml-64 min-h-screen pt-20 pb-24">
+    <div class="px-5 md:px-8">
+        <div class="mx-auto max-w-[1600px]">
+            <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 border-b border-indigo-100/50">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 flex items-center justify-center text-primary border border-white flex-shrink-0">
+                        <span class="material-symbols-outlined text-3xl" style='font-variation-settings:"FILL" 1'>upload_file</span>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[11px] font-extrabold uppercase tracking-widest text-indigo-400">Bulk Operation</p>
+                        <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Data Import</h1>
+                        <p class="text-slate-500 text-sm mt-1">นำเข้าข้อมูลคดีจาก Excel โดยตรวจ template ก่อนส่งเข้าระบบ</p>
+                    </div>
                 </div>
-                <div class="rounded-xl border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-sm">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200/75">File Status</p>
-                    <p id="hero-file" class="mt-0.5 text-sm font-extrabold text-white">ยังไม่ได้เลือกไฟล์</p>
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 self-start sm:self-center">
+                    <div class="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 leading-none mb-1">Selected Type</p>
+                        <p id="hero-mode" class="text-sm font-extrabold text-primary">ยื่นฟ้อง</p>
+                    </div>
+                    <div class="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none mb-1">File Status</p>
+                        <p id="hero-file" class="max-w-[220px] truncate text-sm font-extrabold text-slate-700">ยังไม่ได้เลือกไฟล์</p>
+                    </div>
                 </div>
-            </div>
+            </header>
         </div>
-    </section>
+    </div>
 
     <div class="page-shell">
         <div class="mx-auto grid max-w-[1600px] grid-cols-1 gap-5 xl:grid-cols-12">
@@ -158,7 +172,7 @@
                     <div>
                         <div class="mb-3 flex items-center justify-between">
                             <p class="section-label">Import Type</p>
-                            <span id="mode-count" class="field-chip">4 fields</span>
+                            <span id="mode-count" class="field-chip">8 fields</span>
                         </div>
                         <div class="grid grid-cols-1 gap-2">
                             <label class="cursor-pointer">
@@ -283,7 +297,7 @@
                         </thead>
                         <tbody id="result-table" class="text-sm">
                             <tr>
-                                <td colspan="4" class="px-5 py-20 text-center">
+                                <td colspan="4" class="h-[420px] px-5 py-10 text-center align-middle">
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
                                         <span class="icon-tile mb-4 h-14 w-14 bg-indigo-50"><span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>table_view</span></span>
                                         <p class="text-sm font-extrabold text-slate-700">ยังไม่มีผลลัพธ์</p>
@@ -311,13 +325,13 @@
                     </button>
                 </div>
                 <div class="overflow-x-auto" style="max-height: 380px; overflow-y: auto;">
-                    <table class="data-table w-full min-w-[1120px]">
+                    <table class="data-table import-history-table w-full min-w-[1120px]">
                         <thead class="sticky top-0 z-10">
                             <tr>
-                                <th>วันที่ / เวลา</th>
-                                <th>ผู้นำเข้า</th>
+                                <th class="text-center">วันที่ / เวลา</th>
+                                <th class="text-center">ผู้นำเข้า</th>
                                 <th class="text-center">ประเภท</th>
-                                <th>ชื่อไฟล์</th>
+                                <th class="text-center">ชื่อไฟล์</th>
                                 <th class="text-center">ทั้งหมด</th>
                                 <th class="text-center">สำเร็จ</th>
                                 <th class="text-center">ข้าม</th>
@@ -453,6 +467,52 @@
     </div>
 </div>
 
+<div id="import-outcome-modal" class="hidden fixed inset-0 z-[260] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-950/65 backdrop-blur-[6px]" onclick="closeImportOutcome()"></div>
+    <div class="modal-shell max-w-[520px] rounded-2xl">
+        <div id="outcome-header" class="border-b border-blue-100 bg-blue-50 px-6 py-5">
+            <div class="flex items-start gap-4">
+                <div id="outcome-icon-wrap" class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-white text-primary shadow-sm">
+                    <span id="outcome-icon" class="material-symbols-outlined text-[28px]" style='font-variation-settings:"FILL" 1'>check_circle</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h3 id="outcome-title" class="text-base font-extrabold text-slate-800">อัปโหลดสำเร็จ</h3>
+                    <p id="outcome-message" class="mt-1 text-xs font-medium leading-5 text-slate-500">ระบบนำเข้าข้อมูลเรียบร้อยแล้ว</p>
+                </div>
+                <button onclick="closeImportOutcome()" class="h-9 w-9 flex-shrink-0 rounded-xl border border-blue-100 bg-white text-slate-400 hover:bg-blue-50 hover:text-slate-700" type="button">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="space-y-5 p-6">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div class="outcome-stat">
+                    <p class="outcome-stat-label">ทั้งหมด</p>
+                    <p id="outcome-total" class="outcome-stat-value">0</p>
+                </div>
+                <div class="outcome-stat">
+                    <p class="outcome-stat-label">สำเร็จ</p>
+                    <p id="outcome-success" class="outcome-stat-value text-emerald-600">0</p>
+                </div>
+                <div class="outcome-stat">
+                    <p class="outcome-stat-label">ข้าม</p>
+                    <p id="outcome-skip" class="outcome-stat-value text-amber-600">0</p>
+                </div>
+                <div class="outcome-stat">
+                    <p class="outcome-stat-label">ผิดพลาด</p>
+                    <p id="outcome-error" class="outcome-stat-value text-red-500">0</p>
+                </div>
+            </div>
+            <p id="outcome-hint" class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium leading-5 text-slate-500">
+                รายละเอียดแต่ละรายการดูต่อได้ในตารางผลการนำเข้า
+            </p>
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="closeImportOutcome()" class="btn-quiet" type="button">ปิด</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <footer class="footer-bar">
     <div class="mx-auto flex max-w-[1600px] flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="flex min-w-0 items-center gap-4">
@@ -483,21 +543,21 @@
     let selectedFile = null;
 
     const EXPECTED_HEADERS = {
-        customer: ['account_no', 'full_name', 'filing_date', 'filing_capital'],
+        customer: ['account_no', 'full_name', 'black_case_no', 'filing_date', 'filing_capital', 'default_date', 'pre_filing_dpd_days'],
         judgment: ['account_no', 'judgment_type', 'judgment_date', 'total_debt', 'principal_debt', 'interest_rate', 'court_fee', 'lawyer_fee', 'installment_months', 'first_due_date', 'step_1_amount', 'step_2_amount', 'step_3_amount', 'step_4_amount', 'default_interest'],
         enforcement: ['account_no', 'enforcement_order_no', 'enforcement_judgment_date', 'enforcement_received_date'],
         payment: ['account_no', 'payment_date', 'amount']
     };
 
     const SIGNATURE_HEADERS = {
-        customer: ['full_name', 'filing_date', 'filing_capital'],
+        customer: ['full_name', 'black_case_no', 'filing_date', 'filing_capital'],
         judgment: ['judgment_type', 'judgment_date', 'principal_debt'],
         enforcement: ['enforcement_order_no', 'enforcement_judgment_date'],
         payment: ['payment_date', 'amount']
     };
 
     const MODE_META = {
-        customer: { label: 'ยื่นฟ้อง', longLabel: 'ยื่นฟ้อง (4 fields)', template: 'Template ยื่นฟ้อง', count: '4 fields' },
+        customer: { label: 'ยื่นฟ้อง', longLabel: 'ยื่นฟ้อง (8 fields)', template: 'Template ยื่นฟ้อง', count: '8 fields' },
         judgment: { label: 'คำพิพากษา', longLabel: 'คำพิพากษา (15 fields)', template: 'Template คำพิพากษา', count: '15 fields' },
         enforcement: { label: 'หมายบังคับคดี', longLabel: 'หมายบังคับคดี (4 fields)', template: 'Template หมายบังคับคดี', count: '4 fields' },
         payment: { label: 'Payment Record', longLabel: 'ชำระเงิน (Payment Record)', template: 'Template ชำระเงิน', count: '3 fields' }
@@ -565,7 +625,7 @@
     function emptyResultRows() {
         return `
             <tr>
-                <td colspan="4" class="px-5 py-20 text-center">
+                <td colspan="4" class="h-[420px] px-5 py-10 text-center align-middle">
                     <div class="mx-auto flex max-w-sm flex-col items-center">
                         <span class="icon-tile mb-4 h-14 w-14 bg-indigo-50"><span class="material-symbols-outlined text-[30px]" style='font-variation-settings:"FILL" 1'>table_view</span></span>
                         <p class="text-sm font-extrabold text-slate-700">ยังไม่มีผลลัพธ์</p>
@@ -608,7 +668,7 @@
         if (SIGNATURE_HEADERS.enforcement.every(k => fileHeader.includes(k))) return 'enforcement';
         if (SIGNATURE_HEADERS.judgment.some(k => fileHeader.includes(k))) return 'judgment';
         if (SIGNATURE_HEADERS.payment.every(k => fileHeader.includes(k)) && !fileHeader.includes('judgment_type')) return 'payment';
-        if (fileHeader.includes('account_no') && fileHeader.includes('full_name') && fileHeader.includes('filing_date') && fileHeader.includes('filing_capital')) return 'customer';
+        if (SIGNATURE_HEADERS.customer.every(k => fileHeader.includes(k)) && fileHeader.includes('account_no')) return 'customer';
         return 'unknown';
     }
 
@@ -679,6 +739,40 @@
         document.getElementById('import-busy-indicator').classList.toggle('hidden', !isBusy);
     }
 
+    function closeImportOutcome() {
+        document.getElementById('import-outcome-modal').classList.add('hidden');
+    }
+
+    function showImportOutcome(type, summary, message) {
+        const isSuccess = type === 'success';
+        const s = summary || { total: 0, success: 0, skip: 0, error: 0 };
+        const success = Number(s.success || 0);
+        const skip = Number(s.skip || 0);
+        const error = Number(s.error || 0);
+        const total = Number(s.total ?? (success + skip + error));
+        const header = document.getElementById('outcome-header');
+        const iconWrap = document.getElementById('outcome-icon-wrap');
+
+        header.className = isSuccess
+            ? 'border-b border-emerald-100 bg-emerald-50 px-6 py-5'
+            : 'border-b border-red-100 bg-red-50 px-6 py-5';
+        iconWrap.className = isSuccess
+            ? 'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-600 shadow-sm'
+            : 'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-white text-red-500 shadow-sm';
+
+        document.getElementById('outcome-icon').textContent = isSuccess ? 'check_circle' : 'error';
+        document.getElementById('outcome-title').textContent = isSuccess ? 'อัปโหลดสำเร็จ' : 'อัปโหลดไม่สำเร็จ';
+        document.getElementById('outcome-message').textContent = message || (isSuccess ? 'ระบบนำเข้าข้อมูลเรียบร้อยแล้ว' : 'ระบบไม่สามารถนำเข้าไฟล์นี้ได้');
+        document.getElementById('outcome-total').textContent = total;
+        document.getElementById('outcome-success').textContent = success;
+        document.getElementById('outcome-skip').textContent = skip;
+        document.getElementById('outcome-error').textContent = error;
+        document.getElementById('outcome-hint').textContent = isSuccess
+            ? 'รายละเอียดแต่ละรายการดูต่อได้ในตารางผลการนำเข้า'
+            : 'รายการนี้ยังไม่ถูกนำเข้าระบบ จึงไม่มีรายละเอียดรายแถวในตารางผลการนำเข้า';
+        document.getElementById('import-outcome-modal').classList.remove('hidden');
+    }
+
     function confirmAndImport() {
         closeConfirmImport();
         doImport();
@@ -686,6 +780,7 @@
 
     async function doImport() {
         if (!selectedFile) return;
+        closeImportOutcome();
         const btn = document.getElementById('btn-import');
         btn.disabled = true;
         btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังนำเข้า...';
@@ -699,12 +794,16 @@
             const res = await fetch(`/api/import/${currentMode}`, { method: 'POST', body: form });
             const data = await res.json();
             if (!res.ok) {
-                document.getElementById('status-text').textContent = 'เกิดข้อผิดพลาด: ' + (data.error || '');
+                const errorMessage = data.error || 'ไม่สามารถนำเข้าไฟล์ได้';
+                document.getElementById('status-text').textContent = 'เกิดข้อผิดพลาด: ' + errorMessage;
+                showImportOutcome('failed', data.summary, errorMessage);
             } else {
                 showResult(data);
             }
         } catch (e) {
-            document.getElementById('status-text').textContent = 'ไม่สามารถเชื่อมต่อ Server ได้';
+            const errorMessage = 'ไม่สามารถเชื่อมต่อ Server ได้';
+            document.getElementById('status-text').textContent = errorMessage;
+            showImportOutcome('failed', null, errorMessage);
         } finally {
             setImportBusy(false);
             btn.disabled = !selectedFile;
@@ -723,6 +822,8 @@
         document.getElementById('btn-download-result').disabled = !lastImportLogId;
         loadHistory();
         resetSelectedFileAfterImport();
+        const total = s.total ?? ((s.success || 0) + (s.skip || 0) + (s.error || 0));
+        showImportOutcome('success', s, `อัปโหลดทั้งหมด ${total} รายการ สำเร็จ ${s.success || 0} รายการ`);
 
         const statusMap = {
             success: 'bg-emerald-50 text-emerald-700 border border-emerald-100',

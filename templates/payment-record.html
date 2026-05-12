@@ -47,6 +47,37 @@
     .group-border-left { border-left: 1px solid #e2e8f0; }
     .table-container::-webkit-scrollbar { width: 6px; height: 6px; }
     .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .payment-progress-track { display:flex; flex-direction:column; gap:6px; min-width:300px; }
+    .payment-progress-dots { display:flex; align-items:center; }
+    .payment-progress-labels { display:flex; align-items:flex-start; }
+    .payment-progress-dot-done {
+        width:24px; height:24px; border-radius:9999px; background:#e0f2fe; border:2px solid #93c5fd;
+        display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; z-index:1;
+        box-shadow:0 0 0 3px rgba(147,197,253,0.18), 0 1px 4px rgba(15,23,42,0.08);
+    }
+    .payment-progress-dot-active {
+        width:24px; height:24px; border-radius:9999px; background:#eff6ff; border:2.5px solid #60a5fa;
+        display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; z-index:1;
+        box-shadow:0 0 0 4px rgba(96,165,250,0.18), 0 2px 8px rgba(15,23,42,0.10);
+    }
+    .payment-progress-dot-active-inner { width:9px; height:9px; border-radius:9999px; background:#2563eb; }
+    .payment-progress-dot-pending {
+        width:24px; height:24px; border-radius:9999px; background:#f8fafc; border:2px solid #dbeafe;
+        flex-shrink:0; position:relative; z-index:1;
+    }
+    .payment-progress-line { flex:1; height:2px; margin-left:-1px; margin-right:-1px; position:relative; overflow:hidden; border-radius:2px; background:#e2e8f0; }
+    .payment-progress-line-fill { position:absolute; inset:0; border-radius:2px; transition:width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .payment-progress-line-fill-done { background:#93c5fd; width:100%; }
+    .payment-progress-line-fill-none { width:0%; }
+    .payment-progress-label-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+    .payment-progress-label-spacer { flex:1; }
+    .payment-progress-label-active {
+        font-size:11px; font-weight:800; color:#1e3a8a; text-align:center; white-space:nowrap;
+        background:#dbeafe; border:1px solid #bfdbfe; padding:2px 8px; border-radius:9999px;
+        box-shadow:0 0 0 3px rgba(191,219,254,0.18);
+    }
+    .payment-progress-label-done { font-size:11px; font-weight:700; color:#475569; text-align:center; white-space:nowrap; }
+    .payment-progress-label-pending { font-size:11px; font-weight:600; color:#94a3b8; text-align:center; white-space:nowrap; }
 
     /* ===== Custom Date Picker ===== */
     .dp-wrap { position: relative; }
@@ -129,39 +160,47 @@
 
 <!-- Main -->
 <!-- Main -->
-<main class="md:ml-64 pt-16 pb-24 min-h-screen">
+<main class="md:ml-64 pt-20 pb-24 min-h-screen">
 
-    <!-- Page Hero Bar -->
-    <section id="payment-hero" class="hero-gradient px-8 py-5 min-h-[112px] sticky top-16 z-30 shadow-lg border-b border-white/10">
-        <div class="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
-            <div class="flex items-start gap-4 min-w-0">
-                <button
-                    id="payment-back-btn"
-                    onclick="goBackToCustomerList()"
-                    class="hidden w-12 h-12 rounded-2xl bg-white/10 border border-white/15 items-center justify-center text-white shadow-lg shadow-black/10 backdrop-blur-sm hover:bg-white/15 transition-all flex-shrink-0"
-                    type="button"
-                >
-                    <span class="material-symbols-outlined text-[26px]">arrow_back</span>
-                </button>
-            
-                <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-lg shadow-black/10 backdrop-blur-sm flex-shrink-0">
-                    <span class="material-symbols-outlined text-[26px]" style='font-variation-settings:"FILL" 1'>payments</span>
-                </div>
-
-                <div class="min-w-0">
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <h1 class="font-headline text-2xl tracking-wide text-white font-extrabold">
-                            Payment Record
-                        </h1>
+    <!-- Page Header Bar -->
+    <div class="px-6 md:px-8">
+        <div class="max-w-[1600px] mx-auto">
+            <header id="payment-hero" class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 py-4 border-b border-indigo-100/50">
+                <div class="flex items-center gap-4 min-w-0">
+                    <button
+                        id="payment-back-btn"
+                        onclick="goBackToCustomerList()"
+                        class="hidden w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 items-center justify-center text-primary border border-white hover:bg-indigo-50 transition-all flex-shrink-0"
+                        type="button"
+                    >
+                        <span class="material-symbols-outlined text-3xl">arrow_back</span>
+                    </button>
+                
+                    <div class="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 flex items-center justify-center text-primary border border-white flex-shrink-0">
+                        <span class="material-symbols-outlined text-3xl" style='font-variation-settings:"FILL" 1'>payments</span>
                     </div>
 
-                    <p class="text-blue-200/90 font-medium text-sm mt-1">
-                        บันทึกและติดตามการชำระเงินตามคำพิพากษา
-                    </p>
+                    <div class="min-w-0">
+                        <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight">
+                            Payment Record
+                        </h1>
+
+                        <p class="text-slate-500 font-medium text-sm mt-1">
+                            บันทึกและติดตามการชำระเงินตามคำพิพากษา
+                        </p>
+                    </div>
                 </div>
-            </div>
+                <div class="w-full xl:w-auto flex items-center xl:justify-end">
+                    <div class="flex flex-col gap-2 w-full xl:w-auto">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold leading-none text-right">
+                            Status Progress
+                        </p>
+                        <div id="payment-progress-steps" class="min-w-[300px] min-h-[52px]"></div>
+                    </div>
+                </div>
+            </header>
         </div>
-    </section>
+    </div>
 
     <div class="px-6 md:px-8 py-6">
         <div class="max-w-[1600px] mx-auto space-y-4">
@@ -1184,6 +1223,78 @@
     let   customerData = null;
     let   scheduleRows = [];
     let   scheduleAllRows = [];
+    const CASE_FLOW_A = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'บังคับคดี', 'ปิดบัญชี'];
+    const CASE_FLOW_B = ['ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
+
+    async function loadPaymentStatusLogs(acc) {
+        if (!acc) return [];
+        try {
+            const res = await fetch(`/api/customers/${acc}/status-logs`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.logs || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function renderPaymentProgressBar(caseStatus, statusLogs = []) {
+        const container = document.getElementById('payment-progress-steps');
+        if (!container) return;
+
+        const visitedStatuses = new Set();
+        const logs = Array.isArray(statusLogs) ? statusLogs : [];
+        logs.forEach(log => {
+            if (log.from_status) visitedStatuses.add(log.from_status);
+            if (log.to_status) visitedStatuses.add(log.to_status);
+        });
+        if (caseStatus) visitedStatuses.add(caseStatus);
+
+        let flow = CASE_FLOW_A;
+        if (visitedStatuses.has('พิพากษาฝ่ายเดียว') || caseStatus === 'พิพากษาฝ่ายเดียว') {
+            flow = CASE_FLOW_B;
+        } else if (visitedStatuses.has('พิพากษาตามยอม') || caseStatus === 'พิพากษาตามยอม') {
+            flow = CASE_FLOW_A;
+        }
+
+        if (!logs.length && caseStatus === 'ปิดบัญชี') {
+            visitedStatuses.clear();
+            visitedStatuses.add('ปิดบัญชี');
+        }
+
+        let dotsRow = '';
+        let labelsRow = '';
+        const currentIndex = flow.indexOf(caseStatus);
+
+        flow.forEach((step, i) => {
+            const isActive = step === caseStatus;
+            const isDone = !isActive && visitedStatuses.has(step);
+            const displayLabel = caseStatus === 'ยื่นฟ้อง' && i === 1 ? 'พิพากษา...' : step;
+
+            if (isDone) {
+                dotsRow += `<div class="payment-progress-dot-done"><span class="material-symbols-outlined" style="font-size:13px;color:#2563eb;font-variation-settings:'FILL' 1">check</span></div>`;
+            } else if (isActive) {
+                dotsRow += `<div class="payment-progress-dot-active"><div class="payment-progress-dot-active-inner"></div></div>`;
+            } else {
+                dotsRow += `<div class="payment-progress-dot-pending"></div>`;
+            }
+
+            if (i < flow.length - 1) {
+                const lineFilled = currentIndex > -1 && i < currentIndex;
+                dotsRow += `<div class="payment-progress-line"><div class="payment-progress-line-fill ${lineFilled ? 'payment-progress-line-fill-done' : 'payment-progress-line-fill-none'}"></div></div>`;
+            }
+
+            const labelClass = isActive ? 'payment-progress-label-active' : isDone ? 'payment-progress-label-done' : 'payment-progress-label-pending';
+            labelsRow += `<div class="payment-progress-label-col" style="width:24px"><span class="${labelClass}">${displayLabel}</span></div>`;
+            if (i < flow.length - 1) labelsRow += '<div class="payment-progress-label-spacer"></div>';
+        });
+
+        container.innerHTML = `
+            <div class="payment-progress-track">
+                <div class="payment-progress-dots">${dotsRow}</div>
+                <div class="payment-progress-labels">${labelsRow}</div>
+            </div>`;
+    }
 
     // ---- Setup UI ----
     function setupUI() {
@@ -1384,6 +1495,8 @@
             // เหตุผล: บางเคส customer.status หรือ computed_status อาจยังเป็นค่าเก่า เช่น ค้างชำระ
             // ทั้งที่แถววิเคราะห์ล่าสุดมี DPD = 0 และ NCB = 31 แล้ว
             setHeroPaymentStatus(data.computed_status || customerData.status || 'ชำระปกติ');
+            const statusLogs = await loadPaymentStatusLogs(acc);
+            renderPaymentProgressBar(customerData.case_status || 'ยื่นฟ้อง', statusLogs);
 
             populateCustomerDetail(data.customer);
             await loadScheduleAndPayments(data);

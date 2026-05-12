@@ -311,6 +311,15 @@
                                 <input id="customer-name" class="form-input-styled" type="text" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" autocomplete="off">
                                 <p id="warn-customer-name" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-customer-name-msg">ไม่อนุญาตให้ใช้อักขระพิเศษ</span></p>
                             </div>
+                            <div>
+                                <label class="form-label-styled">คดีหมายเลขดำที่ <span class="text-red-500">*</span></label>
+                                <input id="black-case-no" class="form-input-styled" type="text" placeholder="เช่น ผบ 1234/2567 หรือ ผบ E814/2569" autocomplete="off">
+                                <p id="warn-black-case-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-black-case-no-msg">รูปแบบคดีหมายเลขดำไม่ถูกต้อง</span></p>
+                            </div>
+                            <div>
+                                <label class="form-label-styled">ทุนทรัพย์ที่ฟ้อง <span class="text-red-500">*</span></label>
+                                <input id="filing-capital" class="form-input-styled" type="text" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" inputmode="decimal" autocomplete="off">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -366,6 +375,56 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="form-label-styled">วันที่ผิดนัดชำระก่อนฟ้อง <span class="text-red-500">*</span></label>
+                                <div class="dp-wrap" id="dp-wrap-default-date">
+                                    <div class="dp-input-row relative">
+                                        <input type="hidden" id="default-date">
+                                        <div class="dp-input" id="dp-display-default-date" tabindex="0" onclick="dpOpen('default-date')" onkeydown="if(event.key===\'Enter\'||event.key===' ')dpOpen('default-date')">
+                                            <span id="dp-text-default-date" class="text-slate-400">เลือกวันที่ผิดนัดชำระก่อนฟ้อง</span>
+                                        </div>
+                                        <span class="material-symbols-outlined dp-icon">calendar_today</span>
+                                    </div>
+                                    <div class="dp-popup" id="dp-popup-default-date">
+                                        <div class="dp-header">
+                                            <button class="dp-nav-btn" onclick="dpNavMonth('default-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
+                                            <span class="dp-month-year" id="dp-title-default-date" onclick="dpToggleMyPicker('default-date')"></span>
+                                            <button class="dp-nav-btn" onclick="dpNavMonth('default-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+                                        </div>
+                                        <div id="dp-my-default-date" class="hidden">
+                                            <div class="dp-year-header">
+                                                <button class="dp-nav-btn" onclick="dpNavYear('default-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
+                                                <span id="dp-year-label-default-date" class="font-bold text-sm text-slate-700"></span>
+                                                <button class="dp-nav-btn" onclick="dpNavYear('default-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
+                                            </div>
+                                            <div class="dp-my-grid" id="dp-months-default-date"></div>
+                                        </div>
+                                        <div id="dp-cal-default-date">
+                                            <div class="dp-weekdays">
+                                                <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
+                                                <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                                            </div>
+                                            <div class="dp-days" id="dp-days-default-date"></div>
+                                        </div>
+                                        <div class="dp-footer">
+                                            <button class="dp-btn-clear" onclick="dpClear('default-date')" type="button">ล้างค่า</button>
+                                            <button class="dp-btn-today" onclick="dpSelectToday('default-date')" type="button">วันนี้</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label-styled">DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน <span class="text-red-500">*</span></label>
+                                <input id="pre-filing-dpd-days" class="form-input-styled" type="text" placeholder="กรอกจำนวนวัน" inputmode="numeric" autocomplete="off">
+                                <p id="warn-pre-filing-dpd-days" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-pre-filing-dpd-days-msg">กรุณากรอกจำนวนเต็มมากกว่า 0</span></p>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="form-label-styled">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label>
+                                <textarea id="filing-note" class="form-input-styled min-h-[92px] resize-none" maxlength="100" placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                                <p class="text-[10px] text-slate-400 mt-1"><span id="filing-note-counter">0</span>/100 ตัวอักษร</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -415,6 +474,14 @@
                         <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ชื่อ-นามสกุล</p>
                         <p id="rv-customer-name" class="text-sm font-semibold text-slate-800">-</p>
                     </div>
+                    <div class="px-4 py-3 bg-white border-t border-slate-50">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">คดีหมายเลขดำที่</p>
+                        <p id="rv-black-case-no" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
+                    <div class="px-4 py-3 bg-white border-t border-slate-50">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">ทุนทรัพย์ที่ฟ้อง</p>
+                        <p id="rv-filing-capital" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
                 </div>
             </div>
 
@@ -427,6 +494,20 @@
                 <div class="px-4 py-3 bg-white">
                     <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันที่ยื่นฟ้อง</p>
                     <p id="rv-filing-date" class="text-sm font-semibold text-slate-800">-</p>
+                </div>
+                <div class="grid grid-cols-2 divide-x divide-slate-50 border-t border-slate-50">
+                    <div class="px-4 py-3 bg-white">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">วันที่ผิดนัดชำระก่อนฟ้อง</p>
+                        <p id="rv-default-date" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
+                    <div class="px-4 py-3 bg-white">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">DPD</p>
+                        <p id="rv-pre-filing-dpd-days" class="text-sm font-semibold text-slate-800">-</p>
+                    </div>
+                </div>
+                <div class="px-4 py-3 bg-white border-t border-slate-50">
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">หมายเหตุ</p>
+                    <p id="rv-filing-note" class="text-sm font-semibold text-slate-800 break-words">-</p>
                 </div>
             </div>
 
@@ -593,6 +674,29 @@
         el.classList.remove('error');
     }
 
+    function normalizeBlackCaseNo(value) {
+        const raw = String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
+        const match = raw.match(/^([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))\/(25\d{2})$/);
+        if (!match) return raw;
+        return `${match[1]} ${match[2] || match[3]}/${match[4]}`;
+    }
+
+    function isValidBlackCaseNo(value) {
+        if (!value) return false;
+        return /^([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
+    }
+
+    function handleBlackCaseNoInput() {
+        const el = document.getElementById('black-case-no');
+        const value = normalizeBlackCaseNo(el.value);
+        if (!value || !isValidBlackCaseNo(value)) {
+            showFieldWarn('black-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+        } else {
+            el.value = value;
+            hideFieldWarn('black-case-no');
+        }
+    }
+
     function setLoading(isLoading) {
         const btn = document.getElementById('submit-btn');
         btn.disabled = isLoading;
@@ -733,6 +837,17 @@
         hideFieldWarn('installment-count');
     }
 
+    function handlePreFilingDpdInput() {
+        const el = document.getElementById('pre-filing-dpd-days');
+        const cleaned = el.value.replace(/\D/g, '');
+        el.value = cleaned;
+        if (!cleaned || Number(cleaned) <= 0) {
+            showFieldWarn('pre-filing-dpd-days', 'กรุณากรอกจำนวนเต็มมากกว่า 0');
+        } else {
+            hideFieldWarn('pre-filing-dpd-days');
+        }
+    }
+
     // ---- calculateDiff ----
     function calculateDiff() {
         const courtFee  = parseNumber(document.getElementById('court-fee').value);
@@ -763,7 +878,11 @@
         const required = [
             { id: 'account-no',    label: 'หมายเลขบัญชี' },
             { id: 'customer-name', label: 'ชื่อ-นามสกุล' },
+            { id: 'black-case-no', label: 'คดีหมายเลขดำที่' },
+            { id: 'filing-capital', label: 'ทุนทรัพย์ที่ฟ้อง' },
             { id: 'filing-date',   label: 'วันที่ยื่นฟ้อง' },
+            { id: 'default-date',   label: 'วันที่ผิดนัดชำระก่อนฟ้อง' },
+            { id: 'pre-filing-dpd-days', label: 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน' },
         ];
 
         document.querySelectorAll('.form-input-styled').forEach(el => el.classList.remove('error'));
@@ -797,6 +916,49 @@
             return false;
         }
 
+        const blackCaseVal = normalizeBlackCaseNo(document.getElementById('black-case-no').value);
+        if (!isValidBlackCaseNo(blackCaseVal)) {
+            showError('คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            document.getElementById('black-case-no').classList.add('error');
+            return false;
+        }
+
+        const filingCapitalText = document.getElementById('filing-capital').value.replace(/,/g, '').trim();
+        if (!/^\d+(\.\d{1,2})?$/.test(filingCapitalText) || Number(filingCapitalText) <= 0) {
+            showError('ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลขมากกว่า 0 และมีทศนิยมได้สูงสุด 2 ตำแหน่ง');
+            document.getElementById('filing-capital').classList.add('error');
+            return false;
+        }
+
+        const filingDate = new Date(dpGetValue('filing-date') + 'T00:00:00');
+        const defaultDate = new Date(document.getElementById('default-date').value + 'T00:00:00');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (filingDate > today) {
+            showError('วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต');
+            return false;
+        }
+        if (defaultDate > today) {
+            showError('วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต');
+            return false;
+        }
+        if (defaultDate > filingDate) {
+            showError('วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง');
+            return false;
+        }
+
+        const dpdVal = document.getElementById('pre-filing-dpd-days').value.trim();
+        if (!/^\d+$/.test(dpdVal) || Number(dpdVal) <= 0) {
+            showError('DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มมากกว่า 0');
+            document.getElementById('pre-filing-dpd-days').classList.add('error');
+            return false;
+        }
+
+        if (document.getElementById('filing-note').value.trim().length > 100) {
+            showError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร');
+            return false;
+        }
+
         return true;
     }
 
@@ -819,7 +981,12 @@
 
         document.getElementById('rv-account-no').textContent    = document.getElementById('account-no').value;
         document.getElementById('rv-customer-name').textContent = document.getElementById('customer-name').value;
+        document.getElementById('rv-black-case-no').textContent = normalizeBlackCaseNo(document.getElementById('black-case-no').value);
+        document.getElementById('rv-filing-capital').textContent = fmtReview(document.getElementById('filing-capital').value);
         document.getElementById('rv-filing-date').textContent   = fmtDateReview('filing-date');
+        document.getElementById('rv-default-date').textContent  = document.getElementById('default-date').value ? document.getElementById('default-date').value.split('-').reverse().join('/') : '-';
+        document.getElementById('rv-pre-filing-dpd-days').textContent = document.getElementById('pre-filing-dpd-days').value.trim() + ' วัน';
+        document.getElementById('rv-filing-note').textContent = document.getElementById('filing-note').value.trim() || '-';
 
         document.getElementById('confirm-modal').classList.remove('hidden');
     }
@@ -836,9 +1003,14 @@
 
         closeConfirmModal();
         const payload = {
-            account_no  : document.getElementById('account-no').value.trim(),
-            name        : document.getElementById('customer-name').value.trim(),
-            filing_date : dpGetValue('filing-date') || null,
+            account_no       : document.getElementById('account-no').value.trim(),
+            black_case_no    : normalizeBlackCaseNo(document.getElementById('black-case-no').value),
+            name             : document.getElementById('customer-name').value.trim(),
+            filing_date      : dpGetValue('filing-date') || null,
+            filing_capital   : parseNumber(document.getElementById('filing-capital').value),
+            default_date     : document.getElementById('default-date').value,
+            pre_filing_dpd_days: Number(document.getElementById('pre-filing-dpd-days').value.trim()),
+            filing_note      : document.getElementById('filing-note').value.trim(),
         };
 
         try {
@@ -1106,6 +1278,13 @@
     // ---- Customer Name events ----
     document.getElementById('customer-name').addEventListener('input', handleCustomerNameInput);
     document.getElementById('customer-name').addEventListener('blur',  handleCustomerNameBlur);
+    document.getElementById('black-case-no').addEventListener('input', handleBlackCaseNoInput);
+    document.getElementById('filing-capital').addEventListener('input', () => handleMoneyInput('filing-capital'));
+    document.getElementById('filing-capital').addEventListener('blur', () => handleMoneyBlur('filing-capital'));
+    document.getElementById('pre-filing-dpd-days').addEventListener('input', handlePreFilingDpdInput);
+    document.getElementById('filing-note').addEventListener('input', function() {
+        document.getElementById('filing-note-counter').textContent = String(this.value.length);
+    });
 
     // ---- Filing Date ----
     document.getElementById('filing-date').addEventListener('change', () => { onInputChanged(); });
@@ -1114,7 +1293,7 @@
     // ============================================================
     // Custom Date Picker Engine
     // ============================================================
-    const DP_FIELDS   = ['filing-date'];
+    const DP_FIELDS   = ['filing-date', 'default-date'];
     const DP_STATE    = {};
     const TH_MONTHS   = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
                          'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -1288,7 +1467,10 @@
         if (hiddenEl) hiddenEl.value = '';
         const disp = document.getElementById('dp-text-' + id);
         if (!disp) return;
-        disp.textContent = { 'filing-date': 'เลือกวันที่ยื่นฟ้อง' }[id] || 'เลือกวันที่';
+        disp.textContent = {
+            'filing-date': 'เลือกวันที่ยื่นฟ้อง',
+            'default-date': 'เลือกวันที่ผิดนัดชำระก่อนฟ้อง'
+        }[id] || 'เลือกวันที่';
         disp.classList.add('text-slate-400');
         disp.classList.remove('text-slate-800');
         dpClose(id);

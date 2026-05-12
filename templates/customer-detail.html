@@ -62,6 +62,58 @@
         @apply bg-slate-100 border-slate-300 ring-0;
         box-shadow: none;
     }
+    .readonly-display-input {
+        @apply h-[42px] rounded-[14px] border-blue-100 bg-gradient-to-r from-slate-50 to-blue-50/60 text-slate-600 cursor-not-allowed font-bold shadow-sm;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.035), 0 1px 2px rgba(45, 50, 130, 0.04);
+    }
+    .readonly-display-input:focus {
+        @apply border-blue-100 bg-slate-50 ring-0;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.035), 0 1px 2px rgba(45, 50, 130, 0.04);
+    }
+    .readonly-display-text {
+        @apply relative flex h-[42px] w-full items-center overflow-visible rounded-[14px] border border-blue-100 bg-gradient-to-r from-slate-50 to-blue-50/60 px-11 py-2.5 text-sm font-bold text-slate-600 shadow-sm cursor-not-allowed;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.035), 0 1px 2px rgba(45, 50, 130, 0.04);
+    }
+    .readonly-display-icon {
+        @apply absolute left-4 top-1/2 -translate-y-1/2 text-[18px] text-indigo-300 pointer-events-none;
+    }
+    .readonly-display-with-icon {
+        padding-left: 3rem !important;
+    }
+    .theme-tooltip[data-tooltip]:hover::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 0;
+        bottom: calc(100% + 10px);
+        z-index: 80;
+        max-width: min(420px, 72vw);
+        width: max-content;
+        padding: 0.75rem 0.875rem;
+        border-radius: 0.875rem;
+        border: 1px solid rgba(191, 219, 254, 0.9);
+        background: #ffffff;
+        color: #334155;
+        box-shadow: 0 18px 40px rgba(45, 50, 130, 0.16);
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1.55;
+        white-space: normal;
+        pointer-events: none;
+    }
+    .theme-tooltip[data-tooltip]:hover::after {
+        content: "";
+        position: absolute;
+        left: 1.25rem;
+        bottom: calc(100% + 4px);
+        z-index: 81;
+        width: 12px;
+        height: 12px;
+        background: #ffffff;
+        border-right: 1px solid rgba(191, 219, 254, 0.9);
+        border-bottom: 1px solid rgba(191, 219, 254, 0.9);
+        transform: rotate(45deg);
+        pointer-events: none;
+    }
     .form-label-styled {
         @apply text-[12px] font-bold text-slate-600 mb-1.5 block;
     }
@@ -331,39 +383,39 @@
 
     .pb-dot-done {
         width:24px; height:24px; border-radius:9999px;
-        background:#fff; border:2px solid rgba(255,255,255,0.9);
+        background:#e0f2fe; border:2px solid #93c5fd;
         display:flex; align-items:center; justify-content:center;
         flex-shrink:0; position:relative; z-index:1;
-        box-shadow: 0 0 0 3px rgba(255,255,255,0.16), 0 1px 4px rgba(0,0,0,0.12);
+        box-shadow: 0 0 0 3px rgba(147,197,253,0.18), 0 1px 4px rgba(15,23,42,0.08);
         transition: transform 0.2s;
     }
     .pb-dot-active {
         width:24px; height:24px; border-radius:9999px;
-        background:rgba(255,255,255,0.16); border:2.5px solid #bfdbfe;
+        background:#eff6ff; border:2.5px solid #60a5fa;
         display:flex; align-items:center; justify-content:center;
         flex-shrink:0; position:relative; z-index:1;
-        box-shadow: 0 0 0 4px rgba(191,219,254,0.16), 0 2px 8px rgba(0,0,0,0.16);
+        box-shadow: 0 0 0 4px rgba(96,165,250,0.18), 0 2px 8px rgba(15,23,42,0.10);
     }
     .pb-dot-active-inner {
         width:9px; height:9px; border-radius:9999px;
-        background:#bfdbfe;
+        background:#2563eb;
     }
     .pb-dot-pending {
         width:24px; height:24px; border-radius:9999px;
-        background:rgba(255,255,255,0.06); border:2px solid rgba(255,255,255,0.22);
+        background:#f8fafc; border:2px solid #dbeafe;
         flex-shrink:0; position:relative; z-index:1;
         transition: transform 0.2s;
     }
     .pb-line {
         flex:1; height:2px; margin-left:-1px; margin-right:-1px;
         position:relative; overflow:hidden; border-radius:2px;
-        background:rgba(255,255,255,0.12);
+        background:#e2e8f0;
     }
     .pb-line-fill {
         position:absolute; inset:0; border-radius:2px;
         transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
     }
-    .pb-line-fill-done { background:rgba(255,255,255,0.70); width:100%; }
+    .pb-line-fill-done { background:#93c5fd; width:100%; }
     .pb-line-fill-none { width:0%; }
 
     .pb-label-col {
@@ -372,24 +424,24 @@
     }
     .pb-label-spacer { flex:1; }
     .pb-label-active {
-        font-size:11px; font-weight:700;
-        color:#172554; text-align:center; white-space:nowrap;
-        background:#bfdbfe; border:1px solid rgba(255,255,255,0.45);
+        font-size:11px; font-weight:800;
+        color:#1e3a8a; text-align:center; white-space:nowrap;
+        background:#dbeafe; border:1px solid #bfdbfe;
         padding:2px 8px; border-radius:9999px;
-        box-shadow: 0 0 0 3px rgba(191,219,254,0.12);
+        box-shadow: 0 0 0 3px rgba(191,219,254,0.18);
     }
     .pb-label-done {
-        font-size:11px; font-weight:500;
-        color:rgba(255,255,255,0.60); text-align:center; white-space:nowrap;
+        font-size:11px; font-weight:700;
+        color:#475569; text-align:center; white-space:nowrap;
     }
     .pb-label-pending {
-        font-size:11px; font-weight:400;
-        color:rgba(255,255,255,0.25); text-align:center; white-space:nowrap;
+        font-size:11px; font-weight:600;
+        color:#94a3b8; text-align:center; white-space:nowrap;
     }
 
     @keyframes pb-pulse {
-        0%, 100% { box-shadow: 0 0 0 4px rgba(191,219,254,0.16), 0 2px 8px rgba(0,0,0,0.16); }
-        50%       { box-shadow: 0 0 0 5px rgba(191,219,254,0.22), 0 2px 8px rgba(0,0,0,0.16); }
+        0%, 100% { box-shadow: 0 0 0 4px rgba(96,165,250,0.18), 0 2px 8px rgba(15,23,42,0.10); }
+        50%       { box-shadow: 0 0 0 5px rgba(96,165,250,0.26), 0 2px 8px rgba(15,23,42,0.10); }
     }
 /* ===== Confirm Review Modal v2 ===== */
     .confirm-review-backdrop {
@@ -589,47 +641,45 @@
 {% include "partials/sidebar.html" %}
 
 <!-- Main -->
-<main class="md:ml-64 pt-16 min-h-screen pb-24">
+<main class="md:ml-64 pt-20 min-h-screen pb-24">
 
-    <!-- Hero bar -->
-    <section class="hero-gradient px-6 md:px-8 py-5 sticky top-16 z-30 shadow-lg border-b border-white/10">
-        <div class="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
-            
-            <!-- Left: Page title -->
-            <div class="flex items-start gap-4 min-w-0">
-                <a href="/customer-list"
-                class="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-lg shadow-black/10 backdrop-blur-sm hover:bg-white/15 transition-all flex-shrink-0">
-                    <span class="material-symbols-outlined text-[26px]">arrow_back</span>
-                </a>
+    <!-- Header bar -->
+    <div class="px-6 md:px-8">
+        <div class="max-w-[1600px] mx-auto">
+            <header class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 py-4 border-b border-indigo-100/50">
+                <div class="flex items-center gap-4 min-w-0">
+                    <a href="/customer-list"
+                    class="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 flex items-center justify-center text-primary border border-white hover:bg-indigo-50 transition-all flex-shrink-0">
+                        <span class="material-symbols-outlined text-3xl">arrow_back</span>
+                    </a>
 
-                <div class="min-w-0">
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <h1 class="font-headline text-2xl tracking-tight text-white font-extrabold">
-                            รายละเอียดลูกหนี้
-                        </h1>
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/10 text-blue-100 border border-white/15 backdrop-blur-sm">
-                            Customer Detail
-                        </span>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <h1 class="font-headline text-3xl font-extrabold text-primary tracking-tight">
+                                รายละเอียดลูกหนี้
+                            </h1>
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-primary border border-indigo-100">
+                                Customer Detail
+                            </span>
+                        </div>
+
+                        <p id="detail-subtitle" class="text-slate-500 font-medium text-sm mt-1 truncate">
+                            กำลังโหลดข้อมูล...
+                        </p>
                     </div>
-
-                    <p id="detail-subtitle" class="text-blue-200/90 font-medium text-sm mt-1 truncate">
-                        กำลังโหลดข้อมูล...
-                    </p>
                 </div>
-            </div>
 
-            <!-- Right: Progress -->
-            <div class="w-full xl:w-auto flex items-center xl:justify-end">
-                <div class="flex flex-col gap-2 w-full xl:w-auto">
-                    <p class="text-[10px] text-blue-200/75 uppercase tracking-widest font-bold leading-none text-right">
-                        Status Progress
-                    </p>
-                    <div id="progress-steps" class="min-w-[300px] min-h-[52px]"></div>
+                <div class="w-full xl:w-auto flex items-center xl:justify-end">
+                    <div class="flex flex-col gap-2 w-full xl:w-auto">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold leading-none text-right">
+                            Status Progress
+                        </p>
+                        <div id="progress-steps" class="min-w-[300px] min-h-[52px]"></div>
+                    </div>
                 </div>
-            </div>
-
+            </header>
         </div>
-    </section>
+    </div>
 
     <!-- Error banner -->
     <div id="error-banner" class="hidden mx-6 mt-4 max-w-[1600px] bg-red-50 border border-red-200 rounded-xl px-5 py-3 flex items-center gap-3">
@@ -675,22 +725,50 @@
                             <div>
                                 <label class="form-label-styled">หมายเลขบัญชี <span class="text-red-500">*</span></label>
                                 <div class="relative">
-                                    <input id="account-no" class="form-input-styled pr-4 bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium" type="text" readonly tabindex="-1">
+                                    <span class="material-symbols-outlined readonly-display-icon">badge</span>
+                                    <input id="account-no" class="form-input-styled readonly-display-input readonly-display-with-icon pr-4" type="text" readonly tabindex="-1">
                                 </div>
                                 <p id="warn-account-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-account-no-msg">กรุณากรอกตัวเลขเท่านั้น</span></p>
                             </div>
 
                             <div>
                                 <label class="form-label-styled">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>
-                                <input id="customer-name" class="form-input-styled bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium" type="text" readonly tabindex="-1">
+                                <div class="relative">
+                                    <span class="material-symbols-outlined readonly-display-icon">person</span>
+                                    <input id="customer-name" class="form-input-styled readonly-display-input readonly-display-with-icon pr-4" type="text" readonly tabindex="-1">
+                                </div>
                                 <p id="warn-customer-name" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-customer-name-msg">ไม่อนุญาตให้ใช้อักขระพิเศษ</span></p>
                             </div>
 
                             <div>
                                 <label class="form-label-styled">ทุนทรัพย์ที่ฟ้อง</label>
                                 <div class="relative">
-                                    <input id="filing-capital" class="form-input-styled bg-slate-50/50 text-slate-500 cursor-not-allowed font-medium text-right pr-4 pl-10" type="text" readonly tabindex="-1">
-                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
+                                    <input id="filing-capital" class="form-input-styled readonly-display-input readonly-display-with-icon text-right pr-4" type="text" readonly tabindex="-1">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-extrabold text-indigo-300 pointer-events-none">฿</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label-styled">วันที่ผิดนัดชำระก่อนฟ้อง</label>
+                                <div class="relative">
+                                    <span class="material-symbols-outlined readonly-display-icon">event</span>
+                                    <input id="default-date-display" class="form-input-styled readonly-display-input readonly-display-with-icon pr-4" type="text" readonly tabindex="-1">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label-styled">DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน</label>
+                                <div class="relative">
+                                    <span class="material-symbols-outlined readonly-display-icon">timer</span>
+                                    <input id="pre-filing-dpd-days-display" class="form-input-styled readonly-display-input readonly-display-with-icon pr-4" type="text" readonly tabindex="-1">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label-styled">หมายเหตุ / เงื่อนไขพิเศษ</label>
+                                <div id="filing-note-display" class="readonly-display-text theme-tooltip" data-tooltip="-">
+                                    <span class="material-symbols-outlined readonly-display-icon">notes</span>
+                                    <span id="filing-note-display-text" class="block truncate">-</span>
                                 </div>
                             </div>
                         </div>
@@ -1835,6 +1913,27 @@
                         maximumFractionDigits: 2
                     })
                     : '0.00';
+            }
+
+            const defaultDateDisplay = document.getElementById('default-date-display');
+            if (defaultDateDisplay) {
+                defaultDateDisplay.value = fmtDate(data.default_date);
+            }
+
+            const preFilingDpdDisplay = document.getElementById('pre-filing-dpd-days-display');
+            if (preFilingDpdDisplay) {
+                const dpdDays = data.pre_filing_dpd_days;
+                preFilingDpdDisplay.value = (dpdDays !== null && dpdDays !== undefined && dpdDays !== '')
+                    ? `${Number(dpdDays).toLocaleString('th-TH')} วัน`
+                    : '-';
+            }
+
+            const filingNoteDisplay = document.getElementById('filing-note-display');
+            const filingNoteDisplayText = document.getElementById('filing-note-display-text');
+            if (filingNoteDisplay && filingNoteDisplayText) {
+                const filingNote = data.filing_note || '-';
+                filingNoteDisplayText.textContent = filingNote;
+                filingNoteDisplay.dataset.tooltip = filingNote;
             }
 
             if (data.filing_date)   dpSelectDay('filing-date', data.filing_date);
@@ -3600,7 +3699,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             let dot = ''
             if (isDone) {
                 dot = `<div class="pb-dot-done">
-                    <span class="material-symbols-outlined" style="font-size:13px;color:#2D3282;font-variation-settings:'FILL' 1">check</span>
+                    <span class="material-symbols-outlined" style="font-size:13px;color:#2563eb;font-variation-settings:'FILL' 1">check</span>
                 </div>`
             } else if (isActive) {
                 dot = `<div class="pb-dot-active"><div class="pb-dot-active-inner"></div></div>`

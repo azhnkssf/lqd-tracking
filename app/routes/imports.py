@@ -58,6 +58,23 @@ def parse_date(val):
         return None
 
 
+def normalize_black_case_no(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+
+    raw = re.sub(r'\s*/\s*', '/', raw)
+    raw = re.sub(r'\s+', ' ', raw)
+    match = re.fullmatch(r'([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))/(25\d{2})', raw)
+    if not match:
+        return None
+
+    case_type = match.group(1)
+    case_no = match.group(2) or match.group(3)
+    year = match.group(4)
+    return f'{case_type} {case_no}/{year}'
+
+
 def parse_float(val, default=0.0):
     try:
         return round(float(str(val).replace(',', '')), 2) if val not in (None, '') else default
@@ -88,6 +105,23 @@ def parse_int(val, default=0):
         return default
 
 
+def parse_required_positive_int(val):
+    if val in (None, ''):
+        raise ValueError('ว่างเปล่า')
+    if isinstance(val, int):
+        value = val
+    elif isinstance(val, float) and val.is_integer():
+        value = int(val)
+    else:
+        text = str(val).replace(',', '').strip()
+        if not re.fullmatch(r'\d+', text):
+            raise ValueError('ต้องเป็นจำนวนเต็มเท่านั้น')
+        value = int(text)
+    if value <= 0:
+        raise ValueError('ต้องมากกว่า 0')
+    return value
+
+
 # ============================================================
 # Template Download
 # ============================================================
@@ -108,14 +142,21 @@ def download_customer_template():
     header_font = Font(color='FFFFFF', bold=True)
     label_font  = Font(bold=True, color='2D3282')
 
-    keys    = ['account_no', 'full_name', 'filing_date', 'filing_capital']
+    keys    = [
+        'account_no', 'full_name', 'black_case_no', 'filing_date', 'filing_capital',
+        'default_date', 'pre_filing_dpd_days', 'filing_note',
+    ]
     labels  = [
         'เลขที่บัญชี * (Text 12 หลัก)',
         'ชื่อ-นามสกุล *',
+        'คดีหมายเลขดำที่ *',
         'วันที่ยื่นฟ้อง * (YYYY-MM-DD)',
-        'ทุนทรัพย์ที่ฟ้อง *'
+        'ทุนทรัพย์ที่ฟ้อง *',
+        'วันที่ผิดนัดชำระก่อนฟ้อง * (YYYY-MM-DD)',
+        'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *',
+        'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม (ไม่เกิน 100 ตัวอักษร)'
     ]
-    example = ['700004761131', 'มานิตย์ บุญรอด', '2026-03-12', 250000]
+    example = ['700004761131', 'มานิตย์ บุญรอด', 'ผบ E814/2569', '2026-03-12', 250000, '2026-02-10', 30, '']
 
     ws.append(keys)
     ws.append(labels)
@@ -124,7 +165,10 @@ def download_customer_template():
     for row in ws.iter_rows(min_row=1, max_row=5000):
         row[0].number_format = '@'
         row[2].number_format = '@'
-        row[3].number_format = '#,##0.00'
+        row[3].number_format = '@'
+        row[4].number_format = '#,##0.00'
+        row[5].number_format = '@'
+        row[6].number_format = '0'
 
     for cell in ws[1]: cell.fill = header_fill; cell.font = header_font; cell.alignment = Alignment(horizontal='center')
     for cell in ws[2]: cell.fill = label_fill;  cell.font = label_font
@@ -352,7 +396,18 @@ def import_customers():
             error += 1
             continue
 
-        filing_date_raw = row[2] if len(row) > 2 else None
+        black_case_no = normalize_black_case_no(row[2] if len(row) > 2 else None)
+        if not black_case_no:
+            results.append({
+                'row': row_idx,
+                'account_no': account_no,
+                'status': 'error',
+                'message': 'คดีหมายเลขดำที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569'
+            })
+            error += 1
+            continue
+
+        filing_date_raw = row[3] if len(row) > 3 else None
         filing_date = parse_date(filing_date_raw)
 
         if not filing_date_raw:
@@ -375,7 +430,7 @@ def import_customers():
             error += 1
             continue
         
-        filing_capital_raw = row[3] if len(row) > 3 else None
+        filing_capital_raw = row[4] if len(row) > 4 else None
         try:
             filing_capital = parse_required_money(filing_capital_raw)
         except ValueError as e:
@@ -385,6 +440,61 @@ def import_customers():
                 'status': 'error',
                 'message': f'ทุนทรัพย์ที่ฟ้อง{str(e)}'
             })
+            error += 1
+            continue
+
+        default_date_raw = row[5] if len(row) > 5 else None
+        default_date = parse_date(default_date_raw)
+        if not default_date_raw:
+            results.append({
+                'row': row_idx,
+                'account_no': account_no,
+                'status': 'error',
+                'message': 'วันที่ผิดนัดชำระก่อนฟ้องว่างเปล่า'
+            })
+            error += 1
+            continue
+        if not default_date:
+            results.append({
+                'row': row_idx,
+                'account_no': account_no,
+                'status': 'error',
+                'message': 'วันที่ผิดนัดชำระก่อนฟ้องต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-02-10'
+            })
+            error += 1
+            continue
+
+        filing_date_obj = date.fromisoformat(filing_date)
+        default_date_obj = date.fromisoformat(default_date)
+        today = date.today()
+        if filing_date_obj > today:
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต'})
+            error += 1
+            continue
+        if default_date_obj > today:
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต'})
+            error += 1
+            continue
+        if default_date_obj > filing_date_obj:
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง'})
+            error += 1
+            continue
+
+        try:
+            pre_filing_dpd_days = parse_required_positive_int(row[6] if len(row) > 6 else None)
+        except ValueError as e:
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': f'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน{str(e)}'})
+            error += 1
+            continue
+
+        filing_note = str(row[7]).strip() if len(row) > 7 and row[7] not in (None, '') else ''
+        if len(filing_note) > 100:
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'})
             error += 1
             continue
         
@@ -398,10 +508,14 @@ def import_customers():
         try:
             db.execute('''
                 INSERT INTO customers (
-                    account_no, name, filing_date, filing_capital,
+                    account_no, name, black_case_no, filing_date, filing_capital,
+                    default_date, pre_filing_dpd_days, filing_note,
                     case_status, created_by
-                ) VALUES (?, ?, ?, ?, 'ยื่นฟ้อง', ?)
-            ''', (account_no, name, filing_date, filing_capital, user['id']))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ยื่นฟ้อง', ?)
+            ''', (
+                account_no, name, black_case_no, filing_date, filing_capital,
+                default_date, pre_filing_dpd_days, filing_note or None, user['id']
+            ))
 
             db.execute('''
                 INSERT INTO case_status_logs
@@ -413,6 +527,7 @@ def import_customers():
                 'row': row_idx,
                 'account_no': account_no,
                 'name': name,
+                'black_case_no': black_case_no,
                 'filing_capital': filing_capital,
                 'status': 'success',
                 'message': 'นำเข้าสำเร็จ'

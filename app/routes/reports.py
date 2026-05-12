@@ -588,9 +588,9 @@ def generate_report_db():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data         = request.get_json()
+    data         = request.get_json() or {}
     report_date  = data.get('report_date')
-    status_types = data.get('status_types', ['30', '31'])
+    status_types = ['30', '31']
 
     if not report_date:
         return jsonify({'error': 'กรุณาระบุวันที่ขอ Report'}), 400

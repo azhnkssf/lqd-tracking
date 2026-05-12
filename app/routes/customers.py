@@ -47,6 +47,34 @@ def _parse_iso_date(value):
         return None
 
 
+def _normalize_black_case_no(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+
+    raw = re.sub(r'\s*/\s*', '/', raw)
+    raw = re.sub(r'\s+', ' ', raw)
+    match = re.fullmatch(r'([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))/(25\d{2})', raw)
+    if not match:
+        return None
+
+    case_type = match.group(1)
+    case_no = match.group(2) or match.group(3)
+    year = match.group(4)
+    return f'{case_type} {case_no}/{year}'
+
+
+def _parse_positive_int(value):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    text = str(value or '').replace(',', '').strip()
+    if not re.fullmatch(r'\d+', text):
+        return None
+    return int(text)
+
+
 def _first_day_next_month(d):
     if not d:
         return None
@@ -436,24 +464,31 @@ def create_customer():
 
     data = request.get_json() or {}
 
-    required = ['account_no', 'name', 'filing_date', 'filing_capital']
+    required = [
+        'account_no', 'name', 'black_case_no', 'filing_date', 'filing_capital',
+        'default_date', 'pre_filing_dpd_days',
+    ]
     missing = [f for f in required if data.get(f) is None or data.get(f) == '']
     if missing:
         field_labels = {
             'account_no': 'หมายเลขบัญชี',
             'name': 'ชื่อ-นามสกุล',
+            'black_case_no': 'คดีหมายเลขดำที่',
             'filing_date': 'วันที่ยื่นฟ้อง',
             'filing_capital': 'ทุนทรัพย์ที่ฟ้อง',
+            'default_date': 'วันที่ผิดนัดชำระก่อนฟ้อง',
+            'pre_filing_dpd_days': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน',
         }
         missing_labels = [field_labels.get(f, f) for f in missing]
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing_labels)}'}), 400
 
     account_no = str(data.get('account_no') or '').strip()
-    black_case_no = re.sub(r'\s+', ' ', str(data.get('black_case_no') or '').replace(' / ', '/').strip())
-    black_case_no = re.sub(r'\s*/\s*', '/', black_case_no)
+    black_case_no = _normalize_black_case_no(data.get('black_case_no'))
     name = str(data.get('name') or '').strip()
     filing_date = str(data.get('filing_date') or '').strip()
     filing_capital_text = str(data.get('filing_capital') or '').replace(',', '').strip()
+    default_date = str(data.get('default_date') or '').strip()
+    filing_note = str(data.get('filing_note') or '').strip()
 
     if not account_no.isdigit() or len(account_no) != 12:
         return jsonify({'error': 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก'}), 400
@@ -461,8 +496,30 @@ def create_customer():
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', filing_date):
         return jsonify({'error': 'วันที่ยื่นฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
-    if black_case_no and not re.fullmatch(r'[A-Za-zก-ฮ]{1,8}\s*[A-Za-z0-9]{1,8}/25\d{2}', black_case_no):
-        return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE814/2569'}), 400
+    if not black_case_no:
+        return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569'}), 400
+
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', default_date):
+        return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
+
+    filing_date_obj = _parse_iso_date(filing_date)
+    default_date_obj = _parse_iso_date(default_date)
+    today = date.today()
+    if not filing_date_obj or filing_date_obj > today:
+        return jsonify({'error': 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต'}), 400
+    if not default_date_obj or default_date_obj > today:
+        return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต'}), 400
+    if default_date_obj > filing_date_obj:
+        return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง'}), 400
+
+    pre_filing_dpd_days = _parse_positive_int(data.get('pre_filing_dpd_days'))
+    if pre_filing_dpd_days is None:
+        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มเท่านั้น'}), 400
+    if pre_filing_dpd_days <= 0:
+        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องมากกว่า 0'}), 400
+
+    if len(filing_note) > 100:
+        return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
 
     if not re.fullmatch(r'\d+(\.\d{1,2})?', filing_capital_text):
         return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลข และมีทศนิยมได้สูงสุด 2 ตำแหน่ง'}), 400
@@ -482,14 +539,18 @@ def create_customer():
     db.execute('''
         INSERT INTO customers (
             account_no, name, filing_date, black_case_no, filing_capital,
+            default_date, pre_filing_dpd_days, filing_note,
             case_status, created_by
-        ) VALUES (?, ?, ?, ?, ?, 'ยื่นฟ้อง', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ยื่นฟ้อง', ?)
     ''', (
         account_no,
         name,
         filing_date,
-        black_case_no or None,
+        black_case_no,
         filing_capital,
+        default_date,
+        pre_filing_dpd_days,
+        filing_note or None,
         user['id']
     ))
 
@@ -501,7 +562,10 @@ def create_customer():
         'message': 'บันทึกข้อมูลสำเร็จ',
         'account_no': account_no,
         'black_case_no': black_case_no,
-        'filing_capital': filing_capital
+        'filing_capital': filing_capital,
+        'default_date': default_date,
+        'pre_filing_dpd_days': pre_filing_dpd_days,
+        'filing_note': filing_note,
     }), 201
 
 
