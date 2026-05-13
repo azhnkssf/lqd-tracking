@@ -112,7 +112,7 @@
     .copy-account-btn { @apply inline-flex items-center justify-center text-indigo-300 hover:text-primary transition-colors focus:outline-none; }
     .copy-toast { @apply fixed bottom-6 right-6 z-[120] hidden rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-xs font-bold text-emerald-700 shadow-xl shadow-slate-900/10; }
     .copy-toast.show { @apply flex items-center gap-2; }
-    .status-badge { @apply inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-sm; }
+    .status-badge { @apply inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-sm; }
     .customer-list-page .status-badge {
         max-width: 100%;
         overflow: hidden;
@@ -155,15 +155,15 @@
     .kpi-item > :not(.kpi-line) { @apply relative z-10; }
     .kpi-icon { @apply flex h-9 w-9 items-center justify-center rounded-xl border bg-white shadow-sm transition-all duration-500; }
     .kpi-item:hover .kpi-icon { @apply scale-105 rotate-3 shadow-md; }
-    .kpi-percent { @apply inline-flex min-w-[48px] items-center justify-center rounded-full bg-blue-50 px-3 py-1.5 text-[12.5px] font-black tracking-normal leading-none transition-colors; }
+    .kpi-percent { @apply inline-flex min-w-[48px] items-center justify-center rounded-full bg-blue-50 px-3 py-1.5 text-[12px] font-extrabold tracking-normal leading-none transition-colors; }
     .kpi-item:hover .kpi-percent { @apply bg-white; }
     .kpi-track { @apply hidden; }
     .kpi-fill { @apply h-full rounded-full transition-all duration-700; }
-    .kpi-label { @apply mb-1.5 truncate text-[10px] font-bold uppercase leading-none tracking-[0.1em] text-slate-400; }
-    .kpi-value { @apply text-[28px] xl:text-[31px] font-black tracking-normal leading-none text-slate-800 transition-all duration-500; }
+    .kpi-label { @apply mb-2 truncate text-[11px] font-semibold leading-snug tracking-normal text-slate-600; }
+    .kpi-value { @apply text-[27px] xl:text-[30px] font-extrabold tracking-normal leading-tight text-slate-800 transition-all duration-500; }
     .kpi-item:hover .kpi-value { @apply translate-x-0.5 text-primary; }
-    .kpi-unit { @apply text-[9px] font-bold uppercase tracking-widest text-slate-300; }
-    .kpi-sub { @apply text-[8px] font-black uppercase tracking-[0.18em] text-slate-300; }
+    .kpi-unit { @apply text-[9.5px] font-semibold uppercase tracking-normal text-slate-500; }
+    .kpi-sub { @apply text-[8.5px] font-extrabold uppercase tracking-normal text-current; }
     .kpi-footer-line { @apply relative h-0.5 flex-1 overflow-hidden rounded-full bg-blue-50; }
     .kpi-footer-line::after {
         content: "";
@@ -312,7 +312,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">ยอดรวมทั้งหมด</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-all" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -333,7 +333,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">ขั้นตอนยื่นฟ้อง</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-filing" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -354,7 +354,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">พิจารณาตามยอม</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-consent" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -375,7 +375,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">พิจารณาฝ่ายเดียว</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-default" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -396,7 +396,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">เข้าสู่บังคับคดี</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-enforcement" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -417,7 +417,7 @@
                             </div>
                         </div>
                         <p class="kpi-label">ปิดบัญชี</p>
-                        <div class="flex items-baseline gap-2">
+                        <div class="flex items-baseline gap-3">
                             <h3 id="case-count-closed" class="kpi-value">0</h3>
                             <span class="kpi-unit">Cases</span>
                         </div>
@@ -1064,7 +1064,7 @@
         document.getElementById('nav-avatar').textContent = displayName.charAt(0) || '-';
 
         if (role === 'admin' || role === 'superadmin') {
-            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
         }
     }
 
@@ -1164,12 +1164,12 @@
 
     function badge(text, tone) {
         const tones = {
-            red: 'bg-red-50 text-red-700 border-red-200',
-            amber: 'bg-amber-50 text-amber-700 border-amber-200',
-            emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            blue: 'bg-blue-50 text-blue-700 border-blue-200',
-            slate: 'bg-slate-100 text-slate-600 border-slate-200',
-            indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+            red: 'bg-red-50 text-red-800 border-red-200',
+            amber: 'bg-amber-50 text-amber-800 border-amber-200',
+            emerald: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+            blue: 'bg-blue-50 text-blue-800 border-blue-200',
+            slate: 'bg-slate-100 text-slate-700 border-slate-200',
+            indigo: 'bg-indigo-50 text-indigo-800 border-indigo-200'
         };
         return `<span class="status-badge ${tones[tone] || tones.slate}">${text || '-'}</span>`;
     }
