@@ -82,13 +82,26 @@
     }
     .theme-tooltip {
         position: relative;
+        z-index: 30;
+    }
+    .dashboard-card:has(.theme-tooltip) {
+        overflow: visible !important;
+    }
+    .field-grid-enhanced > div:has(.theme-tooltip) {
+        position: relative;
+        z-index: 40;
+        overflow: visible;
+    }
+    .field-grid-enhanced > div:has(.theme-tooltip:hover),
+    .field-grid-enhanced > div:has(.theme-tooltip:focus-within) {
+        z-index: 120;
     }
     .note-tooltip-popover {
         position: absolute;
-        left: 0;
+        right: 0;
         bottom: calc(100% + 12px);
-        z-index: 90;
-        width: min(420px, 76vw);
+        z-index: 9999;
+        width: min(420px, calc(100vw - 32px));
         padding: 0.875rem;
         border-radius: 18px;
         border: 1px solid rgba(219, 226, 239, 0.95);
@@ -101,14 +114,14 @@
         opacity: 0;
         visibility: hidden;
         transform: translateY(6px) scale(0.985);
-        transform-origin: left bottom;
+        transform-origin: right bottom;
         transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
         pointer-events: none;
     }
     .note-tooltip-popover::before {
         content: "";
         position: absolute;
-        left: 1.25rem;
+        right: 1.25rem;
         bottom: -6px;
         width: 12px;
         height: 12px;
@@ -246,6 +259,13 @@
             0 20px 46px rgba(15, 23, 42, 0.07),
             0 1px 0 rgba(255,255,255,0.9) inset;
     }
+    .case-entry-card:has(.dp-popup.open) {
+        overflow: visible !important;
+        z-index: 300;
+    }
+    .case-entry-card:has(.dp-popup.open) .dashboard-card-content {
+        overflow: visible;
+    }
     .judgment-card {
         border-color: rgba(213, 221, 235, 0.95);
     }
@@ -352,7 +372,7 @@
     .case-entry-card .dp-input.dp-autocalc {
         background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
         border-color: #d3dce8 !important;
-        color: #64748b !important;
+        color: #94a3b8 !important;
         cursor: not-allowed !important;
         font-weight: 700;
         box-shadow:
@@ -369,13 +389,16 @@
     }
     .case-entry-card .autocalc-input::placeholder,
     .case-entry-card .dp-input.dp-autocalc [id^="dp-text-"] {
-        color: #64748b !important;
+        color: #94a3b8 !important;
         opacity: 1;
         font-weight: 700;
     }
     .case-entry-card .relative:has(.autocalc-input) > span,
     .case-entry-card .dp-input.dp-autocalc + .dp-icon {
         color: #94a3b8 !important;
+    }
+    .case-entry-card .autocalc-input {
+        -webkit-text-fill-color: #94a3b8;
     }
     .auto-badge-soft {
         @apply text-[9px] px-1.5 py-0.5 rounded-full font-extrabold;
@@ -444,8 +467,9 @@
         border: 1px solid #e2e8f0;
         border-radius: 1rem;
         box-shadow: 0 18px 40px rgba(15,23,42,0.14);
-        width: 288px;
-        padding: 1rem;
+        width: 320px;
+        max-width: calc(100vw - 32px);
+        padding: 0.875rem;
         font-family: 'Kanit', sans-serif;
     }
     .dp-popup.open { display: block; }
@@ -493,14 +517,18 @@
     }
     .dp-days {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
+        grid-template-columns: repeat(7, 30px);
+        grid-auto-rows: 30px;
+        justify-content: space-between;
         gap: 2px;
+        min-height: 190px;
     }
     .dp-day {
-        aspect-ratio: 1;
+        width: 30px;
+        height: 30px;
         display: flex; align-items: center; justify-content: center;
-        border-radius: 0.5rem;
-        font-size: 0.8rem;
+        border-radius: 0.45rem;
+        font-size: 0.78rem;
         cursor: pointer;
         color: #1e293b;
         transition: all 0.15s;
@@ -530,8 +558,8 @@
     .dp-footer {
         display: flex;
         justify-content: flex-end;
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
+        margin-top: 0.625rem;
+        padding-top: 0.625rem;
         border-top: 1px solid #f1f5f9;
         gap: 0.5rem;
     }
@@ -850,7 +878,7 @@
 {% include "partials/sidebar.html" %}
 
 <!-- Main -->
-<main class="md:ml-64 pt-20 min-h-screen pb-24">
+<main class="md:ml-56 pt-20 min-h-screen pb-24">
 
     <!-- Header bar -->
     <div class="px-6 md:px-8">
@@ -1024,13 +1052,16 @@
                         </div>
                     </div>
                     <div class="dashboard-card-content">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
                             <div>
-                                <label class="form-label-styled">เลขหมายบังคับคดี <span class="text-red-500">*</span></label>
-                                <input id="enf-order-no" class="form-input-styled" type="text" placeholder="เช่น EF-2026-00123" autocomplete="off">
+                                <label class="form-label-styled">คดีหมายเลขแดงที่ <span class="text-red-500">*</span></label>
+                                <div class="dp-input-row relative">
+                                    <input id="enf-red-case-no" class="dp-input dp-autocalc font-semibold" type="text" value="-" disabled>
+                                    <span class="material-symbols-outlined dp-icon">confirmation_number</span>
+                                </div>
                             </div>
                             <div>
-                                <label class="form-label-styled">วันที่มีคำพิพากษา <span class="text-red-500">*</span></label>
+                                <label class="form-label-styled">วันที่ของหมายบังคับคดี <span class="text-red-500">*</span></label>
                                 <div class="dp-wrap" id="dp-wrap-enf-judgment-date">
                                     <div class="dp-input-row relative">
                                         <input type="hidden" id="enf-judgment-date">
@@ -1060,41 +1091,6 @@
                                         <div class="dp-footer">
                                             <button class="dp-btn-clear" onclick="dpClear('enf-judgment-date')" type="button">ล้างค่า</button>
                                             <button class="dp-btn-today" onclick="dpSelectToday('enf-judgment-date')" type="button">วันนี้</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label-styled">วันที่ได้รับหมาย <span class="text-red-500">*</span></label>
-                                <div class="dp-wrap" id="dp-wrap-enf-received-date">
-                                    <div class="dp-input-row relative">
-                                        <input type="hidden" id="enf-received-date">
-                                        <div class="dp-input" id="dp-display-enf-received-date" tabindex="0" onclick="dpOpen('enf-received-date')">
-                                            <span id="dp-text-enf-received-date" class="text-slate-400">เลือกวันที่</span>
-                                        </div>
-                                        <span class="material-symbols-outlined dp-icon">calendar_today</span>
-                                    </div>
-                                    <div class="dp-popup" id="dp-popup-enf-received-date">
-                                        <div class="dp-header">
-                                            <button class="dp-nav-btn" onclick="dpNavMonth('enf-received-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
-                                            <span class="dp-month-year" id="dp-title-enf-received-date" onclick="dpToggleMyPicker('enf-received-date')"></span>
-                                            <button class="dp-nav-btn" onclick="dpNavMonth('enf-received-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
-                                        </div>
-                                        <div id="dp-my-enf-received-date" class="hidden">
-                                            <div class="dp-year-header">
-                                                <button class="dp-nav-btn" onclick="dpNavYear('enf-received-date',-1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_left</span></button>
-                                                <span id="dp-year-label-enf-received-date" class="font-bold text-sm text-slate-700"></span>
-                                                <button class="dp-nav-btn" onclick="dpNavYear('enf-received-date',1)" type="button"><span class="material-symbols-outlined" style="font-size:18px">chevron_right</span></button>
-                                            </div>
-                                            <div class="dp-my-grid" id="dp-months-enf-received-date"></div>
-                                        </div>
-                                        <div id="dp-cal-enf-received-date">
-                                            <div class="dp-weekdays"><div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div><div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div></div>
-                                            <div class="dp-days" id="dp-days-enf-received-date"></div>
-                                        </div>
-                                        <div class="dp-footer">
-                                            <button class="dp-btn-clear" onclick="dpClear('enf-received-date')" type="button">ล้างค่า</button>
-                                            <button class="dp-btn-today" onclick="dpSelectToday('enf-received-date')" type="button">วันนี้</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1140,35 +1136,27 @@
 
                     <!-- Content -->
                     <div class="dashboard-card-content form-section-compact">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 field-grid-enhanced">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 field-grid-enhanced">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="material-symbols-outlined text-red-400 text-base" style='font-variation-settings:"FILL" 1'>confirmation_number</span>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">เลขหมายบังคับคดี</p>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">คดีหมายเลขแดงที่</p>
                                 </div>
-                                <p id="enf-info-order-no" class="text-sm font-bold text-slate-800">-</p>
+                                <p id="enf-info-red-case-no" class="text-sm font-bold text-slate-800">-</p>
                             </div>
 
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="material-symbols-outlined text-red-400 text-base" style='font-variation-settings:"FILL" 1'>gavel</span>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วันที่มีคำพิพากษา</p>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วันที่ของหมายบังคับคดี</p>
                                 </div>
                                 <p id="enf-info-judgment-date" class="text-sm font-bold text-slate-800">-</p>
                             </div>
 
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
-                                    <span class="material-symbols-outlined text-red-400 text-base" style='font-variation-settings:"FILL" 1'>event_available</span>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วันที่ได้รับหมาย</p>
-                                </div>
-                                <p id="enf-info-received-date" class="text-sm font-bold text-slate-800">-</p>
-                            </div>
-
-                            <div>
-                                <div class="flex items-center gap-2 mb-1">
                                     <span class="material-symbols-outlined text-red-400 text-base" style='font-variation-settings:"FILL" 1'>person_check</span>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">บันทึกโดย / วันที่</p>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วันที่บันทึกหมายบังคับคดี</p>
                                 </div>
                                 <p id="enf-info-recorded" class="text-sm font-semibold text-slate-600">-</p>
                             </div>
@@ -1330,7 +1318,12 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="sm:col-span-2">
+                            <div>
+                                <label class="form-label-styled">คดีหมายเลขแดงที่ <span class="text-red-500">*</span></label>
+                                <input id="red-case-no" class="form-input-styled font-medium" type="text" placeholder="กรอกคดีหมายเลขแดงที่" autocomplete="off">
+                                <p id="warn-red-case-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span>รูปแบบคดีหมายเลขแดงไม่ถูกต้อง</span></p>
+                            </div>
+                            <div>
                                 <label class="form-label-styled text-blue-600">ยอดหนี้ตามคำพิพากษา <span class="text-red-500">*</span></label>
                                 <div class="relative">
                                     <input id="total-debt" class="form-input-styled font-medium text-right pr-4 pl-10" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off">
@@ -1381,6 +1374,11 @@
                                     <input id="diff-debt" class="form-input-styled autocalc-input font-medium text-right pr-4 pl-10" placeholder="0.00" type="text" readonly tabindex="-1" onfocus="this.blur()">
                                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
                                 </div>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="form-label-styled">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label>
+                                <textarea id="judgment-note" class="form-input-styled min-h-[92px] resize-none" maxlength="100" placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                                <p class="text-[10px] text-slate-400 mt-1"><span id="judgment-note-counter">0</span>/100 ตัวอักษร</p>
                             </div>
                         </div>
                     </div>
@@ -1460,7 +1458,7 @@
                                     <div class="dp-input-row relative">
                                         <input type="hidden" id="last-due-date">
                                         <div class="dp-input dp-readonly dp-autocalc" id="dp-display-last-due-date" tabindex="-1">
-                                            <span id="dp-text-last-due-date" class="text-slate-500 font-medium">คำนวณอัตโนมัติ</span>
+                                            <span id="dp-text-last-due-date">คำนวณอัตโนมัติ</span>
                                         </div>
                                         <span class="material-symbols-outlined dp-icon">calendar_today</span>
                                     </div>
@@ -1758,6 +1756,16 @@
                         <p class="confirm-review-label">วันที่พิพากษา</p>
                         <p id="rv-judgment-date" class="confirm-review-value">-</p>
                     </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">คดีหมายเลขแดงที่</p>
+                        <p id="rv-red-case-no" class="confirm-review-value">-</p>
+                    </div>
+
+                    <div class="confirm-review-item">
+                        <p class="confirm-review-label">หมายเหตุ</p>
+                        <p id="rv-judgment-note" class="confirm-review-value break-words">-</p>
+                    </div>
                 </div>
 
                 <div id="rv-judgment-type-row" class="confirm-review-highlight hidden">
@@ -1929,16 +1937,30 @@
     const displayName = sessionStorage.getItem('display_name') || '';
 
     function isAdminRole() {
-        // เฉพาะ admin เท่านั้นที่แก้ไขข้อมูลคดีได้
         return role === 'admin';
+    }
+
+    function isUserRole() {
+        return role === 'user';
+    }
+
+    function editPermissionMessage(caseStatus) {
+        if (caseStatus === 'ยื่นฟ้อง') {
+            return 'สถานะยื่นฟ้องอนุญาตให้ User และ Admin แก้ไขได้เท่านั้น';
+        }
+        return 'สถานะนี้อนุญาตให้แก้ไขได้เฉพาะ Admin เท่านั้น';
     }
 
     function canEditJudgmentData(caseStatus) {
         // ปิดบัญชีแล้วไม่ให้แก้จากหน้านี้ แม้เป็น admin
         if (caseStatus === 'ปิดบัญชี') return false;
 
-        // ทุกสถานะที่ยังแก้ได้ ต้องเป็น admin เท่านั้น
-        // user และ superadmin แก้ไขข้อมูลคดีไม่ได้
+        // สถานะยื่นฟ้องให้ user และ admin แก้ไขได้
+        if (caseStatus === 'ยื่นฟ้อง') {
+            return isUserRole() || isAdminRole();
+        }
+
+        // สถานะอื่นที่ยังแก้ได้ ต้องเป็น admin เท่านั้น
         return isAdminRole();
     }
 
@@ -1976,7 +1998,7 @@
         if (!display) return;
 
         display.style.pointerEvents = locked ? 'none' : '';
-        display.style.opacity = locked ? '0.65' : '';
+        display.style.opacity = locked ? '1' : '';
         display.classList.toggle('cursor-not-allowed', locked);
         display.classList.toggle('dp-autocalc', locked);
         display.title = locked ? title : '';
@@ -1984,6 +2006,7 @@
 
     function setJudgmentFormLocked(locked) {
         const editableInputIds = [
+            'red-case-no',
             'total-debt',
             'principal',
             'interest-rate',
@@ -1994,7 +2017,8 @@
             'installment-2',
             'installment-3',
             'installment-4',
-            'default-interest-rate'
+            'default-interest-rate',
+            'judgment-note'
         ];
 
         editableInputIds.forEach(id => {
@@ -2160,6 +2184,15 @@
             if (data.judgment_date) dpSelectDay('judgment-date', data.judgment_date);
             if (data.first_due_date) dpSelectDay('first-due-date', data.first_due_date);
 
+            const redCaseNoEl = document.getElementById('red-case-no');
+            if (redCaseNoEl) redCaseNoEl.value = data.red_case_no || '';
+            const judgmentNoteEl = document.getElementById('judgment-note');
+            if (judgmentNoteEl) {
+                judgmentNoteEl.value = data.judgment_note || '';
+                const counter = document.getElementById('judgment-note-counter');
+                if (counter) counter.textContent = String(judgmentNoteEl.value.length);
+            }
+
             const moneyFields = {
                 'total-debt':           data.total_debt,
                 'principal':            data.principal,
@@ -2193,7 +2226,9 @@
             originalData = {
                 filing_date:           data.filing_date        || '',
                 filing_capital:        Number(data.filing_capital || 0),
+                red_case_no:           data.red_case_no        || '',
                 judgment_date:         data.judgment_date      || '',
+                judgment_note:         data.judgment_note      || '',
                 first_due_date:        data.first_due_date     || '',
                 total_debt:            Number(data.total_debt  || 0),
                 principal:             Number(data.principal   || 0),
@@ -2389,6 +2424,28 @@
 
     function isValidInteger(val) {
         return /^\d+$/.test(val.trim());
+    }
+
+    function normalizeCaseNo(value) {
+        return String(value || '')
+            .trim()
+            .replace(/\s*\/\s*/g, '/')
+            .replace(/\s+/g, ' ');
+    }
+
+    function isValidCaseNo(value) {
+        return /^[A-Za-zก-ฮ]{1,8}(?:\s+[A-Za-z]?\d{1,8}|\d{1,8})\/25\d{2}$/.test(value);
+    }
+
+    function handleRedCaseNoInput() {
+        const el = document.getElementById('red-case-no');
+        if (!el) return;
+        const value = normalizeCaseNo(el.value);
+        if (!value || !isValidCaseNo(value)) {
+            showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+        } else {
+            hideFieldWarn('red-case-no');
+        }
     }
 
     const ZERO_REQUIRED_FIELD_IDS = new Set([
@@ -2820,6 +2877,7 @@ function setupFriendlyInputFocus() {
             { id: 'account-no',       label: 'หมายเลขบัญชี' },
             { id: 'customer-name',    label: 'ชื่อ-นามสกุล' },
             { id: 'filing-date',      label: 'วันที่ยื่นฟ้อง' },
+            { id: 'red-case-no',      label: 'คดีหมายเลขแดงที่' },
             { id: 'judgment-date',    label: 'วันที่พิพากษา' },
             { id: 'total-debt',       label: 'ยอดหนี้รวม' },
             { id: 'principal',        label: 'เงินต้น' },
@@ -2856,6 +2914,19 @@ function setupFriendlyInputFocus() {
         if (/[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(nameVal)) {
             showError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
             document.getElementById('customer-name').classList.add('error');
+            return false;
+        }
+
+        const redCaseVal = normalizeCaseNo(document.getElementById('red-case-no').value);
+        if (!isValidCaseNo(redCaseVal)) {
+            showError('คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            document.getElementById('red-case-no').classList.add('error');
+            return false;
+        }
+
+        if (document.getElementById('judgment-note').value.trim().length > 100) {
+            showError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร');
+            document.getElementById('judgment-note').classList.add('error');
             return false;
         }
 
@@ -2912,7 +2983,7 @@ function setupFriendlyInputFocus() {
             showAlert(
                 'warning',
                 'ไม่สามารถแก้ไขข้อมูลได้',
-                'สถานะนี้อนุญาตให้แก้ไขได้เฉพาะ Admin เท่านั้น'
+                editPermissionMessage(currentCus.case_status)
             );
             setSubmitEnabled(false);
             return;
@@ -2942,6 +3013,8 @@ function setupFriendlyInputFocus() {
         document.getElementById('rv-customer-name').textContent    = document.getElementById('customer-name').value;
         document.getElementById('rv-filing-date').textContent      = fmtDateReview('filing-date');
         document.getElementById('rv-judgment-date').textContent    = fmtDateReview('judgment-date');
+        document.getElementById('rv-red-case-no').textContent      = normalizeCaseNo(document.getElementById('red-case-no').value);
+        document.getElementById('rv-judgment-note').textContent    = document.getElementById('judgment-note').value.trim() || '-';
         // แสดง judgment-type ถ้า case_status = ยื่นฟ้อง
         const _jt = document.getElementById('judgment-type')?.value || ''
         const _jtRow = document.getElementById('rv-judgment-type-row')
@@ -2980,7 +3053,7 @@ function setupFriendlyInputFocus() {
             showAlert(
                 'warning',
                 'ไม่สามารถแก้ไขข้อมูลได้',
-                'สถานะนี้อนุญาตให้แก้ไขได้เฉพาะ Admin เท่านั้น'
+                editPermissionMessage(currentCus.case_status)
             );
             setSubmitEnabled(false);
             return;
@@ -3012,9 +3085,10 @@ function setupFriendlyInputFocus() {
         closeConfirmModal();
         const payload = {
             filing_date: dpGetValue('filing-date'),
-            filing_capital:         parseNumber(document.getElementById('filing-capital')?.value || '0'),
             filing_capital: parseNumber(document.getElementById('filing-capital').value),
+            red_case_no: normalizeCaseNo(document.getElementById('red-case-no').value),
             judgment_date: dpGetValue('judgment-date'),
+            judgment_note: document.getElementById('judgment-note').value.trim(),
             total_debt: parseNumber(document.getElementById('total-debt').value),
             principal:              parseNumber(document.getElementById('principal').value),
             judgment_difference:    parseNumber(document.getElementById('diff-debt').value),
@@ -3148,7 +3222,7 @@ function setupFriendlyInputFocus() {
             btn.classList.remove('hover:bg-primary-dark');
 
             if (!allowedByStatus) {
-                btn.title = 'สถานะนี้อนุญาตให้แก้ไขได้เฉพาะ Admin เท่านั้น';
+                btn.title = currentCus ? editPermissionMessage(currentCus.case_status) : 'ไม่มีสิทธิ์แก้ไขข้อมูล';
             } else {
                 btn.title = 'กรุณากรอกข้อมูลให้ครบและกดพรีวิวก่อนบันทึก';
             }
@@ -3163,6 +3237,7 @@ function setupFriendlyInputFocus() {
     function getPreviewRequiredFields() {
         const fields = [
             { id: 'filing-date',       label: 'วันที่ยื่นฟ้อง' },
+            { id: 'red-case-no',       label: 'คดีหมายเลขแดงที่' },
             { id: 'judgment-date',     label: 'วันที่พิพากษา' },
             { id: 'total-debt',        label: 'ยอดหนี้รวม' },
             { id: 'principal',         label: 'เงินต้น' },
@@ -3187,7 +3262,7 @@ function setupFriendlyInputFocus() {
 
         if (raw === '') return true;
 
-        if (id === 'filing-date' || id === 'judgment-date' || id === 'first-due-date' || id === 'judgment-type') {
+        if (id === 'filing-date' || id === 'red-case-no' || id === 'judgment-date' || id === 'first-due-date' || id === 'judgment-type') {
             return false;
         }
 
@@ -3269,6 +3344,28 @@ function setupFriendlyInputFocus() {
             return false;
         }
 
+        const redCaseEl = document.getElementById('red-case-no');
+        if (redCaseEl) {
+            const redCaseValue = normalizeCaseNo(redCaseEl.value);
+            if (!isValidCaseNo(redCaseValue)) {
+                redCaseEl.classList.add('error');
+                showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+                if (showErrorMessage) {
+                    showAlert('warning', 'กรุณากรอกข้อมูลให้ถูกต้อง', 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบที่กำหนด');
+                }
+                return false;
+            }
+        }
+
+        const judgmentNoteEl = document.getElementById('judgment-note');
+        if (judgmentNoteEl && judgmentNoteEl.value.trim().length > 100) {
+            judgmentNoteEl.classList.add('error');
+            if (showErrorMessage) {
+                showAlert('warning', 'กรุณากรอกข้อมูลให้ถูกต้อง', 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร');
+            }
+            return false;
+        }
+
         if (!validateBusinessRules(showErrorMessage)) {
             return false;
         }
@@ -3281,7 +3378,9 @@ function setupFriendlyInputFocus() {
         const cur = {
             filing_date:           document.getElementById('filing-date').value          || '',
             filing_capital:        parseNum(document.getElementById('filing-capital')?.value || '0'),
+            red_case_no:           normalizeCaseNo(document.getElementById('red-case-no').value),
             judgment_date:         document.getElementById('judgment-date').value         || '',
+            judgment_note:         document.getElementById('judgment-note').value.trim(),
             first_due_date:        document.getElementById('first-due-date').value        || '',
             total_debt:            parseNum(document.getElementById('total-debt').value),
             principal:             parseNum(document.getElementById('principal').value),
@@ -3511,7 +3610,7 @@ function setupFriendlyInputFocus() {
     }
 
     // ผูก event กับทุก input field
-    const previewFields = ['filing-date','judgment-date','total-debt','principal','interest-rate','default-interest-rate','court-fee','lawyer-fee','installment-count',
+    const previewFields = ['filing-date','red-case-no','judgment-date','judgment-note','total-debt','principal','interest-rate','default-interest-rate','court-fee','lawyer-fee','installment-count',
                            'first-due-date','installment-1','installment-2',
                            'installment-3','installment-4'];
     previewFields.forEach(id => {
@@ -3532,6 +3631,18 @@ function setupFriendlyInputFocus() {
     // ---- Customer Name events ----
     document.getElementById('customer-name').addEventListener('input', handleCustomerNameInput);
     document.getElementById('customer-name').addEventListener('blur',  handleCustomerNameBlur);
+
+    document.getElementById('red-case-no').addEventListener('input', () => { handleRedCaseNoInput(); onInputChanged(); });
+    document.getElementById('red-case-no').addEventListener('blur', () => {
+        const el = document.getElementById('red-case-no');
+        el.value = normalizeCaseNo(el.value);
+        handleRedCaseNoInput();
+        onInputChanged();
+    });
+    document.getElementById('judgment-note').addEventListener('input', function() {
+        document.getElementById('judgment-note-counter').textContent = String(this.value.length);
+        onInputChanged();
+    });
 
     // ---- Money fields ----
     ['total-debt', 'principal', 'court-fee', 'lawyer-fee'].forEach(id => {
@@ -3590,7 +3701,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
     // ============================================================
     // Custom Date Picker Engine
     // ============================================================
-    const DP_FIELDS   = ['filing-date', 'judgment-date', 'first-due-date', 'last-due-date', 'enf-judgment-date', 'enf-received-date'];
+    const DP_FIELDS   = ['filing-date', 'judgment-date', 'first-due-date', 'last-due-date', 'enf-judgment-date'];
     const DP_STATE    = {};
     const TH_MONTHS   = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
                          'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -3630,17 +3741,18 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         popup.classList.add('open');
         display.classList.add('open');
 
-        // คำนวณ position แบบ fixed
+        // คำนวณ position แบบ fixed โดยไม่ให้ปฏิทินยืดตามความกว้างของ field
         const rect    = display.getBoundingClientRect();
-        const popupH  = 340;
+        const popupW  = Math.min(320, window.innerWidth - 32);
+        const popupH  = 350;
         const spaceBelow = window.innerHeight - rect.bottom;
         if (spaceBelow < popupH && rect.top > popupH) {
             popup.style.top  = (rect.top - popupH - 6) + 'px';
         } else {
             popup.style.top  = (rect.bottom + 6) + 'px';
         }
-        popup.style.left  = rect.left + 'px';
-        popup.style.width = Math.max(rect.width, 288) + 'px';
+        popup.style.width = popupW + 'px';
+        popup.style.left  = Math.min(Math.max(rect.left, 16), window.innerWidth - popupW - 16) + 'px';
     }
 
     function dpClose(id) {
@@ -3732,8 +3844,9 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             html += `<div class="${cls}" onclick="dpSelectDay('${id}','${str}')">${d}</div>`;
         }
 
-        const remaining = (7 - (startDay + last.getDate()) % 7) % 7;
-        for (let i = 1; i <= remaining; i++) {
+        const totalCells = startDay + last.getDate();
+        const trailingCells = Math.max(0, 42 - totalCells);
+        for (let i = 1; i <= trailingCells; i++) {
             html += `<div class="dp-day dp-day-other">${i}</div>`;
         }
 
@@ -3766,7 +3879,6 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             'first-due-date':    'เลือกวันครบกำหนดงวดแรก',
             'last-due-date':     'คำนวณอัตโนมัติ',
             'enf-judgment-date': 'เลือกวันที่',
-            'enf-received-date': 'เลือกวันที่',
         };
         disp.textContent = placeholders[id] || 'เลือกวันที่';
         disp.classList.add('text-slate-400');
@@ -4012,6 +4124,8 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
 
         } else if (['พิพากษาตามยอม','พิพากษาฝ่ายเดียว'].includes(caseStatus)) {
             if (canEdit && currentCus?.can_record_enforcement === true) {
+                const redCaseInput = document.getElementById('enf-red-case-no')
+                if (redCaseInput) redCaseInput.value = currentCus?.red_case_no || '-'
                 const el = document.getElementById('section-enforcement-form')
                 if (el) el.style.display = ''
             }
@@ -4035,9 +4149,8 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
     function fillEnforcementInfo(cus) {
         const fmt = v => { if (!v) return '-'; const p = v.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : v }
         const el = id => document.getElementById(id)
-        if (el('enf-info-order-no'))      el('enf-info-order-no').textContent      = cus.enforcement_order_no || '-'
+        if (el('enf-info-red-case-no'))   el('enf-info-red-case-no').textContent   = cus.red_case_no || cus.enforcement_order_no || '-'
         if (el('enf-info-judgment-date')) el('enf-info-judgment-date').textContent = fmt(cus.enforcement_judgment_date)
-        if (el('enf-info-received-date')) el('enf-info-received-date').textContent = fmt(cus.enforcement_received_date)
         if (el('enf-info-recorded'))      el('enf-info-recorded').textContent      = cus.enforcement_recorded_at ? fmtTs(cus.enforcement_recorded_at) : '-'
     }
 
@@ -4051,16 +4164,14 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             return;
         }
 
-        const orderNo      = document.getElementById('enf-order-no')?.value?.trim()
         const judgmentDate = dpGetValue('enf-judgment-date')
-        const receivedDate = dpGetValue('enf-received-date')
-        if (!orderNo || !judgmentDate || !receivedDate) {
-            showAlert('warning', 'กรุณากรอกข้อมูลให้ครบ', 'ต้องกรอก เลขหมาย, วันที่มีคำพิพากษา และวันที่ได้รับหมาย'); return
+        if (!judgmentDate) {
+            showAlert('warning', 'กรุณากรอกข้อมูลให้ครบ', 'ต้องเลือกวันที่ของหมายบังคับคดี'); return
         }
         try {
             const res = await fetch(`/api/customers/${accountNo}/enforcement`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('token')}` },
-                body: JSON.stringify({ enforcement_order_no: orderNo, enforcement_judgment_date: judgmentDate, enforcement_received_date: receivedDate })
+                body: JSON.stringify({ enforcement_judgment_date: judgmentDate })
             })
             const data = await res.json()
             if (res.ok) { showSuccessToast('บันทึกสำเร็จ', 'บันทึกหมายบังคับคดีเรียบร้อย สถานะเปลี่ยนเป็น บังคับคดี'); await loadCustomerData() }

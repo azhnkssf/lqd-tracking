@@ -202,7 +202,7 @@ tailwind.config = {
 {% include "partials/sidebar.html" %}
 
 <!-- Main Content ปรับกว้างขึ้นและเอา Background Grid ออก เปลี่ยนเป็น Gradient นุ่มๆ แทน -->
-<main class="md:ml-64 pt-20 min-h-screen pb-12">
+<main class="md:ml-56 pt-20 min-h-screen pb-12">
     <div class="px-6 md:px-10 max-w-[1700px] mx-auto space-y-10">
 
         <!-- Header Section: ปรับให้ดู Minimal แต่มีสไตล์ -->
@@ -874,8 +874,57 @@ tailwind.config = {
 
     async function exportReport() {
         if (!reportData) { showToast('warning', 'ยังไม่มีข้อมูล', 'กรุณา Generate Report ก่อน Export'); return; }
-        // ... (Logic Export เดิมทั้งหมด) ...
         showToast('info', 'กำลัง Export', 'ระบบกำลังสร้างไฟล์ Excel...');
+
+        try {
+            const payload = {
+                report_date: reportData.report_date || document.getElementById('report-date').value,
+                report_30: reportData.report_30 || [],
+                report_31: reportData.report_31 || [],
+                report_11: reportData.report_11 || [],
+                alerts: reportData.alerts || [],
+                missing_db: reportData.missing_db || [],
+                not_generated: reportData.not_generated || [],
+            };
+
+            const res = await fetch('/api/report/export-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                let message = 'ไม่สามารถ Export Excel ได้';
+                const text = await res.text();
+                try {
+                    const data = JSON.parse(text);
+                    message = data.error || message;
+                } catch (err) {
+                    message = text || message;
+                }
+                throw new Error(message);
+            }
+
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+            const filename = filenameMatch
+                ? decodeURIComponent(filenameMatch[1].replace(/"/g, ''))
+                : `Report_All_${payload.report_date || new Date().toISOString().split('T')[0]}.xlsx`;
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว');
+        } catch (err) {
+            showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
+        }
     }
 
     async function loadHistory() {

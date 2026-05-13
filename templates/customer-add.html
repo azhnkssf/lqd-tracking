@@ -154,14 +154,18 @@
     }
     .dp-days {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
+        grid-template-columns: repeat(7, 30px);
+        grid-auto-rows: 30px;
+        justify-content: space-between;
         gap: 2px;
+        min-height: 190px;
     }
     .dp-day {
-        aspect-ratio: 1;
+        width: 30px;
+        height: 30px;
         display: flex; align-items: center; justify-content: center;
-        border-radius: 0.5rem;
-        font-size: 0.8rem;
+        border-radius: 0.45rem;
+        font-size: 0.78rem;
         cursor: pointer;
         color: #1e293b;
         transition: all 0.15s;
@@ -256,7 +260,7 @@
 {% include "partials/sidebar.html" %}
 
 <!-- Main -->
-<main class="md:ml-64 pt-16 min-h-screen pb-24">
+<main class="md:ml-56 pt-16 min-h-screen pb-24">
 
     <!-- Hero bar -->
     <section class="hero-gradient px-8 py-4 sticky top-16 z-30 shadow-lg border-b border-white/10">
@@ -1437,8 +1441,9 @@
             html += `<div class="${cls}" onclick="dpSelectDay('${id}','${str}')">${d}</div>`;
         }
 
-        const remaining = (7 - (startDay + last.getDate()) % 7) % 7;
-        for (let i = 1; i <= remaining; i++) {
+        const totalCells = startDay + last.getDate();
+        const trailingCells = Math.max(0, 42 - totalCells);
+        for (let i = 1; i <= trailingCells; i++) {
             html += `<div class="dp-day dp-day-other">${i}</div>`;
         }
 

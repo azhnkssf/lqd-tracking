@@ -23,6 +23,43 @@
     })();
 </script>
 
+<style>
+    :root {
+        --lqd-scroll-track: #eef4ff;
+        --lqd-scroll-thumb: #9aa7df;
+        --lqd-scroll-thumb-strong: #2D3282;
+    }
+
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--lqd-scroll-thumb) var(--lqd-scroll-track);
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: linear-gradient(180deg, #f8fbff 0%, var(--lqd-scroll-track) 100%);
+        border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #b5bff0 0%, var(--lqd-scroll-thumb) 52%, #7f8ad2 100%);
+        border: 2px solid var(--lqd-scroll-track);
+        border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #8f9be0 0%, var(--lqd-scroll-thumb-strong) 100%);
+    }
+
+    ::-webkit-scrollbar-corner {
+        background: var(--lqd-scroll-track);
+    }
+</style>
+
 <!-- Navbar -->
 <nav class="fixed top-0 w-full z-50 bg-white border-b border-blue-100 flex justify-between items-center px-6 md:px-8 h-16 shadow-sm">
     <div class="flex items-center gap-8 min-w-0">

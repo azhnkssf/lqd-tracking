@@ -30,6 +30,14 @@ def get_current_user():
     return get_user_by_token(token)
 
 
+def _can_edit_customer_detail(user, case_status):
+    if not user or case_status == 'ปิดบัญชี':
+        return False
+    if case_status == 'ยื่นฟ้อง':
+        return user['role'] in ('user', 'admin')
+    return user['role'] == 'admin'
+
+
 def _log_case_status(db, account_no, from_status, to_status, changed_by, note=''):
     db.execute('''
         INSERT INTO case_status_logs
@@ -62,6 +70,10 @@ def _normalize_black_case_no(value):
     case_no = match.group(2) or match.group(3)
     year = match.group(4)
     return f'{case_type} {case_no}/{year}'
+
+
+def _normalize_red_case_no(value):
+    return _normalize_black_case_no(value)
 
 
 def _parse_positive_int(value):
@@ -602,17 +614,6 @@ def update_judgment(account_no):
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data = request.get_json()
-
-    required = [
-        'judgment_type', 'judgment_date', 'total_debt', 'principal',
-        'interest_rate', 'installment_count', 'first_due_date', 'installment_1',
-        'default_interest_rate',
-    ]
-    missing = [f for f in required if data.get(f) is None or data.get(f) == '']
-    if missing:
-        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
-
     db  = get_db()
     cus = db.execute(
         'SELECT * FROM customers WHERE account_no = ? AND is_deleted = 0', (account_no,)
@@ -621,6 +622,20 @@ def update_judgment(account_no):
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
     cus = dict(cus)
 
+    if not _can_edit_customer_detail(user, cus.get('case_status')):
+        return jsonify({'error': 'ไม่มีสิทธิ์แก้ไขข้อมูลในสถานะนี้'}), 403
+
+    data = request.get_json()
+
+    required = [
+        'judgment_type', 'red_case_no', 'judgment_date', 'total_debt', 'principal',
+        'interest_rate', 'installment_count', 'first_due_date', 'installment_1',
+        'default_interest_rate',
+    ]
+    missing = [f for f in required if data.get(f) is None or data.get(f) == '']
+    if missing:
+        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
+
     allowed = CASE_STATUS_TRANSITIONS.get('ยื่นฟ้อง', [])
     if cus['case_status'] != 'ยื่นฟ้อง':
         return jsonify({'error': f'ไม่สามารถบันทึกคำพิพากษาได้ สถานะปัจจุบันคือ {cus["case_status"]}'}), 400
@@ -628,8 +643,15 @@ def update_judgment(account_no):
         return jsonify({'error': f'judgment_type ต้องเป็น {" หรือ ".join(allowed)}'}), 400
 
     filing_date    = cus.get('filing_date', '')
+    red_case_no    = _normalize_red_case_no(data.get('red_case_no'))
+    judgment_note  = str(data.get('judgment_note') or '').strip()
     judgment_date  = data.get('judgment_date', '')
     first_due_date = data.get('first_due_date', '')
+
+    if not red_case_no:
+        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE 814/2569'}), 400
+    if len(judgment_note) > 100:
+        return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
 
     if filing_date and judgment_date and judgment_date <= filing_date:
         return jsonify({'error': 'วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง'}), 400
@@ -670,7 +692,9 @@ def update_judgment(account_no):
     db.execute('''
         UPDATE customers SET
             case_status           = ?,
+            red_case_no           = ?,
             judgment_date         = ?,
+            judgment_note         = ?,
             total_debt            = ?,
             principal             = ?,
             judgment_difference   = ?,
@@ -689,7 +713,9 @@ def update_judgment(account_no):
         WHERE account_no = ? AND is_deleted = 0
     ''', (
         data['judgment_type'],
+        red_case_no,
         judgment_date,
+        judgment_note or None,
         total_debt,
         principal,
         judgment_difference,
@@ -712,7 +738,9 @@ def update_judgment(account_no):
     # บันทึก edit history
     JUDGMENT_LABELS = {
         'judgment_type':         'ประเภทคำพิพากษา',
+        'red_case_no':           'คดีหมายเลขแดงที่',
         'judgment_date':         'วันพิพากษา',
+        'judgment_note':         'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม',
         'total_debt':            'ยอดหนี้รวม',
         'principal':              'เงินต้น',
         'judgment_difference':    'ยอดหนี้ส่วนต่าง',
@@ -727,6 +755,8 @@ def update_judgment(account_no):
         'installment_3':         'ค่างวด 3',
         'installment_4':         'ค่างวด 4',
     }
+    data['red_case_no'] = red_case_no
+    data['judgment_note'] = judgment_note
     data['judgment_difference'] = judgment_difference
     judgment_changes = {}
     for field, label in JUDGMENT_LABELS.items():
@@ -754,13 +784,6 @@ def update_enforcement(account_no):
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data = request.get_json()
-
-    required = ['enforcement_order_no', 'enforcement_judgment_date', 'enforcement_received_date']
-    missing = [f for f in required if not data.get(f)]
-    if missing:
-        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
-
     db  = get_db()
     cus = db.execute(
         'SELECT * FROM customers WHERE account_no = ? AND is_deleted = 0', (account_no,)
@@ -768,6 +791,18 @@ def update_enforcement(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
     cus = dict(cus)
+
+    if not _can_edit_customer_detail(user, cus.get('case_status')):
+        return jsonify({'error': 'ไม่มีสิทธิ์แก้ไขข้อมูลในสถานะนี้'}), 403
+
+    data = request.get_json()
+
+    required = ['enforcement_judgment_date']
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
+    if not cus.get('red_case_no'):
+        return jsonify({'error': 'ไม่พบคดีหมายเลขแดงที่สำหรับบันทึกหมายบังคับคดี'}), 400
 
     allowed = ['พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว']
     if cus['case_status'] not in allowed:
@@ -796,14 +831,21 @@ def update_enforcement(account_no):
             updated_at                = CURRENT_TIMESTAMP
         WHERE account_no = ? AND is_deleted = 0
     ''', (
-        data['enforcement_order_no'],
+        cus['red_case_no'],
         data['enforcement_judgment_date'],
-        data['enforcement_received_date'],
+        None,
         user['id'],
         account_no
     ))
 
-    _log_case_status(db, account_no, cus['case_status'], 'บังคับคดี', user['id'], 'บันทึกหมายบังคับคดี')
+    _log_case_status(
+        db,
+        account_no,
+        cus['case_status'],
+        'บังคับคดี',
+        user['id'],
+        f'บันทึกหมายบังคับคดี วันที่ของหมาย {data["enforcement_judgment_date"]}'
+    )
     refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()
 
@@ -888,25 +930,31 @@ def bulk_judgment():
 
         try:
             from dateutil.relativedelta import relativedelta as _rd
-            judgment_date  = str(row[2]).strip() if row[2] else None
-            total_debt     = float(row[3] or 0)
-            principal      = float(row[4] or 0)
-            interest_rate  = float(row[5] or 0)
-            court_fee      = float(row[6] or 0)
-            lawyer_fee     = float(row[7] or 0)
+            red_case_no    = _normalize_red_case_no(row[2] if len(row) > 2 else None)
+            if not red_case_no:
+                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567 หรือ ผบ E814/2569')
+            judgment_date  = str(row[3]).strip() if len(row) > 3 and row[3] else None
+            total_debt     = float(row[4] or 0)
+            principal      = float(row[5] or 0)
+            interest_rate  = float(row[6] or 0)
+            court_fee      = float(row[7] or 0)
+            lawyer_fee     = float(row[8] or 0)
             judgment_difference = calculate_judgment_difference({
                 'court_fee': court_fee,
                 'lawyer_fee': lawyer_fee,
                 'total_debt': total_debt,
                 'principal': principal,
             })
-            inst_count     = int(float(row[8] or 0))
-            first_due_date = str(row[9]).strip() if row[9] else None
-            inst1          = float(row[10] or 0)
-            inst2          = float(row[11] or 0)
-            inst3          = float(row[12] or 0)
-            inst4          = float(row[13] or 0)
-            default_rate   = float(row[14] or 0)
+            inst_count     = int(float(row[9] or 0))
+            first_due_date = str(row[10]).strip() if len(row) > 10 and row[10] else None
+            inst1          = float(row[11] or 0)
+            inst2          = float(row[12] or 0)
+            inst3          = float(row[13] or 0)
+            inst4          = float(row[14] or 0)
+            default_rate   = float(row[15] or 0)
+            judgment_note  = str(row[16]).strip() if len(row) > 16 and row[16] not in (None, '') else ''
+            if len(judgment_note) > 100:
+                raise ValueError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร')
 
             last_due_date = (
                 date.fromisoformat(first_due_date) + _rd(months=inst_count - 1)
@@ -915,7 +963,9 @@ def bulk_judgment():
             db.execute('''
                 UPDATE customers SET
                     case_status           = ?,
+                    red_case_no           = ?,
                     judgment_date         = ?,
+                    judgment_note         = ?,
                     total_debt            = ?,
                     principal             = ?,
                     judgment_difference   = ?,
@@ -933,7 +983,7 @@ def bulk_judgment():
                     updated_at            = CURRENT_TIMESTAMP
                 WHERE account_no = ? AND is_deleted = 0
             ''', (
-                judgment_type, judgment_date, total_debt, principal,
+                judgment_type, red_case_no, judgment_date, judgment_note or None, total_debt, principal,
                 judgment_difference,
                 interest_rate, court_fee, lawyer_fee, inst_count, default_rate,
                 first_due_date, last_due_date, inst1, inst2, inst3, inst4,
@@ -1014,14 +1064,6 @@ def update_customer(account_no):
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data = request.get_json()
-
-    required = ['filing_date', 'filing_capital', 'judgment_date', 'total_debt', 'principal',
-            'interest_rate', 'installment_count', 'first_due_date', 'installment_1']
-    missing = [f for f in required if data.get(f) is None]
-    if missing:
-        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
-
     db = get_db()
 
     existing = db.execute(
@@ -1034,10 +1076,23 @@ def update_customer(account_no):
         'SELECT * FROM customers WHERE account_no = ? AND is_deleted = 0', (account_no,)
     ).fetchone())
 
+    if not _can_edit_customer_detail(user, old.get('case_status')):
+        return jsonify({'error': 'ไม่มีสิทธิ์แก้ไขข้อมูลในสถานะนี้'}), 403
+
+    data = request.get_json()
+
+    required = ['filing_date', 'filing_capital', 'red_case_no', 'judgment_date', 'total_debt', 'principal',
+            'interest_rate', 'installment_count', 'first_due_date', 'installment_1']
+    missing = [f for f in required if data.get(f) is None]
+    if missing:
+        return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
+
     EDITABLE_FIELDS = {
         'filing_date':           'วันที่ยื่นฟ้อง',
         'filing_capital':        'ทุนทรัพย์ที่ฟ้อง',
+        'red_case_no':           'คดีหมายเลขแดงที่',
         'judgment_date':         'วันพิพากษา',
+        'judgment_note':         'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม',
         'total_debt':            'ยอดหนี้รวม',
         'principal':             'เงินต้น',
         'court_fee':             'ค่าธรรมเนียมศาล',
@@ -1061,10 +1116,19 @@ def update_customer(account_no):
     if filing_capital <= 0:
         return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องมากกว่า 0'}), 400
 
+    red_case_no = _normalize_red_case_no(data.get('red_case_no'))
+    judgment_note = str(data.get('judgment_note') or '').strip()
+    if not red_case_no:
+        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE 814/2569'}), 400
+    if len(judgment_note) > 100:
+        return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
+
     new_vals = {
         'filing_date':           data['filing_date'],
         'filing_capital':        filing_capital,
+        'red_case_no':           red_case_no,
         'judgment_date':         data['judgment_date'],
+        'judgment_note':         judgment_note,
         'total_debt':            float(data['total_debt']),
         'principal':             float(data['principal']),
         'court_fee':             float(data.get('court_fee', 0)),
@@ -1097,7 +1161,9 @@ def update_customer(account_no):
         UPDATE customers SET
             filing_date           = ?,
             filing_capital        = ?,
+            red_case_no           = ?,
             judgment_date         = ?,
+            judgment_note         = ?,
             total_debt            = ?,
             principal             = ?,
             judgment_difference   = ?,
@@ -1117,7 +1183,9 @@ def update_customer(account_no):
     ''', (
         new_vals['filing_date'],
         new_vals['filing_capital'],
+        new_vals['red_case_no'],
         new_vals['judgment_date'],
+        new_vals['judgment_note'] or None,
         new_vals['total_debt'],
         new_vals['principal'],
         new_vals['judgment_difference'],

@@ -75,6 +75,10 @@ def normalize_black_case_no(value):
     return f'{case_type} {case_no}/{year}'
 
 
+def normalize_red_case_no(value):
+    return normalize_black_case_no(value)
+
+
 def parse_float(val, default=0.0):
     try:
         return round(float(str(val).replace(',', '')), 2) if val not in (None, '') else default
@@ -249,22 +253,23 @@ def download_judgment_template():
     label_font  = Font(bold=True, color='2D3282')
 
     keys = [
-        'account_no', 'judgment_type', 'judgment_date', 'total_debt', 'principal_debt',
+        'account_no', 'judgment_type', 'red_case_no', 'judgment_date', 'total_debt', 'principal_debt',
         'interest_rate', 'court_fee', 'lawyer_fee', 'installment_months', 'first_due_date',
         'step_1_amount', 'step_2_amount', 'step_3_amount', 'step_4_amount', 'default_interest',
+        'judgment_note',
     ]
     labels = [
         'เลขที่บัญชี * (Text 12 หลัก)', 'ประเภทคำพิพากษา * (พิพากษาตามยอม/พิพากษาฝ่ายเดียว)',
-        'วันที่พิพากษา * (YYYY-MM-DD)', 'ยอดหนี้รวมตามคำพิพากษา *', 'เงินต้นตามคำพิพากษา *',
+        'คดีหมายเลขแดงที่ *', 'วันที่พิพากษา * (YYYY-MM-DD)', 'ยอดหนี้รวมตามคำพิพากษา *', 'เงินต้นตามคำพิพากษา *',
         'อัตราดอกเบี้ยต่อปี (%)', 'ค่าธรรมเนียมศาล', 'ค่าทนายความ',
         'จำนวนงวดผ่อนชำระ *', 'วันครบกำหนดงวดแรก * (YYYY-MM-DD)',
         'ค่างวด งวดที่ 1 *', 'ค่างวด งวดที่ 2', 'ค่างวด งวดที่ 3', 'ค่างวด งวดที่ 4',
-        'ดอกเบี้ยเมื่อผิดนัด (%)',
+        'ดอกเบี้ยเมื่อผิดนัด (%)', 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม (ไม่เกิน 100 ตัวอักษร)',
     ]
     example = [
-        '700004761131', 'พิพากษาตามยอม', '2026-02-18', 190000, 190000,
+        '700004761131', 'พิพากษาตามยอม', 'ผบ 1234/2567', '2026-02-18', 190000, 190000,
         0, 3000, 2000, 24, '2026-03-18',
-        8500, 0, 0, 0, 15,
+        8500, 0, 0, 0, 15, '',
     ]
 
     ws.append(keys)
@@ -274,7 +279,8 @@ def download_judgment_template():
     for row in ws.iter_rows(min_row=1, max_row=5000):
         row[0].number_format = '@'
         row[2].number_format = '@'
-        row[9].number_format = '@'
+        row[3].number_format = '@'
+        row[10].number_format = '@'
 
     for cell in ws[1]: cell.fill = header_fill; cell.font = header_font; cell.alignment = Alignment(horizontal='center')
     for cell in ws[2]: cell.fill = label_fill;  cell.font = label_font
@@ -639,8 +645,12 @@ def import_judgment():
             continue
 
         try:
-            judgment_date_raw  = row[2]
-            first_due_date_raw = row[9]
+            red_case_no = normalize_red_case_no(row[2] if len(row) > 2 else None)
+            if not red_case_no:
+                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569')
+
+            judgment_date_raw  = row[3]
+            first_due_date_raw = row[10]
 
             judgment_date  = parse_date(judgment_date_raw)
             first_due_date = parse_date(first_due_date_raw)
@@ -651,17 +661,20 @@ def import_judgment():
             if not first_due_date:
                 raise ValueError('วันครบกำหนดงวดแรกต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-03-18')
 
-            total_debt     = parse_float(row[3])
-            principal      = parse_float(row[4])
-            interest_rate  = parse_float(str(row[5] or '').replace('%', '').strip())
-            court_fee      = parse_float(row[6])
-            lawyer_fee     = parse_float(row[7])
-            inst_count     = parse_int(row[8])
-            inst1          = parse_float(row[10])
-            inst2          = parse_float(row[11])
-            inst3          = parse_float(row[12])
-            inst4          = parse_float(row[13])
-            default_rate   = parse_float(str(row[14] or '').replace('%', '').strip())
+            total_debt     = parse_float(row[4])
+            principal      = parse_float(row[5])
+            interest_rate  = parse_float(str(row[6] or '').replace('%', '').strip())
+            court_fee      = parse_float(row[7])
+            lawyer_fee     = parse_float(row[8])
+            inst_count     = parse_int(row[9])
+            inst1          = parse_float(row[11])
+            inst2          = parse_float(row[12])
+            inst3          = parse_float(row[13])
+            inst4          = parse_float(row[14])
+            default_rate   = parse_float(str(row[15] or '').replace('%', '').strip())
+            judgment_note  = str(row[16]).strip() if len(row) > 16 and row[16] not in (None, '') else ''
+            if len(judgment_note) > 100:
+                raise ValueError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร')
 
             if not last_due_date and first_due_date and inst_count > 0:
                 from datetime import date as _date
@@ -672,7 +685,9 @@ def import_judgment():
             db.execute('''
                 UPDATE customers SET
                     case_status           = ?,
+                    red_case_no           = ?,
                     judgment_date         = ?,
+                    judgment_note         = ?,
                     total_debt            = ?,
                     principal             = ?,
                     interest_rate         = ?,
@@ -689,7 +704,7 @@ def import_judgment():
                     updated_at            = CURRENT_TIMESTAMP
                 WHERE account_no = ? AND is_deleted = 0
             ''', (
-                judgment_type, judgment_date, total_debt, principal,
+                judgment_type, red_case_no, judgment_date, judgment_note or None, total_debt, principal,
                 interest_rate, court_fee, lawyer_fee, inst_count, default_rate,
                 first_due_date, last_due_date, inst1, inst2, inst3, inst4,
                 account_no

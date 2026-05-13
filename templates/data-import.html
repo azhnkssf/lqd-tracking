@@ -126,7 +126,7 @@
 {% include "partials/navbar.html" %}
 {% include "partials/sidebar.html" %}
 
-<main class="md:ml-64 min-h-screen pt-20 pb-24">
+<main class="md:ml-56 min-h-screen pt-20 pb-24">
     <div class="px-5 md:px-8">
         <div class="mx-auto max-w-[1600px]">
             <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 border-b border-indigo-100/50">
@@ -544,21 +544,21 @@
 
     const EXPECTED_HEADERS = {
         customer: ['account_no', 'full_name', 'black_case_no', 'filing_date', 'filing_capital', 'default_date', 'pre_filing_dpd_days'],
-        judgment: ['account_no', 'judgment_type', 'judgment_date', 'total_debt', 'principal_debt', 'interest_rate', 'court_fee', 'lawyer_fee', 'installment_months', 'first_due_date', 'step_1_amount', 'step_2_amount', 'step_3_amount', 'step_4_amount', 'default_interest'],
+        judgment: ['account_no', 'judgment_type', 'red_case_no', 'judgment_date', 'total_debt', 'principal_debt', 'interest_rate', 'court_fee', 'lawyer_fee', 'installment_months', 'first_due_date', 'step_1_amount', 'step_2_amount', 'step_3_amount', 'step_4_amount', 'default_interest', 'judgment_note'],
         enforcement: ['account_no', 'enforcement_order_no', 'enforcement_judgment_date', 'enforcement_received_date'],
         payment: ['account_no', 'payment_date', 'amount']
     };
 
     const SIGNATURE_HEADERS = {
         customer: ['full_name', 'black_case_no', 'filing_date', 'filing_capital'],
-        judgment: ['judgment_type', 'judgment_date', 'principal_debt'],
+        judgment: ['judgment_type', 'red_case_no', 'judgment_date', 'principal_debt'],
         enforcement: ['enforcement_order_no', 'enforcement_judgment_date'],
         payment: ['payment_date', 'amount']
     };
 
     const MODE_META = {
         customer: { label: 'ยื่นฟ้อง', longLabel: 'ยื่นฟ้อง (8 fields)', template: 'Template ยื่นฟ้อง', count: '8 fields' },
-        judgment: { label: 'คำพิพากษา', longLabel: 'คำพิพากษา (15 fields)', template: 'Template คำพิพากษา', count: '15 fields' },
+        judgment: { label: 'คำพิพากษา', longLabel: 'คำพิพากษา (17 fields)', template: 'Template คำพิพากษา', count: '17 fields' },
         enforcement: { label: 'หมายบังคับคดี', longLabel: 'หมายบังคับคดี (4 fields)', template: 'Template หมายบังคับคดี', count: '4 fields' },
         payment: { label: 'Payment Record', longLabel: 'ชำระเงิน (Payment Record)', template: 'Template ชำระเงิน', count: '3 fields' }
     };
