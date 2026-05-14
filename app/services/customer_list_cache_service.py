@@ -115,6 +115,15 @@ def calculate_customer_list_cache(cus, payments=None, today=None):
     }
 
 
+def _attach_case_status_logs(db, cus):
+    rows = db.execute(
+        'SELECT * FROM case_status_logs WHERE account_no = ? ORDER BY id ASC',
+        (cus.get('account_no'),)
+    ).fetchall()
+    cus['_case_status_logs'] = [dict(r) for r in rows]
+    return cus
+
+
 def refresh_customer_list_cache(account_no, db=None, commit=True, today=None):
     db = db or get_db()
     today = today or date.today()
@@ -126,7 +135,7 @@ def refresh_customer_list_cache(account_no, db=None, commit=True, today=None):
     if not row:
         return False
 
-    cus = dict(row)
+    cus = _attach_case_status_logs(db, dict(row))
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC, id ASC',
         (account_no,)

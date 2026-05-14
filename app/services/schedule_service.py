@@ -181,7 +181,27 @@ def is_single_default_judgment(cus):
     except Exception:
         term_count = 0
 
-    return case_value == 'พิพากษาฝ่ายเดียว' and term_count == 1
+    if term_count != 1:
+        return False
+
+    if case_value == 'พิพากษาฝ่ายเดียว':
+        return True
+
+    return is_enforcement_from_default_judgment(cus)
+
+
+def get_enforcement_from_status(cus):
+    for log in reversed(cus.get('_case_status_logs') or []):
+        if str(log.get('to_status') or '').strip() == 'บังคับคดี':
+            return str(log.get('from_status') or '').strip()
+    return ''
+
+
+def is_enforcement_from_default_judgment(cus):
+    return (
+        (cus.get('case_status') or '').strip() == 'บังคับคดี'
+        and get_enforcement_from_status(cus) == 'พิพากษาฝ่ายเดียว'
+    )
 
 
 def _virtual_due_index_for_date(row_date, first_pay_date):

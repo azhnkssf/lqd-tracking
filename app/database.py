@@ -164,8 +164,7 @@ def init_db(app):
 
         new_columns = [
             'ALTER TABLE customers ADD COLUMN filing_date TEXT',
-            'ALTER TABLE customers ADD COLUMN black_case_no TEXT',
-            'ALTER TABLE customers ADD COLUMN red_case_no TEXT',
+            'ALTER TABLE customers ADD COLUMN black_case_no TEXT',            'ALTER TABLE customers ADD COLUMN red_case_no TEXT',
             'ALTER TABLE customers ADD COLUMN filing_capital REAL DEFAULT 0',
             'ALTER TABLE customers ADD COLUMN default_date TEXT',
             'ALTER TABLE customers ADD COLUMN pre_filing_dpd_days INTEGER DEFAULT 0',

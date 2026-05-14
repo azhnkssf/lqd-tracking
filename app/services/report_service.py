@@ -406,6 +406,13 @@ def _is_consent_enforcement_case(cus):
     return 'ตามยอม' in text
 
 
+def _get_enforcement_from_status(cus):
+    for log in reversed(cus.get('_case_status_logs') or []):
+        if str(log.get('to_status') or '').strip() == 'บังคับคดี':
+            return str(log.get('from_status') or '').strip()
+    return ''
+
+
 def _build_enforcement_remark(cus, snap, report_date_str):
     """
     Remark สำหรับเคสพิพากษาตามยอมที่เปลี่ยนเป็นบังคับคดี
@@ -514,6 +521,26 @@ def get_snapshot_at_date(cus, payments, report_date):
     }
 
 
+def get_report30_snapshot_at_date(cus, payments, report_date):
+    """
+    Report 30 only:
+    บังคับคดีที่มาจากพิพากษาฝ่ายเดียวต้องยังใช้ฐานคำนวณ default
+    แบบฝ่ายเดียว เพื่อให้ยอดหนี้วันผิดนัดชำระ/วันผิดนัดชำระไม่หายไป
+    หลัง case_status ถูกเปลี่ยนเป็นบังคับคดีแล้ว
+    """
+    if (
+        (cus.get('case_status') or '').strip() == 'บังคับคดี'
+        and _get_enforcement_from_status(cus) == 'พิพากษาฝ่ายเดียว'
+    ):
+        default_judgment_cus = dict(cus)
+        default_judgment_cus['case_status'] = 'พิพากษาฝ่ายเดียว'
+        snap = get_snapshot_at_date(default_judgment_cus, payments, report_date)
+        if snap:
+            return snap
+
+    return get_snapshot_at_date(cus, payments, report_date)
+
+
 def process_registry_file(ws, db, report_date_str):
     report_30     = []
     report_31     = []
@@ -597,6 +624,7 @@ def process_registry_file(ws, db, report_date_str):
                     'case_status'     : f'{file_status} (ไม่มีใน DB)',
                     'filing_date'     : filing_date,
                     'principal_sued'  : principal_sued,
+                    'pre_filing_default_date': None,
                     'judgment_debt'   : judgment_debt,
                     'judgment_date'   : judgment_date,
                     'default_amount'  : None,
@@ -617,7 +645,7 @@ def process_registry_file(ws, db, report_date_str):
         ).fetchall()
         payments = [dict(p) for p in payments]
 
-        snap = get_snapshot_at_date(cus, payments, report_date_str)
+        snap = get_report30_snapshot_at_date(cus, payments, report_date_str)
         if not snap:
             not_generated.append(_build_not_generated_row(
                 cus,
@@ -678,6 +706,28 @@ def _num(v, default=0.0):
         return float(v)
     except Exception:
         return default
+
+
+def _int_num(v, default=0):
+    try:
+        return int(float(v or 0))
+    except Exception:
+        return default
+
+
+def _report30_filing_elapsed_days(cus, report_date_str):
+    filing_date = _parse_report_date(cus.get('filing_date'))
+    report_date = _parse_report_date(report_date_str)
+    if not filing_date or not report_date or report_date < filing_date:
+        return 0
+    return (report_date - filing_date).days + 1
+
+
+def _report30_default_judgment_dpd(cus, report_date_str):
+    return (
+        _int_num(cus.get('pre_filing_dpd_days'), 0) +
+        _report30_filing_elapsed_days(cus, report_date_str)
+    )
 
 
 def _dec(v, default='0'):
@@ -756,6 +806,7 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         'case_status'              : case_status,
         'filing_date'              : filing_date or cus.get('filing_date'),
         'principal_sued'           : _num(_get_principal_sued(cus, principal_sued)),
+        'pre_filing_default_date'  : cus.get('default_date'),
         'judgment_debt'            : None,
         'judgment_date'            : None,
         'default_amount'           : None,
@@ -785,20 +836,32 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             'judgment_date'  : cus.get('judgment_date'),
             'default_amount' : snap.get('default_amount') if is_monthly_default else None,
             'default_date'   : snap.get('default_date') if is_monthly_default else None,
-            'dpd'            : snap.get('dpd_months') if is_monthly_default else None,
-            'dpd_months'     : snap.get('dpd_months') if is_monthly_default else None,
+            'dpd'            : (
+                _report30_default_judgment_dpd(cus, report_date_str)
+                if is_monthly_default else _int_num(cus.get('pre_filing_dpd_days'), 0)
+            ),
+            'dpd_months'     : (
+                _report30_default_judgment_dpd(cus, report_date_str)
+                if is_monthly_default else _int_num(cus.get('pre_filing_dpd_days'), 0)
+            ),
             'remaining_debt' : _calc_remaining_debt(cus, snap),
         })
         return base
 
     if case_status == 'บังคับคดี':
+        enforcement_from_status = _get_enforcement_from_status(cus)
+        report30_dpd = (
+            _report30_default_judgment_dpd(cus, report_date_str)
+            if enforcement_from_status == 'พิพากษาฝ่ายเดียว'
+            else (snap.get('dpd_months') if snap else None)
+        )
         base.update({
             'judgment_debt'  : _num(cus.get('total_debt')),
             'judgment_date'  : cus.get('judgment_date'),
             'default_amount' : snap.get('default_amount') if snap else None,
             'default_date'   : snap.get('default_date') if snap else None,
-            'dpd'            : snap.get('dpd_months') if snap else None,
-            'dpd_months'     : snap.get('dpd_months') if snap else None,
+            'dpd'            : report30_dpd,
+            'dpd_months'     : report30_dpd,
             'remaining_debt' : _calc_remaining_debt(cus, snap),
             'remark'         : _build_enforcement_remark(cus, snap, report_date_str),
         })

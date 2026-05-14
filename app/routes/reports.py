@@ -1,16 +1,14 @@
 import io
-import json
 import openpyxl
-from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, InvalidOperation
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.worksheet.worksheet import Worksheet
 from flask import Blueprint, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.report_service import (
-    process_registry_file,
     get_snapshot_at_date,
-    get_installment_for_month,
+    get_report30_snapshot_at_date,
     _get_report_group,
     _build_report30_row_from_db,
     _build_report31_row,
@@ -29,23 +27,7 @@ def get_current_user():
     return get_user_by_token(token)
 
 
-def round_money(v, decimals=2, default=0.0):
-    if v is None or v == '':
-        return default
-
-    try:
-        q = Decimal('1').scaleb(-decimals)
-        return float(Decimal(str(v)).quantize(q, rounding=ROUND_HALF_UP))
-    except (InvalidOperation, ValueError, TypeError):
-        return default
-
-
 def trunc_money(v, default=0):
-    """
-    ใช้เฉพาะขั้นตอนออกรายงาน/Export: ตัดทศนิยมทิ้ง ไม่ปัดขึ้น/ลง
-    เช่น 35924.07 -> 35924
-    ไม่กระทบ logic คำนวณหลักที่ยังใช้ round_money()/Decimal ตามเดิม
-    """
     if v is None or v == '':
         return default
 
@@ -72,103 +54,6 @@ def build_reconcile_summary(db_total, report_30, report_31, report_11, alerts, m
         'reconcile_total'    : generated_total + not_generated_total + missing_total,
         'reconcile_matched'  : db_total == generated_total + not_generated_total + missing_total,
     }
-
-
-def build_not_selected_rows(rows, report_type, report_date):
-    return [{
-        'account_no'     : r.get('account_no'),
-        'name'           : r.get('name'),
-        'case_status'    : r.get('case_status') or r.get('status_label'),
-        'filing_date'    : r.get('filing_date'),
-        'judgment_date'  : r.get('judgment_date'),
-        'enforcement_date': r.get('enforcement_judgment_date'),
-        'closed_date'    : r.get('closed_date'),
-        'effective_date' : None,
-        'report_date'    : report_date,
-        'reason_code'    : 'REPORT_TYPE_NOT_SELECTED',
-        'reason'         : f'Report {report_type} ไม่ได้ถูกเลือกตอน Generate',
-    } for r in rows]
-
-
-@bp.route('/generate', methods=['POST'])
-def generate_report():
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    report_date  = request.form.get('report_date')
-    file         = request.files.get('file')
-    status_types = request.form.get('status_types', '30,31').split(',')
-
-    if not report_date:
-        return jsonify({'error': 'กรุณาระบุวันที่ขอ Report'}), 400
-    if not file:
-        return jsonify({'error': 'กรุณาอัพโหลดไฟล์ทะเบียนคดี'}), 400
-
-    try:
-        wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
-        ws = wb['ทะเบียนคดี_Final'] if 'ทะเบียนคดี_Final' in wb.sheetnames else wb.active
-    except Exception as e:
-        return jsonify({'error': f'ไม่สามารถอ่านไฟล์ได้: {str(e)}'}), 400
-
-    db = get_db()
-
-    try:
-        result = process_registry_file(ws, db, report_date)
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return jsonify({'error': f'เกิดข้อผิดพลาดในการประมวลผล: {str(e)}'}), 500
-
-    db_total = db.execute(
-        'SELECT COUNT(*) AS total FROM customers WHERE is_deleted = 0'
-    ).fetchone()['total']
-
-    not_generated = list(result.get('not_generated', []))
-
-    # filter ตาม status_types ที่เลือก
-    report_30 = result['report_30'] if '30' in status_types else []
-    report_31 = result['report_31'] if '31' in status_types else []
-    report_11 = result.get('report_11', [])
-
-    if '30' not in status_types:
-        not_generated.extend(build_not_selected_rows(result.get('report_30', []), '30', report_date))
-    if '31' not in status_types:
-        not_generated.extend(build_not_selected_rows(result.get('report_31', []), '31', report_date))
-
-    summary = build_reconcile_summary(
-        db_total,
-        report_30,
-        report_31,
-        report_11,
-        result['alerts'],
-        result['missing_db'],
-        not_generated,
-    )
-
-    # บันทึก log
-    db.execute(
-        """INSERT INTO report_logs
-           (generated_by, report_date, filename, status_types,
-            count_30, count_31, count_33, count_alerts, count_missing,
-            count_skipped, count_db_total, count_generated_total)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (user['id'], report_date, file.filename, ','.join(status_types),
-        len(report_30), len(report_31), len(report_11),
-        len(result['alerts']), len(result['missing_db']),
-        len(not_generated), db_total, summary['generated_total'])
-    )
-    db.commit()
-
-    return jsonify({
-        'report_date' : report_date,
-        'summary'     : summary,
-        'report_30'   : report_30,
-        'report_31'   : report_31,
-        'report_11'   : report_11,
-        'alerts'      : result['alerts'],
-        'missing_db'  : result['missing_db'],
-        'not_generated': not_generated,
-    }), 200
 
 
 @bp.route('/export/<report_type>', methods=['POST'])
@@ -224,6 +109,7 @@ def export_report(report_type):
             'เลขที่สัญญา',
             'วันที่ฟ้อง',
             'ทุนทรัพย์ที่ฟ้อง',
+            'วันที่ผิดนัดชำระก่อนฟ้อง',
             'ยอดหนี้ตามคำพิพากษา',
             'วันที่พิพากษา',
             'ยอดหนี้วันผิดนัดชำระ',
@@ -247,6 +133,7 @@ def export_report(report_type):
                 fmt_acc(r.get('account_no')),
                 fmt_date_excel(r.get('filing_date')),
                 fmt_num_30(r.get('principal_sued'), 2),
+                fmt_date_excel(r.get('pre_filing_default_date')),
                 fmt_num_30(r.get('judgment_debt'), 2) if r.get('judgment_debt') is not None else '',
                 fmt_date_excel(r.get('judgment_date')),
                 fmt_num_30(r.get('default_amount'), 2) if r.get('default_amount') is not None else '',
@@ -261,9 +148,9 @@ def export_report(report_type):
 
         for row in ws.iter_rows(min_row=2):
             row[2].number_format = '#,##0'
-            row[3].number_format = '#,##0'
-            row[5].number_format = '#,##0'
-            row[8].number_format = '#,##0'
+            row[4].number_format = '#,##0'
+            row[6].number_format = '#,##0'
+            row[9].number_format = '#,##0'
 
     elif report_type == '31':
         ws.title = 'Report Status 31'
@@ -302,7 +189,6 @@ def export_report(report_type):
             row[2].number_format = '#,##0'
             row[5].number_format = '#,##0'
 
-    # auto width
     for col in ws.columns:
         max_len = max((len(str(cell.value or '')) for cell in col), default=10)
         ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
@@ -371,7 +257,6 @@ def export_all_reports():
     header_fill = PatternFill(start_color='1E1B4B', end_color='1E1B4B', fill_type='solid')
     header_font = Font(color='FFFFFF', bold=True)
     center      = Alignment(horizontal='center', vertical='center')
-    right       = Alignment(horizontal='right', vertical='center')
     left        = Alignment(horizontal='left', vertical='center')
 
     fill_30      = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
@@ -403,6 +288,7 @@ def export_all_reports():
             'เลขที่สัญญา',
             'วันที่ฟ้อง',
             'ทุนทรัพย์ที่ฟ้อง',
+            'วันที่ผิดนัดชำระก่อนฟ้อง',
             'ยอดหนี้ตามคำพิพากษา',
             'วันที่พิพากษา',
             'ยอดหนี้วันผิดนัดชำระ',
@@ -419,6 +305,7 @@ def export_all_reports():
                 fmt_acc(r.get('account_no')),
                 fmt_date_excel(r.get('filing_date')),
                 fmt_num(r.get('principal_sued'), 2),
+                fmt_date_excel(r.get('pre_filing_default_date')),
                 fmt_num(r.get('judgment_debt'), 2) if r.get('judgment_debt') is not None else '',
                 fmt_date_excel(r.get('judgment_date')),
                 fmt_num(r.get('default_amount'), 2) if r.get('default_amount') is not None else '',
@@ -431,10 +318,10 @@ def export_all_reports():
             paint_row(ws, fill_30)
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0'  # ทุนทรัพย์ที่ฟ้อง
-            row[3].number_format = '#,##0'  # ยอดหนี้ตามคำพิพากษา
-            row[5].number_format = '#,##0'  # ยอดหนี้วันผิดนัดชำระ
-            row[8].number_format = '#,##0'  # ยอดหนี้คงเหลือ
+            row[2].number_format = '#,##0'
+            row[4].number_format = '#,##0'
+            row[6].number_format = '#,##0'
+            row[9].number_format = '#,##0'
 
         autofit(ws)
 
@@ -613,7 +500,6 @@ def generate_report_db():
         account_no  = cus['account_no']
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 
-        # Block เคสที่วันที่สำคัญของสถานะปัจจุบันเกิดหลัง As of Report Date
         if _is_customer_effective_after_report(cus, report_date):
             reason = _future_effective_reason(cus, report_date)
             if reason:
@@ -679,13 +565,14 @@ def generate_report_db():
 
         if case_status == 'บังคับคดี':
             if '30' in status_types:
+                report30_snap = get_report30_snapshot_at_date(cus, payments, report_date)
                 report_30.append(_build_report30_row_from_db(
                     account_no,
                     case_status,
                     cus.get('filing_date'),
                     cus.get('filing_capital'),
                     cus,
-                    snap,
+                    report30_snap,
                     report_date
                 ))
             else:

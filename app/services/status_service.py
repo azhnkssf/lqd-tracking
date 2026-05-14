@@ -5,6 +5,15 @@ from app.services.schedule_service import generate_full_daily_schedule
 from dateutil.relativedelta import relativedelta
 
 
+def _attach_case_status_logs(db, cus):
+    rows = db.execute(
+        'SELECT * FROM case_status_logs WHERE account_no = ? ORDER BY id ASC',
+        (cus.get('account_no'),)
+    ).fetchall()
+    cus['_case_status_logs'] = [dict(r) for r in rows]
+    return cus
+
+
 def compute_customer_status(cus, payments):
     fd    = cus.get('first_due_date')
     today = date.today()
@@ -52,7 +61,7 @@ def compute_customer_status(cus, payments):
     principal_bal = round(float(last_row.get('T') or 0), 2)
     outstanding   = round(float(last_row.get('outstanding') or 0), 2)
 
-    if principal_bal <= 0:
+    if principal_bal <= 0 and outstanding <= 0:
         return 'ปิดบัญชี'
     elif outstanding > 0:
         return 'ค้างชำระ'
@@ -75,7 +84,7 @@ def refresh_customer_status(account_no, db=None):
     if not cus:
         return None
 
-    cus = dict(cus)
+    cus = _attach_case_status_logs(db, dict(cus))
 
     pays = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',

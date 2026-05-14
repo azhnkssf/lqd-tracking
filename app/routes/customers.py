@@ -46,6 +46,15 @@ def _log_case_status(db, account_no, from_status, to_status, changed_by, note=''
     ''', (account_no, from_status, to_status, changed_by, note))
 
 
+def _attach_case_status_logs(db, cus):
+    rows = db.execute(
+        'SELECT * FROM case_status_logs WHERE account_no = ? ORDER BY id ASC',
+        (cus.get('account_no'),)
+    ).fetchall()
+    cus['_case_status_logs'] = [dict(r) for r in rows]
+    return cus
+
+
 def _parse_iso_date(value):
     if not value:
         return None
@@ -595,7 +604,7 @@ def get_customer(account_no):
     if not row:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus = with_judgment_difference(dict(row))
+    cus = _attach_case_status_logs(db, with_judgment_difference(dict(row)))
 
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
@@ -604,6 +613,7 @@ def get_customer(account_no):
     payments = [dict(p) for p in payments]
 
     cus = _decorate_customer_for_ui(cus, payments)
+    cus.pop('_case_status_logs', None)
 
     return jsonify(cus), 200
 

@@ -310,7 +310,7 @@ tailwind.config = {
                             <div class="min-w-0">
                                 <p class="summary-label">Report 30</p>
                                 <p id="sum-30" class="summary-number text-red-600 metric-value">0</p>
-                                <p class="summary-caption">ข้อมูลรายงาน 30</p>
+                                <p class="summary-caption">จำนวนข้อมูล รายงานสถานะ 30</p>
                             </div>
                         </div>
 
@@ -323,7 +323,7 @@ tailwind.config = {
                             <div class="min-w-0">
                                 <p class="summary-label">Report 31</p>
                                 <p id="sum-31" class="summary-number text-primary metric-value">0</p>
-                                <p class="summary-caption">ข้อมูลรายงาน 31</p>
+                                <p class="summary-caption">จำนวนข้อมูล รายงานสถานะ 31</p>
                             </div>
                         </div>
 
@@ -336,7 +336,7 @@ tailwind.config = {
                             <div class="min-w-0">
                                 <p class="summary-label">Status 11</p>
                                 <p id="sum-11" class="summary-number text-emerald-600 metric-value">0</p>
-                                <p class="summary-caption">ข้อมูลสถานะ 11</p>
+                                <p class="summary-caption">จำนวนข้อมูล รายงานสถานะ 11</p>
                             </div>
                         </div>
                     </div>
@@ -814,17 +814,18 @@ tailwind.config = {
         };
 
         if (tab === '30') {
-            renderHeader(['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','ยอดหนี้คำพิพากษา','วันที่พิพากษา','ยอดหนี้ผิดนัด','DPD','Remark']);
+            renderHeader(['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','วันที่ผิดนัดชำระก่อนฟ้อง','ยอดหนี้คำพิพากษา','วันที่พิพากษา','ยอดหนี้ผิดนัด','DPD','Remark']);
             const rows = reportData.report_30;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr>
                 <td><span class="font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span></td>
                 <td class="text-slate-400">${fmtDate(r.filing_date)}</td>
                 <td class="text-right font-semibold text-slate-700">${fmt(r.principal_sued)}</td>
+                <td class="text-slate-400">${fmtDate(r.pre_filing_default_date)}</td>
                 <td class="text-right font-semibold text-slate-700">${fmt(r.judgment_debt)}</td>
                 <td class="text-slate-400">${fmtDate(r.judgment_date)}</td>
                 <td class="text-right font-semibold text-slate-700">${fmt(r.default_amount)}</td>
-                <td class="text-center">${r.dpd_months > 0 ? `<span class="px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 font-bold">${r.dpd_months}</span>` : '0'}</td>
+                <td class="text-center">${Number(r.dpd ?? r.dpd_months ?? 0) > 0 ? `<span class="px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 font-bold">${fmt(r.dpd ?? r.dpd_months)}</span>` : '0'}</td>
                 <td class="text-amber-700 whitespace-normal min-w-[200px]">${r.remark || '-'}</td>
                 </tr>`).join('');
 

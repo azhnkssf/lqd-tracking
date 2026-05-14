@@ -12,7 +12,8 @@ with app.app_context():
 
     users = [
         ('user01',     'password01', 'สมชาย ใจดี',  'user'),
-        ('admin01',    'password01', 'วิไล รักดี',   'admin'),
+        ('admin01',    'password01', 'Wisaruth Luangtep',   'admin'),
+        ('admin02',    'password01', 'วิไล รักดี',   'admin'),
         ('superadmin', 'password01', 'ผู้ดูแลระบบ',  'superadmin'),
     ]
 

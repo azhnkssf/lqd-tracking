@@ -475,7 +475,7 @@
                             <span class="material-symbols-outlined text-base">restart_alt</span>
                             ล้างค่า
                         </button>
-                        <button onclick="handleRefresh()" class="btn-secondary-modern" title="โหลดข้อมูลใหม่">
+                        <button id="refresh-btn" onclick="handleRefresh()" class="btn-secondary-modern" title="รีเฟรชแคชและโหลดข้อมูลใหม่">
                             <span class="material-symbols-outlined text-base">refresh</span>
                             รีเฟรช
                         </button>
@@ -558,6 +558,23 @@
 <div id="copy-toast" class="copy-toast">
     <span class="material-symbols-outlined text-[16px] text-emerald-500">check_circle</span>
     คัดลอกเลขที่บัญชีแล้ว
+</div>
+
+<div id="refresh-wait-modal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[3px]"></div>
+    <div class="relative w-full max-w-sm rounded-[24px] border border-blue-100 bg-white p-7 text-center shadow-2xl shadow-slate-900/20">
+        <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-primary">
+            <svg class="h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+            </svg>
+        </div>
+        <h3 class="text-lg font-extrabold text-slate-800">กำลังรีเฟรชข้อมูล</h3>
+        <p id="refresh-wait-message" class="mt-2 text-sm leading-relaxed text-slate-500">ระบบกำลังคำนวณแคชรายการลูกค้าใหม่ กรุณารอสักครู่</p>
+        <div class="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-[11px] font-semibold leading-relaxed text-indigo-500">
+            หน้าต่างนี้จะปิดเองเมื่อรีเฟรชเสร็จ
+        </div>
+    </div>
 </div>
 
 <div id="drawer-overlay" onclick="closeDrawer()" class="hidden fixed inset-0 z-[70] bg-slate-900/20 backdrop-blur-[2px]"></div>
@@ -1031,6 +1048,7 @@
     let sortField = '';
     let sortDir = 'desc';
     let activeLoadSeq = 0;
+    let refreshInProgress = false;
 
     const filterDateFieldLabels = {
         due: { short: 'ครบกำหนด', full: 'วันครบกำหนดงวดแรก' },
@@ -1119,8 +1137,8 @@
 
     function debtBaselineLabel(row) {
         return getCaseStatus(row) === 'ยื่นฟ้อง' || !getJudgmentDate(row)
-            ? 'จากยอดฟ้อง'
-            : 'จากยอดตามคำพิพากษา';
+            ? 'ยอดตามยื่นฟ้อง'
+            : 'ยอดตามคำพิพากษา';
     }
 
     function debtBaselineAmount(row) {
@@ -1562,7 +1580,7 @@
                                     <div class="quick-section-header"><span class="material-symbols-outlined text-[17px] text-red-500">assignment</span><p class="quick-section-title">ข้อมูลการบังคับคดี</p></div>
                                     <div class="quick-grid">
                                         ${kv('คดีหมายเลขแดงที่', row.red_case_no || '-')}
-                                        ${kv('วันที่ในหมายบังคับคดี', fmtDate(row.enforcement_received_date))}
+                                        ${kv('วันที่ของหมายบังคับคดี', fmtDate(row.enforcement_judgment_date))}
                                         ${kv('วันที่บันทึกข้อมูล', fmtTimestamp(row.enforcement_recorded_at))}
                                         ${kv('สถานะการบันทึก', (row.enforcement_order_no || row.enforcement_recorded_at) ? 'บันทึกแล้ว' : row.can_record_enforcement ? 'พร้อมบันทึกหมาย' : '-')}
                                     </div>
@@ -1668,7 +1686,45 @@
 
     function handleSearch() { currentPage = 1; loadData(1); }
 
-    function handleRefresh() { loadData(currentPage); }
+    function setRefreshWaiting(show, message = '') {
+        const modal = document.getElementById('refresh-wait-modal');
+        const msg = document.getElementById('refresh-wait-message');
+        const btn = document.getElementById('refresh-btn');
+        if (msg && message) msg.textContent = message;
+        if (modal) modal.classList.toggle('hidden', !show);
+        if (btn) {
+            btn.disabled = show;
+            btn.classList.toggle('opacity-60', show);
+            btn.classList.toggle('cursor-not-allowed', show);
+        }
+    }
+
+    async function handleRefresh() {
+        if (refreshInProgress) return;
+        refreshInProgress = true;
+        setRefreshWaiting(true, 'ระบบกำลังคำนวณแคชรายการลูกค้าใหม่ กรุณารอสักครู่');
+
+        try {
+            const token = getCookie('token');
+            const res = await fetch('/api/customers/cache/refresh-all', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || data.message || 'refresh cache failed');
+
+            await loadData(currentPage);
+        } catch (err) {
+            console.error(err);
+            await loadData(currentPage);
+            alert('รีเฟรชแคชไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            refreshInProgress = false;
+            setRefreshWaiting(false);
+        }
+    }
 
     function handleSort(field) {
         if (sortField === field) {

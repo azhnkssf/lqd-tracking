@@ -3,7 +3,8 @@ from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.schedule_service import (
     generate_schedule, generate_full_daily_schedule, build_export_rows,
-    get_due_date, get_term_number, get_installment_for_term
+    get_due_date, get_term_number, get_installment_for_term,
+    is_single_default_judgment
 )
 from app.services.status_service import refresh_customer_status
 from app.services.customer_list_cache_service import refresh_customer_list_cache
@@ -16,6 +17,15 @@ bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 def get_current_user():
     token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+def _attach_case_status_logs(db, cus):
+    rows = db.execute(
+        'SELECT * FROM case_status_logs WHERE account_no = ? ORDER BY id ASC',
+        (cus.get('account_no'),)
+    ).fetchall()
+    cus['_case_status_logs'] = [dict(r) for r in rows]
+    return cus
 
 
 # ============================================================
@@ -63,8 +73,10 @@ def _calculate_payment_from_backend(cus, previous_payments, payment_date, amount
         raise ValueError('ไม่สามารถคำนวณยอดชำระได้ กรุณาตรวจสอบวันที่ชำระเงิน')
 
     first_pay_date = date.fromisoformat(cus['first_due_date'])
-    pay_d = date.fromisoformat(payment_date)
-    term_num = get_term_number(pay_d, first_pay_date, int(cus['installment_count']))
+    term_num = int(pay_row.get('term') or 0)
+    if not term_num:
+        pay_d = date.fromisoformat(payment_date)
+        term_num = get_term_number(pay_d, first_pay_date, int(cus['installment_count']))
     due_date = get_due_date(term_num, first_pay_date)
 
     result = {
@@ -101,7 +113,7 @@ def get_payments(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus      = with_judgment_difference(dict(cus))
+    cus      = _attach_case_status_logs(db, with_judgment_difference(dict(cus)))
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
         (account_no,)
@@ -153,6 +165,8 @@ def get_payments(account_no):
 
     cus_with_status = dict(cus)
     cus_with_status['status'] = computed_status
+    cus_with_status['is_default_single_judgment'] = is_single_default_judgment(cus)
+    cus_with_status.pop('_case_status_logs', None)
 
     return jsonify({
         'customer':        cus_with_status,
@@ -177,7 +191,7 @@ def preview_payment(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus  = with_judgment_difference(dict(cus))
+    cus  = _attach_case_status_logs(db, with_judgment_difference(dict(cus)))
     data = request.get_json()
     payment_date = data.get('payment_date')
     amount       = float(data.get('amount', 0))
@@ -249,7 +263,7 @@ def create_payment(account_no):
     except Exception:
         return jsonify({'error': 'payment_date ต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
-    cus_dict = with_judgment_difference(dict(cus))
+    cus_dict = _attach_case_status_logs(db, with_judgment_difference(dict(cus)))
 
     previous_payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC, id ASC',
@@ -348,7 +362,7 @@ def export_payments(account_no):
     if not cus:
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
-    cus      = with_judgment_difference(dict(cus))
+    cus      = _attach_case_status_logs(db, with_judgment_difference(dict(cus)))
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
         (account_no,)
@@ -370,8 +384,11 @@ def export_payments(account_no):
     )
 
     export = build_export_rows(plan_rows_all, daily_rows, cus)
+    cus_for_response = dict(cus)
+    cus_for_response['is_default_single_judgment'] = is_single_default_judgment(cus)
+    cus_for_response.pop('_case_status_logs', None)
 
-    return jsonify({'rows': export, 'customer': cus}), 200
+    return jsonify({'rows': export, 'customer': cus_for_response}), 200
 
 
 @bp.route('/<account_no>/latest', methods=['DELETE'])

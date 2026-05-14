@@ -1509,6 +1509,8 @@
         const installmentCount = Number(cus.installment_count || 0);
         if (installmentCount !== 1) return false;
 
+        if (cus.is_default_single_judgment) return true;
+
         // ตอนยังไม่ปิดบัญชี backend จะส่ง case_status = 'พิพากษาฝ่ายเดียว'
         if (cus.case_status === 'พิพากษาฝ่ายเดียว') return true;
 
