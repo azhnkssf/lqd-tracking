@@ -471,25 +471,40 @@ def get_snapshot_at_date(cus, payments, report_date):
     # ถ้า due อยู่ในเดือนมีนาคม และขอ report วันที่ 31/03
     # ยังถือว่าเป็นสถานะของเดือนมีนาคม: ยังไม่ผิดนัดรายเดือน
     # ต้องเริ่มผิดนัดรายเดือนวันที่ 01 ของเดือนถัดไปเท่านั้น
-    oldest_due_str = target_row.get('oldest_due')
     default_date = None
     default_amount = None
     dpd_months = target_row.get('dpd_months', 0)
     ncb_months = target_row.get('ncb_months', '31')
 
-    if oldest_due_str:
+    # Default Date ต้องเป็นวันที่ผิดนัดชำระรายเดือน "ครั้งแรก" ที่เกิดขึ้นจริง
+    # ไม่ใช่วันที่คำนวณจาก oldest_due ปัจจุบัน เพราะยอดชำระภายหลังอาจตัดงวดเก่า
+    # จน oldest_due ขยับ แต่วันที่ผิดนัดครั้งแรกต้องคงเดิมในรายงาน
+    for row in daily_rows:
+        row_date_str = row.get('date')
+        oldest_due_str = row.get('oldest_due')
+        if not row_date_str or not oldest_due_str or row_date_str > report_date.isoformat():
+            continue
+
+        row_date = date.fromisoformat(row_date_str)
         oldest_due_date = date.fromisoformat(oldest_due_str)
         first_of_next = date(oldest_due_date.year, oldest_due_date.month, 1) + relativedelta(months=1)
 
-        if report_date >= first_of_next:
+        if row_date >= first_of_next and _num(row.get('outstanding'), 0) > 0:
             default_date = first_of_next.isoformat()
             default_row = None
-            for row in reversed(daily_rows):
-                if row.get('date') <= default_date:
-                    default_row = row
+            for candidate in reversed(daily_rows):
+                if candidate.get('date') <= default_date:
+                    default_row = candidate
                     break
             default_amount = _calc_remaining_from_daily_row(cus, default_row)
-        else:
+            break
+
+    oldest_due_str = target_row.get('oldest_due')
+    if oldest_due_str and not default_date:
+        oldest_due_date = date.fromisoformat(oldest_due_str)
+        first_of_next = date(oldest_due_date.year, oldest_due_date.month, 1) + relativedelta(months=1)
+
+        if report_date < first_of_next:
             # ยังอยู่ในเดือนของ due เอง เช่น report 31/03 ของ due 04/03
             # ห้ามแสดงวันผิดนัด/ยอดหนี้วันผิดนัด และให้สถานะรายเดือนเป็น 31
             dpd_months = 0

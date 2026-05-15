@@ -64,6 +64,28 @@ def _parse_iso_date(value):
         return None
 
 
+def _validate_judgment_timeline(filing_date, judgment_type, judgment_date, first_due_date):
+    if filing_date and judgment_date and judgment_date <= filing_date:
+        raise ValueError(
+            'วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง '
+            f'(วันที่ยื่นฟ้องในระบบ: {filing_date}, วันที่พิพากษาในไฟล์: {judgment_date})'
+        )
+
+    if judgment_date and first_due_date:
+        if judgment_type == 'พิพากษาฝ่ายเดียว':
+            if first_due_date < judgment_date:
+                raise ValueError(
+                    'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
+                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+                )
+        else:
+            if first_due_date <= judgment_date:
+                raise ValueError(
+                    'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา '
+                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+                )
+
+
 def _normalize_black_case_no(value):
     raw = str(value or '').strip()
     if not raw:
@@ -965,6 +987,16 @@ def bulk_judgment():
             judgment_note  = str(row[16]).strip() if len(row) > 16 and row[16] not in (None, '') else ''
             if len(judgment_note) > 100:
                 raise ValueError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร')
+            if not _parse_iso_date(judgment_date):
+                raise ValueError('วันที่พิพากษาต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-02-18')
+            if not _parse_iso_date(first_due_date):
+                raise ValueError('วันครบกำหนดงวดแรกต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-03-18')
+            _validate_judgment_timeline(
+                cus.get('filing_date'),
+                judgment_type,
+                judgment_date,
+                first_due_date,
+            )
 
             last_due_date = (
                 date.fromisoformat(first_due_date) + _rd(months=inst_count - 1)

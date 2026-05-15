@@ -58,6 +58,28 @@ def parse_date(val):
         return None
 
 
+def validate_judgment_timeline(filing_date, judgment_type, judgment_date, first_due_date):
+    if filing_date and judgment_date and judgment_date <= filing_date:
+        raise ValueError(
+            'วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง '
+            f'(วันที่ยื่นฟ้องในระบบ: {filing_date}, วันที่พิพากษาในไฟล์: {judgment_date})'
+        )
+
+    if judgment_date and first_due_date:
+        if judgment_type == 'พิพากษาฝ่ายเดียว':
+            if first_due_date < judgment_date:
+                raise ValueError(
+                    'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
+                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+                )
+        else:
+            if first_due_date <= judgment_date:
+                raise ValueError(
+                    'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา '
+                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+                )
+
+
 def normalize_black_case_no(value):
     raw = str(value or '').strip()
     if not raw:
@@ -660,6 +682,12 @@ def import_judgment():
                 raise ValueError('วันที่พิพากษาต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-02-18')
             if not first_due_date:
                 raise ValueError('วันครบกำหนดงวดแรกต้องเป็นรูปแบบ YYYY-MM-DD เช่น 2026-03-18')
+            validate_judgment_timeline(
+                cus.get('filing_date'),
+                judgment_type,
+                judgment_date,
+                first_due_date,
+            )
 
             total_debt     = parse_float(row[4])
             principal      = parse_float(row[5])
