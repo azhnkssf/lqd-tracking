@@ -1383,6 +1383,73 @@
         icon.classList.remove('text-slate-300');
     }
 
+    function syncCaseTabs() {
+        document.querySelectorAll('#case-tabs button').forEach(btn => {
+            const active = btn.dataset.case === activeCaseFilter;
+            btn.className = 'case-tab ' + (active ? 'active-tab' : 'inactive-tab');
+        });
+    }
+
+    function buildCustomerListStateParams(page = currentPage) {
+        const params = new URLSearchParams();
+        const keyword = document.getElementById('search-input')?.value.trim() || '';
+
+        if (keyword) params.set('q', keyword);
+        if (page && Number(page) !== 1) params.set('page', String(page));
+        if (perPage !== 25) params.set('per_page', String(perPage));
+        if (activeCaseFilter) params.set('case_status', activeCaseFilter);
+        if (activeAdvancedFilters.caseStatuses.length) params.set('case_statuses', activeAdvancedFilters.caseStatuses.join(','));
+        if (activeAdvancedFilters.paymentStatuses.length) params.set('payment_statuses', activeAdvancedFilters.paymentStatuses.join(','));
+        if (activeAdvancedFilters.dateField && activeAdvancedFilters.dateField !== 'due') params.set('date_field', activeAdvancedFilters.dateField);
+        if (activeAdvancedFilters.dateFrom) params.set('date_from', activeAdvancedFilters.dateFrom);
+        if (activeAdvancedFilters.dateTo) params.set('date_to', activeAdvancedFilters.dateTo);
+        if (activeAdvancedFilters.outstandingMin) params.set('outstanding_min', activeAdvancedFilters.outstandingMin);
+        if (activeAdvancedFilters.outstandingMax) params.set('outstanding_max', activeAdvancedFilters.outstandingMax);
+        if (sortField) {
+            params.set('sort_by', sortField);
+            params.set('sort_dir', sortDir);
+        }
+
+        return params;
+    }
+
+    function syncCustomerListUrl(page = currentPage) {
+        const params = buildCustomerListStateParams(page);
+        const query = params.toString();
+        const nextUrl = query ? `/customer-list?${query}` : '/customer-list';
+        window.history.replaceState(null, '', nextUrl);
+    }
+
+    function getCustomerListReturnTo() {
+        const params = buildCustomerListStateParams(currentPage);
+        const query = params.toString();
+        return query ? `/customer-list?${query}` : '/customer-list';
+    }
+
+    function restoreCustomerListStateFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = params.get('q') || '';
+
+        const urlPerPage = Number(params.get('per_page') || 25);
+        perPage = [10, 25, 50].includes(urlPerPage) ? urlPerPage : 25;
+        currentPage = Math.max(1, Number(params.get('page') || 1));
+        activeCaseFilter = params.get('case_status') || '';
+        sortField = params.get('sort_by') || '';
+        sortDir = params.get('sort_dir') === 'asc' ? 'asc' : 'desc';
+
+        activeAdvancedFilters = {
+            caseStatuses: (params.get('case_statuses') || '').split(',').filter(Boolean),
+            paymentStatuses: (params.get('payment_statuses') || '').split(',').filter(Boolean),
+            dateField: params.get('date_field') || 'due',
+            dateFrom: params.get('date_from') || '',
+            dateTo: params.get('date_to') || '',
+            outstandingMin: params.get('outstanding_min') || '',
+            outstandingMax: params.get('outstanding_max') || ''
+        };
+        draftAdvancedFilters = cloneAdvancedFilters(activeAdvancedFilters);
+    }
+
     function setPerPage(value) {
         perPage = value;
         currentPage = 1;
@@ -1393,10 +1460,7 @@
 
     function setCaseFilter(value) {
         activeCaseFilter = value;
-        document.querySelectorAll('#case-tabs button').forEach(btn => {
-            const active = btn.dataset.case === value;
-            btn.className = 'case-tab ' + (active ? 'active-tab' : 'inactive-tab');
-        });
+        syncCaseTabs();
         currentPage = 1;
         loadData(1);
     }
@@ -1623,6 +1687,7 @@
     async function loadData(page = 1) {
         const loadSeq = ++activeLoadSeq;
         currentPage = page;
+        syncCustomerListUrl(page);
         const keyword = document.getElementById('search-input')?.value.trim() || '';
         const token = getCookie('token');
         const tbody = document.getElementById('mock-table-body');
@@ -1667,6 +1732,7 @@
             allData = data.data || [];
             totalRows = Number(data.total || 0);
             currentPage = Number(data.page || page);
+            syncCustomerListUrl(currentPage);
             syncSummary(data.summary || {});
             renderRows(allData);
         } catch (err) {
@@ -1771,9 +1837,15 @@
         closeFilterDateFieldMenu();
     }
 
-    function handlePayment(accountNo) { window.location.href = `/payment-record?account=${encodeURIComponent(accountNo)}&from=customer-list`; }
-    function handleView(accountNo) { window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}`; }
-    function handleRecordEnforcement(accountNo) { window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}&open=enforcement`; }
+    function handlePayment(accountNo) {
+        window.location.href = `/payment-record?account=${encodeURIComponent(accountNo)}&from=customer-list&return_to=${encodeURIComponent(getCustomerListReturnTo())}`;
+    }
+    function handleView(accountNo) {
+        window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}&from=customer-list&return_to=${encodeURIComponent(getCustomerListReturnTo())}`;
+    }
+    function handleRecordEnforcement(accountNo) {
+        window.location.href = `/customer-detail?account=${encodeURIComponent(accountNo)}&open=enforcement&from=customer-list&return_to=${encodeURIComponent(getCustomerListReturnTo())}`;
+    }
     function handleAddDebtor() { openAddModal(); }
 
     function handleDelete(accountNo) {
@@ -2428,10 +2500,12 @@
     });
 
     setupUI();
+    restoreCustomerListStateFromUrl();
     syncPerPageDropdown();
     syncAdvancedFilterUI();
+    syncCaseTabs();
     syncSortIcons();
-    loadData(1);
+    loadData(currentPage);
 </script>
 </body>
 </html>

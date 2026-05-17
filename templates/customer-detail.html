@@ -885,7 +885,7 @@
         <div class="max-w-[1600px] mx-auto">
             <header class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 py-4 border-b border-indigo-100/50">
                 <div class="flex items-center gap-4 min-w-0">
-                    <a href="/customer-list"
+                    <a id="customer-detail-back-link" href="/customer-list"
                     class="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 flex items-center justify-center text-primary border border-white hover:bg-indigo-50 transition-all flex-shrink-0">
                         <span class="material-symbols-outlined text-3xl">arrow_back</span>
                     </a>
@@ -1979,9 +1979,17 @@
     const accountNo  = urlParams.get('account') || '';
     let originalData = null;
 
+    function getSafeReturnTo(fallback = '/customer-list') {
+        const returnTo = urlParams.get('return_to') || '';
+        if (returnTo.startsWith('/customer-list')) return returnTo;
+        return fallback;
+    }
+
     function setupUI() {
         if (!role) { window.location.href = '/login'; return; }
-        if (!accountNo) { window.location.href = '/customer-list'; return; }
+        if (!accountNo) { window.location.href = getSafeReturnTo('/customer-list'); return; }
+        const backLink = document.getElementById('customer-detail-back-link');
+        if (backLink) backLink.href = getSafeReturnTo('/customer-list');
         const roleLabels = { 'user': 'User', 'admin': 'Admin', 'superadmin': 'Super Admin' };
         const label = roleLabels[role] || role;
         document.getElementById('nav-role').textContent           = label;
@@ -2134,7 +2142,7 @@
     async function loadCustomerData() {
         try {
             const res  = await fetch(`/api/customers/${accountNo}`);
-            if (!res.ok) { window.location.href = '/customer-list'; return; }
+            if (!res.ok) { window.location.href = getSafeReturnTo('/customer-list'); return; }
             const data = await res.json();
 
             // สำคัญ: ต้อง set currentCus ก่อน set วันที่/เรียก applyJudgmentTypeInputRules
@@ -3164,7 +3172,7 @@ function setupFriendlyInputFocus() {
     }
 
     function handleCancel() {
-        window.location.href = '/customer-list';
+        window.location.href = getSafeReturnTo('/customer-list');
     }
 
     async function handleLogout() {

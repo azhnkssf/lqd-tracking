@@ -136,6 +136,154 @@ def generate_monthly_summary(rows):
     return [r for r in rows if r['is_payment_date']]
 
 
+def build_installment_payment_allocations(plan_monthly, payments, daily_rows=None):
+    """
+    Allocate actual payments to the oldest unpaid installment first.
+
+    The monthly comparison table should answer "which installment did this
+    money settle?" rather than "which calendar term did the payment date fall
+    into?". This keeps early, partial, late, and multi-payment installments on
+    the correct due row.
+    """
+    installments = []
+    for idx, row in enumerate(plan_monthly or []):
+        term = int(row.get('term') or idx + 1)
+        expected = round(float(row.get('payment') or 0), 2)
+        installments.append({
+            'term': term,
+            'due_date': row.get('date'),
+            'expected': expected,
+            'paid_total': 0.0,
+            'interest_paid': 0.0,
+            'principal_paid': 0.0,
+            'other_paid': 0.0,
+            'remaining': expected,
+            'payment_dates': [],
+            'allocations': [],
+            'status': 'unpaid' if expected > 0 else 'no_due',
+            'completed_date': None,
+        })
+
+    sorted_payments = sorted(
+        payments or [],
+        key=lambda p: (
+            str(p.get('payment_date') or ''),
+            int(p.get('id') or 0),
+        )
+    )
+
+    installment_idx = 0
+    unapplied = []
+
+    for payment in sorted_payments:
+        payment_amount = round(float(payment.get('amount') or 0), 2)
+        if payment_amount <= 0:
+            continue
+
+        while installment_idx < len(installments) and round(float(installments[installment_idx]['remaining'] or 0), 2) <= 0:
+            installment_idx += 1
+
+        if installment_idx >= len(installments):
+            unapplied.append({
+                'payment_id': payment.get('id'),
+                'payment_date': payment.get('payment_date'),
+                'amount': payment_amount,
+                'original_amount': payment_amount,
+            })
+            continue
+
+        inst = installments[installment_idx]
+        payment_date = payment.get('payment_date')
+        inst['paid_total'] = round(inst['paid_total'] + payment_amount, 2)
+        inst['remaining'] = round(max(0.0, float(inst['expected'] or 0) - inst['paid_total']), 2)
+
+        if payment_date and payment_date not in inst['payment_dates']:
+            inst['payment_dates'].append(payment_date)
+
+        inst['allocations'].append({
+            'payment_id': payment.get('id'),
+            'payment_date': payment_date,
+            'amount': payment_amount,
+            'original_amount': payment_amount,
+        })
+
+        if inst['remaining'] <= 0:
+            inst['remaining'] = 0.0
+            inst['status'] = 'overpaid' if inst['paid_total'] > inst['expected'] else 'paid'
+            inst['completed_date'] = payment_date
+            installment_idx += 1
+        else:
+            inst['status'] = 'partial'
+
+    for inst in installments:
+        for allocation in inst['allocations']:
+            allocation['interest_paid'] = 0.0
+            allocation['principal_paid'] = 0.0
+            allocation['other_paid'] = 0.0
+            allocation['principal_bal'] = None
+            allocation['dpd_months'] = 0
+            allocation['ncb_status'] = '31'
+
+    pay_rows_by_date = {}
+    for row in daily_rows or []:
+        if not row.get('is_pay_date'):
+            continue
+        pay_rows_by_date[row.get('date')] = row
+
+    for inst in installments:
+        interest_paid = 0.0
+        principal_paid = 0.0
+        other_paid = 0.0
+
+        for allocation in inst['allocations']:
+            pay_row = pay_rows_by_date.get(allocation.get('payment_date'))
+            if not pay_row:
+                continue
+
+            row_pay_amount = round(float(pay_row.get('pay_amount') or 0), 2)
+            if row_pay_amount <= 0:
+                continue
+
+            # A daily row is aggregated by payment date. If one date's payment is
+            # split across multiple installments, split interest/principal in the
+            # same proportion as the allocated cash for display totals.
+            ratio = float(allocation.get('amount') or 0) / row_pay_amount
+            alloc_interest = round(float(pay_row.get('P') or 0) * ratio, 2)
+            alloc_principal = round(float(pay_row.get('R') or 0) * ratio, 2)
+            alloc_other = round(float(pay_row.get('S') or 0) * ratio, 2)
+
+            allocation['interest_paid'] = alloc_interest
+            allocation['principal_paid'] = alloc_principal
+            allocation['other_paid'] = alloc_other
+            allocation['principal_bal'] = round(float(pay_row.get('T') or 0), 2)
+            allocation['dpd_months'] = int(float(pay_row.get('dpd_months') or 0))
+            allocation['ncb_status'] = str(pay_row.get('ncb_months') or pay_row.get('ncb_code') or '31')
+
+            interest_paid += alloc_interest
+            principal_paid += alloc_principal
+            other_paid += alloc_other
+
+        inst['interest_paid'] = round(interest_paid, 2)
+        inst['principal_paid'] = round(principal_paid, 2)
+        inst['other_paid'] = round(other_paid, 2)
+
+        if inst['expected'] <= 0:
+            inst['status'] = 'no_due'
+        elif inst['paid_total'] <= 0:
+            inst['status'] = 'unpaid'
+        elif inst['remaining'] > 0:
+            inst['status'] = 'partial'
+        elif inst['paid_total'] > inst['expected']:
+            inst['status'] = 'overpaid'
+        else:
+            inst['status'] = 'paid'
+
+    return {
+        'installments': installments,
+        'unapplied': unapplied,
+    }
+
+
 # ============================================================
 # NEW: Full Daily Schedule with actual payments (port from VBA)
 # ============================================================
@@ -430,7 +578,7 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
     pay_by_date    = {}
     for p in payments:
         pd = date.fromisoformat(p['payment_date']) if isinstance(p['payment_date'], str) else p['payment_date']
-        pay_by_date[pd] = float(p['amount'])
+        pay_by_date[pd] = pay_by_date.get(pd, 0.0) + float(p['amount'])
 
     original_term_months = term_months
     is_default_single    = is_single_default_judgment(cus)

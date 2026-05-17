@@ -131,6 +131,8 @@
 
     .payment-ledger-table tbody td {
         border-bottom: 1px solid #eef2ff;
+        font-size: 0.78rem;
+        line-height: 1.2rem;
     }
 
     .payment-ledger-table .group-border-left {
@@ -148,6 +150,63 @@
 
     .payment-ledger-table tbody tr.opacity-40:hover td {
         background: #f8fafc;
+    }
+
+    .payment-detail-quickview {
+        min-width: 230px;
+        white-space: normal;
+    }
+
+    .payment-detail-quickview > summary {
+        list-style: none;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .payment-detail-quickview > summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .payment-detail-panel {
+        margin-top: 0.5rem;
+        border: 1px solid #e0e7ff;
+        border-radius: 0.75rem;
+        background: #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+    }
+
+    .payment-detail-row {
+        display: grid;
+        grid-template-columns: minmax(82px, 1fr) repeat(3, minmax(78px, 1fr));
+        gap: 0.35rem;
+        align-items: center;
+        padding: 0.45rem 0.6rem;
+        border-top: 1px solid #eef2ff;
+    }
+
+    .payment-detail-row:first-child {
+        border-top: 0;
+    }
+
+    .payment-detail-label {
+        display: block;
+        font-size: 0.56rem;
+        line-height: 1;
+        color: #94a3b8;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.15rem;
+    }
+
+    .payment-detail-value {
+        display: block;
+        font-size: 0.68rem;
+        line-height: 1.15;
+        color: #1e293b;
+        font-weight: 800;
+        white-space: nowrap;
     }
 </style>
 </head>
@@ -806,13 +865,13 @@
                                 Expected
                             </th>
                 
-                            <th class="bg-orange-50/45 py-2.5 border-b border-orange-100 group-border-left">
+                            <th id="th-paid-dates" class="bg-orange-50/45 py-2.5 border-b border-orange-100 group-border-left">
                                 วันที่จ่ายจริง
                             </th>
-                            <th class="bg-orange-50/45 py-2.5 border-b border-orange-100">
+                            <th id="th-paid-amount" class="bg-orange-50/45 py-2.5 border-b border-orange-100">
                                 Paid
                             </th>
-                            <th class="bg-orange-50/60 py-2.5 border-b border-orange-100 text-orange-700">
+                            <th id="th-paid-summary" class="bg-orange-50/60 py-2.5 border-b border-orange-100 text-orange-700">
                                 จ่ายสะสม
                             </th>
                 
@@ -1223,6 +1282,7 @@
     let   customerData = null;
     let   scheduleRows = [];
     let   scheduleAllRows = [];
+    let   paymentAllocationRows = [];
     const CASE_FLOW_A = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'บังคับคดี', 'ปิดบัญชี'];
     const CASE_FLOW_B = ['ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
 
@@ -1462,11 +1522,12 @@
     function setupPaymentBackButton() {
         const params = new URLSearchParams(window.location.search);
         const from = params.get('from');
+        const returnTo = params.get('return_to');
         const backBtn = document.getElementById('payment-back-btn');
 
         if (!backBtn) return;
 
-        if (from === 'customer-list') {
+        if (from === 'customer-list' || returnTo) {
             backBtn.classList.remove('hidden');
             backBtn.classList.add('flex');
         } else {
@@ -1475,8 +1536,15 @@
         }
     }
 
+    function getSafeReturnTo(fallback = '/customer-list') {
+        const params = new URLSearchParams(window.location.search);
+        const returnTo = params.get('return_to') || '';
+        if (returnTo.startsWith('/customer-list')) return returnTo;
+        return fallback;
+    }
+
     function goBackToCustomerList() {
-        window.location.href = '/customer-list';
+        window.location.href = getSafeReturnTo('/customer-list');
     }
 
     // ---- Load customer data ----
@@ -1891,6 +1959,7 @@
         const planMonthly = data.plan_monthly || [];
 
         window._payments  = payments;
+        paymentAllocationRows = data.payment_allocations?.installments || [];
 
         const paymentBuckets = {};
         payments.forEach(p => {
@@ -1926,7 +1995,107 @@
         toggleView();
     }
 
+    function setTableHeaderMode(mode) {
+        const paidDates = document.getElementById('th-paid-dates');
+        const paidAmount = document.getElementById('th-paid-amount');
+        const paidSummary = document.getElementById('th-paid-summary');
+        if (!paidDates || !paidAmount || !paidSummary) return;
+
+        if (mode === 'daily') {
+            paidDates.textContent = 'วันที่จ่ายจริง';
+            paidAmount.textContent = 'Paid';
+            paidSummary.textContent = 'จ่ายสะสม';
+        } else {
+            paidDates.textContent = 'วันที่จ่าย';
+            paidAmount.textContent = 'Paid Total';
+            paidSummary.textContent = 'สถานะ';
+        }
+    }
+
+    function allocationStatusBadge(allocation, expected) {
+        const paidTotal = Number(allocation?.paid_total || 0);
+        const remaining = Number(allocation?.remaining || 0);
+        if (expected <= 0) {
+            return '<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-slate-50 text-slate-400 border border-slate-100 text-[10px] font-extrabold whitespace-nowrap">ไม่มีค่างวด</span>';
+        }
+        if (paidTotal <= 0) {
+            return '<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-slate-50 text-slate-400 border border-slate-100 text-[10px] font-extrabold whitespace-nowrap">ยังไม่จ่าย</span>';
+        }
+        if (remaining > 0.009) {
+            return `<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-extrabold whitespace-nowrap">ขาด ${fmt(remaining)}</span>`;
+        }
+        if (paidTotal - expected > 0.009) {
+            return `<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-extrabold whitespace-nowrap">จ่ายเกิน ${fmt(paidTotal - expected)}</span>`;
+        }
+        return '<span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-extrabold whitespace-nowrap">ครบแล้ว</span>';
+    }
+
+    function renderPaymentQuickViewButton(allocation, termNum) {
+        const allocations = allocation?.allocations || [];
+        if (!allocations.length) return '-';
+        if (allocations.length === 1) {
+            return `<div class="flex flex-wrap justify-center gap-1.5 min-w-[150px]">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 text-primary border border-indigo-100 text-[11px] font-extrabold whitespace-nowrap">
+                    <span class="material-symbols-outlined text-[13px]">event</span>
+                    ${fmtDate(allocations[0].payment_date)}
+                </span>
+            </div>`;
+        }
+
+        const uniqueDates = [...new Set(allocations.map(item => item.payment_date).filter(Boolean))];
+        const dateChips = uniqueDates.map(date => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 text-primary border border-indigo-100 text-[11px] font-extrabold whitespace-nowrap">
+                <span class="material-symbols-outlined text-[13px]">event</span>
+                ${fmtDate(date)}
+            </span>
+        `).join('');
+
+        return `<div class="flex flex-wrap justify-center gap-1.5 min-w-[190px]">
+            ${dateChips}
+            <button type="button" onclick="togglePaymentTermDetails(${termNum}, this)" title="รายละเอียดเพิ่มเติม" aria-label="รายละเอียดเพิ่มเติม" class="w-7 h-7 rounded-lg bg-white text-slate-400 border border-slate-200 inline-flex items-center justify-center hover:text-primary hover:border-indigo-200 hover:bg-indigo-50 transition-colors">
+                <span class="material-symbols-outlined text-[16px] leading-none transition-transform">keyboard_arrow_down</span>
+            </button>
+        </div>`;
+    }
+
+    function renderPaymentDetailRows(allocation, termNum) {
+        const allocations = allocation?.allocations || [];
+        if (!allocations.length) return '';
+
+        if (allocations.length <= 1) return '';
+
+        return allocations.map((item, idx) => {
+            const ncb = item.ncb_status || '31';
+            const dpd = Number(item.dpd_months || 0);
+            return `<tr class="payment-term-detail payment-term-detail-${termNum} hidden bg-white text-[12px] border-b border-indigo-50">
+                <td class="py-2 text-indigo-300 font-extrabold">↳ ${idx + 1}</td>
+                <td class="py-2 text-slate-300">-</td>
+                <td class="py-2 text-slate-300">-</td>
+                <td class="py-2 font-bold text-primary group-border-left">${fmtDate(item.payment_date)}</td>
+                <td class="py-2 font-bold text-primary">${fmt(item.amount || 0)}</td>
+                <td class="py-2">
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-indigo-50 text-primary border border-indigo-100 text-[9px] font-extrabold whitespace-nowrap">รายการย่อย</span>
+                </td>
+                <td class="py-2 font-bold text-slate-700 group-border-left">${item.principal_bal !== null && item.principal_bal !== undefined ? fmt(item.principal_bal) : '-'}</td>
+                <td class="py-2 text-orange-600 font-bold">${fmt(item.interest_paid || 0)}</td>
+                <td class="py-2 text-emerald-600 font-bold">${fmt(item.principal_paid || 0)}</td>
+                <td class="py-2 ${dpd > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}">${dpd}</td>
+                <td class="py-2">${ncbBadge(ncb)}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function findDailyAnalysisRowForAllocation(allocation, plan, dailyRows) {
+        const dates = allocation?.payment_dates || [];
+        for (let i = dates.length - 1; i >= 0; i -= 1) {
+            const row = dailyRows.find(r => r.date === dates[i]);
+            if (row) return row;
+        }
+        return dailyRows.find(r => r.date === plan.date) || plan._projected_row || null;
+    }
+
     function renderTable(planRows, payments) {
+        setTableHeaderMode('monthly');
         const tbody    = document.getElementById('table-body');
         const dailyAll = window._dailyRows || [];
         if (!planRows.length && !dailyAll.length) {
@@ -1934,51 +2103,64 @@
             return;
         }
 
-        // Monthly display maps payments to the due row they settle, not the calendar term of the pay date.
-        const paymentDisplayByTerm = buildPaymentDisplayMap(planRows, payments, dailyAll);
+        const allocationByTerm = {};
+        (paymentAllocationRows || []).forEach(row => {
+            const term = Number(row.term || 0);
+            if (term) allocationByTerm[term] = row;
+        });
 
         tbody.innerHTML = planRows.map((plan, i) => {
             const termNum = Number(plan.term || i + 1);
-            const displayPayment = paymentDisplayByTerm[termNum] || null;
-            const lastPay = displayPayment?.payRow || plan._actual_pay_row || null;
-            const actualPayment = displayPayment?.payment || plan._actual_payment || null;
+            const allocation = allocationByTerm[termNum] || null;
             const projected = plan._projected_row || null;
-            const analysisRow = lastPay || projected;
-            const isPaid = !!(lastPay || actualPayment);
+            const analysisRow = findDailyAnalysisRowForAllocation(allocation, plan, dailyAll) || projected;
+            const expected = Number(allocation?.expected ?? plan.payment ?? 0);
+            const paidTotal = Number(allocation?.paid_total || 0);
+            const isPaid = paidTotal > 0;
+            const isFullyPaid = expected > 0 && Number(allocation?.remaining ?? expected) <= 0.009;
             const isVirtual = plan._is_virtual_followup === true;
-            const rowCls = isPaid
-                ? 'border-b border-slate-50 hover:bg-slate-50'
-                : (isVirtual ? 'border-b border-indigo-50 bg-indigo-50/25 hover:bg-indigo-50/40' : 'border-b border-slate-50 opacity-40');
+            const rowCls = isFullyPaid
+                ? 'border-b border-emerald-50 bg-emerald-50/20 hover:bg-emerald-50/35'
+                : isPaid
+                    ? 'border-b border-amber-50 bg-amber-50/20 hover:bg-amber-50/35'
+                    : (isVirtual ? 'border-b border-indigo-50 bg-indigo-50/25 hover:bg-indigo-50/40' : 'border-b border-slate-50 opacity-40');
 
             const ncb_m = analysisRow ? (analysisRow.ncb_months || analysisRow.ncb_code || '31') : null;
             const dpd_m = analysisRow ? analysisRow.dpd_months : null;
-            const expected = Number(plan.payment || 0);
-
-            const paidDate = actualPayment ? actualPayment.payment_date : (lastPay ? lastPay.date : null);
-            const paidAmount = actualPayment ? Number(actualPayment.amount || 0) : (lastPay ? Number(lastPay.pay_amount || 0) : 0);
-            const mAcc = lastPay ? fmt(lastPay.M) : (isPaid ? fmt(paidAmount) : '-');
             const principalBalText = analysisRow ? fmt(analysisRow.T) : '-';
-            const interestPaidText = lastPay ? fmt(lastPay.P) : '-';
-            const principalPaidText = lastPay ? fmt(lastPay.R) : '-';
+            const interestPaidText = isPaid ? fmt(allocation?.interest_paid || 0) : '-';
+            const principalPaidText = isPaid ? fmt(allocation?.principal_paid || 0) : '-';
+            const paymentDatesHtml = renderPaymentQuickViewButton(allocation, termNum);
+            const statusHtml = allocationStatusBadge(allocation, expected);
 
             return `<tr class="${rowCls} transition-colors">
                 <td class="py-3 font-bold ${isVirtual && !isPaid ? 'text-indigo-400' : 'text-slate-400'}">${String(termNum).padStart(2,'0')}</td>
                 <td class="py-3 text-slate-600">${fmtDate(plan.date)}</td>
                 <td class="py-3 text-slate-700 font-medium">${fmt(expected)}</td>
-                <td class="py-3 font-bold text-primary group-border-left">${paidDate ? fmtDate(paidDate) : '-'}</td>
-                <td class="py-3 font-bold text-primary">${isPaid ? fmt(paidAmount) : '-'}</td>
-                <td class="py-3 font-bold text-orange-700">${mAcc}</td>
+                <td class="py-3 font-bold text-primary group-border-left">${paymentDatesHtml}</td>
+                <td class="py-3 font-bold ${isPaid ? 'text-primary' : 'text-slate-300'}">${isPaid ? fmt(paidTotal) : '-'}</td>
+                <td class="py-3">${statusHtml}</td>
                 <td class="py-3 font-bold text-slate-800 group-border-left">${principalBalText}</td>
                 <td class="py-3 text-orange-600 font-bold">${interestPaidText}</td>
                 <td class="py-3 text-emerald-600 font-bold">${principalPaidText}</td>
                 <td class="py-3 ${dpd_m > 0 ? 'text-red-500 font-bold' : 'text-slate-400'}">${dpd_m !== null && dpd_m !== undefined ? dpd_m : '-'}</td>
                 <td class="py-3">${ncb_m ? ncbBadge(ncb_m) : '-'}</td>
-            </tr>`;
+            </tr>${renderPaymentDetailRows(allocation, termNum)}`;
         }).join('');
 
         document.getElementById('table-info').textContent =
-            `แสดง ${planRows.length} งวด | ชำระแล้ว ${(window._payments||[]).length} ครั้ง`;
+            `แสดง ${planRows.length} งวด | ชำระแล้ว ${(window._payments||[]).length} ครั้ง | ปิดครบ ${(paymentAllocationRows || []).filter(r => r.status === 'paid').length} งวด`;
         document.getElementById('table-pagination').innerHTML = '';
+    }
+
+    function togglePaymentTermDetails(termNum, button) {
+        let isOpen = false;
+        document.querySelectorAll(`.payment-term-detail-${termNum}`).forEach(row => {
+            row.classList.toggle('hidden');
+            isOpen = !row.classList.contains('hidden');
+        });
+        const icon = button?.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
     }
     // ---- Search ----
     async function searchAccount() {
@@ -2142,8 +2324,10 @@
         const payments = window._payments || [];
         currentTablePage = 1;
         if (showAll) {
+            setTableHeaderMode('daily');
             renderTableDaily(scheduleAllRows, payments, 1);
         } else {
+            setTableHeaderMode('monthly');
             renderTable(scheduleRows, payments);
         }
     }
@@ -2179,6 +2363,7 @@
     }
 
     function renderTableDaily(rows, payments, page = 1) {
+        setTableHeaderMode('daily');
         const tbody = document.getElementById('table-body');
         if (!rows.length) {
             tbody.innerHTML = '<tr><td colspan="12" class="py-8 text-center text-slate-300 text-sm">ไม่มีข้อมูล</td></tr>';

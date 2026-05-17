@@ -4,7 +4,7 @@ from app.services.auth_service import get_user_by_token
 from app.services.schedule_service import (
     generate_schedule, generate_full_daily_schedule, build_export_rows,
     get_due_date, get_term_number, get_installment_for_term,
-    is_single_default_judgment
+    is_single_default_judgment, build_installment_payment_allocations
 )
 from app.services.status_service import refresh_customer_status
 from app.services.customer_list_cache_service import refresh_customer_list_cache
@@ -162,6 +162,7 @@ def get_payments(account_no):
         installment_4  = cus.get('installment_4', 0),
     )
     plan_monthly = [r for r in plan_rows if r['is_payment_date']]
+    payment_allocations = build_installment_payment_allocations(plan_monthly, payments, daily_rows)
 
     cus_with_status = dict(cus)
     cus_with_status['status'] = computed_status
@@ -173,6 +174,7 @@ def get_payments(account_no):
         'payments':        payments,
         'daily_rows':      daily_rows,
         'plan_monthly':    plan_monthly,
+        'payment_allocations': payment_allocations,
         'principal_bal':   round(last_T, 2),
         'computed_status': computed_status,
     }), 200
