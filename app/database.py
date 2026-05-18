@@ -68,6 +68,21 @@ def init_db(app):
         ''')
 
         db.executescript('''
+            CREATE TABLE IF NOT EXISTS report_retroactive_fix_marks (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no              TEXT NOT NULL,
+                affected_report_month   TEXT NOT NULL,
+                effective_date          TEXT NOT NULL,
+                reason_code             TEXT NOT NULL,
+                source_report_month     TEXT,
+                marked_by               INTEGER NOT NULL REFERENCES users(id),
+                marked_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
+                note                    TEXT,
+                UNIQUE(account_no, affected_report_month, reason_code)
+            );
+        ''')
+
+        db.executescript('''
             CREATE TABLE IF NOT EXISTS customer_edits (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id     INTEGER NOT NULL REFERENCES customers(id),
@@ -325,6 +340,8 @@ def init_db(app):
             "CREATE INDEX IF NOT EXISTS idx_customers_ui_remaining_debt ON customers(ui_remaining_debt)",
             "CREATE INDEX IF NOT EXISTS idx_customers_case_status ON customers(case_status)",
             "CREATE INDEX IF NOT EXISTS idx_payments_account_date ON payments(account_no, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_report_retro_marks_account ON report_retroactive_fix_marks(account_no)",
+            "CREATE INDEX IF NOT EXISTS idx_report_retro_marks_month ON report_retroactive_fix_marks(affected_report_month)",
         ]
         for statement in indexes:
             try:

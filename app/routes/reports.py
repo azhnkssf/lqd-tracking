@@ -17,6 +17,7 @@ from app.services.report_service import (
     _attach_case_status_log_context,
     _future_effective_reason,
     _build_not_generated_row,
+    build_retroactive_enforcement_alert,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -37,16 +38,18 @@ def trunc_money(v, default=0):
         return default
 
 
-def build_reconcile_summary(db_total, report_30, report_31, report_11, alerts, missing_db, not_generated):
+def build_reconcile_summary(db_total, report_30, report_31, report_11, alerts, missing_db, not_generated, retroactive_alerts=None):
     generated_total = len(report_30) + len(report_31) + len(report_11)
     not_generated_total = len(not_generated)
     missing_total = len(missing_db)
+    retroactive_total = len(retroactive_alerts or [])
 
     return {
         'report_30'          : len(report_30),
         'report_31'          : len(report_31),
         'report_11'          : len(report_11),
         'alerts'             : len(alerts),
+        'retroactive_alerts' : retroactive_total,
         'missing_db'         : missing_total,
         'db_total'           : db_total,
         'generated_total'    : generated_total,
@@ -215,10 +218,11 @@ def export_all_reports():
     report_31   = data.get('report_31', []) or []
     report_11   = data.get('report_11', []) or []
     alerts      = data.get('alerts', []) or []
+    retroactive_alerts = data.get('retroactive_alerts', []) or []
     missing_db  = data.get('missing_db', []) or []
     not_generated = data.get('not_generated', []) or []
 
-    if not any([report_30, report_31, report_11, alerts, missing_db, not_generated]):
+    if not any([report_30, report_31, report_11, alerts, retroactive_alerts, missing_db, not_generated]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
     def fmt_date_excel(val, default=''):
@@ -403,6 +407,37 @@ def export_all_reports():
 
         autofit(ws)
 
+    if retroactive_alerts:
+        ws = wb.create_sheet('Retroactive Alerts')
+        ws.append([
+            'เลขที่บัญชี',
+            'ชื่อลูกค้า',
+            'สถานะปัจจุบัน',
+            'วันที่ของหมายบังคับคดี',
+            'เดือนที่ต้องตรวจสอบ',
+            'เดือนรายงานที่พบ',
+            'Reason Code',
+            'เหตุผล',
+            'สถานะ',
+        ])
+        style_header(ws)
+
+        for r in retroactive_alerts:
+            ws.append([
+                fmt_acc(r.get('account_no')),
+                r.get('name') or '-',
+                r.get('case_status') or '-',
+                fmt_date_excel(r.get('effective_date') or r.get('enforcement_date')),
+                r.get('affected_month_label') or r.get('affected_report_month') or '-',
+                r.get('source_month_label') or r.get('source_report_month') or '-',
+                r.get('reason_code') or '-',
+                r.get('reason') or '-',
+                'แก้แล้ว' if r.get('marked') else 'รอยืนยัน',
+            ])
+            paint_row(ws, fill_alert)
+
+        autofit(ws)
+
     if missing_db:
         ws = wb.create_sheet('Missing DB')
         ws.append([
@@ -492,6 +527,7 @@ def generate_report_db():
     report_31 = []
     report_11 = []
     not_generated = []
+    retroactive_alerts = []
     db_total = len(customers)
 
     for cus_row in customers:
@@ -499,17 +535,33 @@ def generate_report_db():
         cus         = _attach_case_status_log_context(cus, db)
         account_no  = cus['account_no']
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+        retroactive_alert = build_retroactive_enforcement_alert(
+            cus,
+            db=db,
+            report_date_str=report_date,
+            include_marked=False,
+        )
+        if retroactive_alert:
+            retroactive_alerts.append(retroactive_alert)
 
-        if _is_customer_effective_after_report(cus, report_date):
-            reason = _future_effective_reason(cus, report_date)
+        payments = None
+        if case_status == 'ปิดบัญชี':
+            payments = db.execute(
+                'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+                (account_no,)
+            ).fetchall()
+            payments = [dict(p) for p in payments]
+
+        if _is_customer_effective_after_report(cus, report_date, payments):
+            reason = _future_effective_reason(cus, report_date, payments)
             if reason:
                 not_generated.append(_build_not_generated_row(
-                    cus, reason[0], reason[1], report_date, reason[2]
+                    cus, reason[0], reason[1], report_date, reason[2], payments
                 ))
             continue
 
         if case_status == 'ปิดบัญชี':
-            report_11.append(_build_report11_row(account_no, cus))
+            report_11.append(_build_report11_row(account_no, cus, payments))
             continue
 
         if case_status == 'ยื่นฟ้อง':
@@ -532,11 +584,12 @@ def generate_report_db():
                 ))
             continue
 
-        payments = db.execute(
-            'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
-            (account_no,)
-        ).fetchall()
-        payments = [dict(p) for p in payments]
+        if payments is None:
+            payments = db.execute(
+                'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+                (account_no,)
+            ).fetchall()
+            payments = [dict(p) for p in payments]
 
         try:
             snap = get_snapshot_at_date(cus, payments, report_date)
@@ -596,7 +649,7 @@ def generate_report_db():
         group = _get_report_group(cus, snap)
 
         if group == '11':
-            report_11.append(_build_report11_row(account_no, cus))
+            report_11.append(_build_report11_row(account_no, cus, payments))
 
         elif group == '30' and '30' in status_types:
             report_30.append(_build_report30_row_from_db(
@@ -627,6 +680,7 @@ def generate_report_db():
         [],
         [],
         not_generated,
+        retroactive_alerts,
     )
 
     db.execute(
@@ -636,7 +690,7 @@ def generate_report_db():
             count_skipped, count_db_total, count_generated_total)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (user['id'], report_date, '[DB Report]', ','.join(status_types),
-         len(report_30), len(report_31), len(report_11), 0, 0,
+         len(report_30), len(report_31), len(report_11), len(retroactive_alerts), 0,
          len(not_generated), db_total, summary['generated_total'])
     )
     db.commit()
@@ -648,6 +702,7 @@ def generate_report_db():
         'report_31'   : report_31,
         'report_11'   : report_11,
         'alerts'      : [],
+        'retroactive_alerts': retroactive_alerts,
         'missing_db'  : [],
         'not_generated': not_generated,
     }), 200

@@ -183,13 +183,15 @@
     .filter-check-row.active { @apply border-blue-200 bg-blue-50/70 text-slate-800; }
     .filter-check-input { @apply rounded border-slate-300 text-primary focus:ring-primary/20; }
     .filter-input { @apply w-full rounded-xl border-blue-100 bg-white text-xs font-medium text-slate-600 focus:ring-primary/10 focus:border-primary; }
+    .filter-date-display { @apply h-11 w-full rounded-xl border border-blue-100 bg-white px-4 pr-10 text-left text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
+    .filter-date-display.open { @apply border-primary bg-white ring-4 ring-primary/10; }
     .filter-select-wrap { @apply relative w-[136px] flex-shrink-0; }
     .filter-select-trigger { @apply h-9 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
     .filter-select-menu { @apply hidden absolute right-0 top-[calc(100%+6px)] z-[90] w-[188px] rounded-2xl border border-blue-100 bg-white p-1.5 shadow-xl shadow-slate-900/10; }
     .filter-select-menu.open { @apply block; }
     .filter-select-option { @apply flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-500 transition-all hover:bg-blue-50 hover:text-primary; }
     .filter-select-option.active { @apply bg-indigo-50 text-primary; }
-    .drawer-panel { @apply fixed right-0 top-16 bottom-0 z-[80] w-full max-w-md bg-white border-l border-blue-100 shadow-2xl shadow-slate-900/10 translate-x-full transition-transform duration-300; }
+    .drawer-panel { @apply fixed right-0 top-0 bottom-0 z-[120] w-full max-w-md bg-white border-l border-blue-100 shadow-2xl shadow-slate-900/10 translate-x-full transition-transform duration-300; }
     .drawer-panel.open { @apply translate-x-0; }
     .expanded-row td { @apply bg-slate-50/80 border-b border-blue-50; }
     .quick-view {
@@ -227,6 +229,7 @@
     }
     /* ซ่อน element ตาม role */
     .admin-only { display: none; }
+    .checker-admin-only { display: none; }
 
     /* ===== Custom Date Picker ===== */
     .dp-wrap { position: relative; }
@@ -443,6 +446,10 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="openCheckerExportModal()" class="checker-admin-only btn-secondary-modern" title="ดาวน์โหลดข้อมูลดิบสำหรับตรวจสอบ">
+                            <span class="material-symbols-outlined text-base">download</span>
+                            Raw Data Export
+                        </button>
                         <button onclick="openDrawer()" class="btn-secondary-modern">
                             <span class="material-symbols-outlined text-base">tune</span>
                             ตัวกรองขั้นสูง
@@ -577,7 +584,108 @@
     </div>
 </div>
 
-<div id="drawer-overlay" onclick="closeDrawer()" class="hidden fixed inset-0 z-[70] bg-slate-900/20 backdrop-blur-[2px]"></div>
+<div id="checker-export-modal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[3px]" onclick="closeCheckerExportModal()"></div>
+    <div class="relative w-full max-w-md rounded-[24px] border border-blue-100 bg-white shadow-2xl shadow-slate-900/20 overflow-hidden">
+        <div class="px-6 py-5 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-[11px] text-indigo-400 uppercase tracking-widest font-bold">Raw Data Export</p>
+                    <h3 class="text-xl font-extrabold text-slate-800 mt-1">ดาวน์โหลดข้อมูลดิบ</h3>
+                    <p class="mt-1 text-xs text-slate-500 leading-relaxed">เลือกช่วงวันที่ที่ Maker ทำรายการในระบบ</p>
+                </div>
+                <button onclick="closeCheckerExportModal()" class="modal-close" aria-label="ปิดหน้าต่างดาวน์โหลดข้อมูลดิบ">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="dp-wrap" id="checker-dp-wrap-date-from">
+                    <label class="add-label" for="checker-date-from">วันที่เริ่มต้น</label>
+                    <input id="checker-date-from" type="hidden">
+                    <button id="checker-dp-display-date-from" type="button" onclick="checkerDpOpen('dateFrom', event)" class="filter-date-display relative">
+                        <span id="checker-dp-text-date-from" class="text-slate-400">เริ่มต้น</span>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+                    </button>
+                </div>
+                <div class="dp-wrap" id="checker-dp-wrap-date-to">
+                    <label class="add-label" for="checker-date-to">วันที่สิ้นสุด</label>
+                    <input id="checker-date-to" type="hidden">
+                    <button id="checker-dp-display-date-to" type="button" onclick="checkerDpOpen('dateTo', event)" class="filter-date-display relative">
+                        <span id="checker-dp-text-date-to" class="text-slate-400">สิ้นสุด</span>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+                    </button>
+                </div>
+                <div class="dp-popup" id="checker-dp-popup">
+                    <div class="dp-header">
+                        <button class="dp-nav-btn" onclick="checkerDpNavMonth(-1)" type="button">
+                            <span class="material-symbols-outlined" style="font-size:18px">chevron_left</span>
+                        </button>
+                        <span class="dp-month-year" id="checker-dp-title" onclick="checkerDpToggleMY()"></span>
+                        <button class="dp-nav-btn" onclick="checkerDpNavMonth(1)" type="button">
+                            <span class="material-symbols-outlined" style="font-size:18px">chevron_right</span>
+                        </button>
+                    </div>
+                    <div id="checker-dp-my" class="hidden">
+                        <div class="dp-year-header">
+                            <button class="dp-nav-btn" onclick="checkerDpNavYear(-1)" type="button">
+                                <span class="material-symbols-outlined" style="font-size:18px">chevron_left</span>
+                            </button>
+                            <span id="checker-dp-year-label" class="font-bold text-sm text-slate-700"></span>
+                            <button class="dp-nav-btn" onclick="checkerDpNavYear(1)" type="button">
+                                <span class="material-symbols-outlined" style="font-size:18px">chevron_right</span>
+                            </button>
+                        </div>
+                        <div class="dp-my-grid" id="checker-dp-months"></div>
+                    </div>
+                    <div id="checker-dp-cal">
+                        <div class="dp-weekdays">
+                            <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
+                            <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                        </div>
+                        <div class="dp-days" id="checker-dp-days"></div>
+                    </div>
+                    <div class="dp-footer">
+                        <button class="dp-btn-clear" onclick="checkerDpClear()" type="button">ล้างค่า</button>
+                        <button class="dp-btn-today" onclick="checkerDpSelectToday()" type="button">วันนี้</button>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-[11px] font-semibold leading-relaxed text-indigo-500">
+                ไฟล์จะรวม New Customers, Status Changes, Judgment, Enforcement, Field Changes และ Current Snapshot
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeCheckerExportModal()" class="btn-secondary-modern">
+                ยกเลิก
+            </button>
+            <button id="checker-export-btn" onclick="handleCheckerExport()" class="btn-primary-modern">
+                <span class="material-symbols-outlined text-base">download</span>
+                Download Excel
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="raw-export-wait-modal" class="hidden fixed inset-0 z-[140] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[3px]"></div>
+    <div class="relative w-full max-w-sm rounded-[24px] border border-blue-100 bg-white p-7 text-center shadow-2xl shadow-slate-900/20">
+        <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-primary">
+            <svg class="h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+            </svg>
+        </div>
+        <h3 class="text-lg font-extrabold text-slate-800">กำลังจัดเตรียม Raw Data</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-500">ระบบกำลังรวบรวมข้อมูลดิบและสร้างไฟล์ Excel กรุณารอสักครู่</p>
+        <div class="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-[11px] font-semibold leading-relaxed text-indigo-500">
+            หน้าต่างนี้จะปิดเองเมื่อไฟล์พร้อมดาวน์โหลด
+        </div>
+    </div>
+</div>
+
+<div id="drawer-overlay" onclick="closeDrawer()" class="hidden fixed inset-0 z-[110] bg-slate-900/20 backdrop-blur-[2px]"></div>
 <aside id="filter-drawer" class="drawer-panel">
     <div class="h-full flex flex-col">
         <div class="px-6 py-5 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white">
@@ -654,6 +762,7 @@
                         </button>
                         <div id="filter-date-field-menu" class="filter-select-menu" role="listbox" aria-label="เลือกประเภทวันที่">
                             <button type="button" data-date-field="due" onclick="selectFilterDateField('due')" class="filter-select-option active" role="option">วันครบกำหนดงวดแรก</button>
+                            <button type="button" data-date-field="nextDue" onclick="selectFilterDateField('nextDue')" class="filter-select-option" role="option">วันครบกำหนดถัดไป</button>
                             <button type="button" data-date-field="filingDate" onclick="selectFilterDateField('filingDate')" class="filter-select-option" role="option">วันที่ยื่นฟ้อง</button>
                             <button type="button" data-date-field="judgmentDate" onclick="selectFilterDateField('judgmentDate')" class="filter-select-option" role="option">วันที่พิพากษา</button>
                             <button type="button" data-date-field="lastPaymentDate" onclick="selectFilterDateField('lastPaymentDate')" class="filter-select-option" role="option">วันที่ชำระล่าสุด</button>
@@ -661,8 +770,57 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <input id="filter-date-from" onchange="setDraftFilterValue('dateFrom', this.value)" class="filter-input" type="date">
-                    <input id="filter-date-to" onchange="setDraftFilterValue('dateTo', this.value)" class="filter-input" type="date">
+                    <div class="dp-wrap" id="filter-dp-wrap-date-from">
+                        <input id="filter-date-from" type="hidden">
+                        <button id="filter-dp-display-date-from" type="button" onclick="filterDpOpen('dateFrom', event)" class="filter-date-display relative">
+                            <span id="filter-dp-text-date-from" class="text-slate-400">เริ่มต้น</span>
+                            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="dp-wrap" id="filter-dp-wrap-date-to">
+                        <input id="filter-date-to" type="hidden">
+                        <button id="filter-dp-display-date-to" type="button" onclick="filterDpOpen('dateTo', event)" class="filter-date-display relative">
+                            <span id="filter-dp-text-date-to" class="text-slate-400">สิ้นสุด</span>
+                            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="dp-popup" id="filter-dp-popup">
+                        <div class="dp-header">
+                            <button class="dp-nav-btn" onclick="filterDpNavMonth(-1)" type="button">
+                                <span class="material-symbols-outlined" style="font-size:18px">chevron_left</span>
+                            </button>
+                            <span class="dp-month-year" id="filter-dp-title" onclick="filterDpToggleMY()"></span>
+                            <button class="dp-nav-btn" onclick="filterDpNavMonth(1)" type="button">
+                                <span class="material-symbols-outlined" style="font-size:18px">chevron_right</span>
+                            </button>
+                        </div>
+
+                        <div id="filter-dp-my" class="hidden">
+                            <div class="dp-year-header">
+                                <button class="dp-nav-btn" onclick="filterDpNavYear(-1)" type="button">
+                                    <span class="material-symbols-outlined" style="font-size:18px">chevron_left</span>
+                                </button>
+                                <span id="filter-dp-year-label" class="font-bold text-sm text-slate-700"></span>
+                                <button class="dp-nav-btn" onclick="filterDpNavYear(1)" type="button">
+                                    <span class="material-symbols-outlined" style="font-size:18px">chevron_right</span>
+                                </button>
+                            </div>
+                            <div class="dp-my-grid" id="filter-dp-months"></div>
+                        </div>
+
+                        <div id="filter-dp-cal">
+                            <div class="dp-weekdays">
+                                <div class="dp-weekday">อา</div><div class="dp-weekday">จ</div><div class="dp-weekday">อ</div>
+                                <div class="dp-weekday">พ</div><div class="dp-weekday">พฤ</div><div class="dp-weekday">ศ</div><div class="dp-weekday">ส</div>
+                            </div>
+                            <div class="dp-days" id="filter-dp-days"></div>
+                        </div>
+
+                        <div class="dp-footer">
+                            <button class="dp-btn-clear" onclick="filterDpClear()" type="button">ล้างค่า</button>
+                            <button class="dp-btn-today" onclick="filterDpSelectToday()" type="button">วันนี้</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -752,9 +910,9 @@
                     </label>
                     <div class="relative">
                         <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 text-[18px] pointer-events-none">article</span>
-                        <input id="add-black-case-no" class="add-input" type="text" placeholder="กรอกคดีหมายเลขดำที่" autocomplete="off">
+                        <input id="add-black-case-no" class="add-input" type="text" placeholder="เช่น ผบ1234/2567 หรือ พE325/2568" autocomplete="off">
                     </div>
-                    <p class="add-helper">รูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569</p>
+                    <p class="add-helper">รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568</p>
                     <p id="add-warn-black-case-no" class="add-warning hidden">
                         <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span>
                         <span id="add-warn-black-case-no-msg">รูปแบบคดีหมายเลขดำไม่ถูกต้อง</span>
@@ -1051,10 +1209,25 @@
     let refreshInProgress = false;
 
     const filterDateFieldLabels = {
-        due: { short: 'ครบกำหนด', full: 'วันครบกำหนดงวดแรก' },
+        due: { short: 'งวดแรก', full: 'วันครบกำหนดงวดแรก' },
+        nextDue: { short: 'ถัดไป', full: 'วันครบกำหนดถัดไป' },
         filingDate: { short: 'ยื่นฟ้อง', full: 'วันที่ยื่นฟ้อง' },
         judgmentDate: { short: 'พิพากษา', full: 'วันที่พิพากษา' },
         lastPaymentDate: { short: 'ชำระล่าสุด', full: 'วันที่ชำระล่าสุด' }
+    };
+    const FILTER_DP_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const FILTER_DP_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const FILTER_DP_STATE = {
+        activeField: 'dateFrom',
+        year: new Date().getFullYear(),
+        month: new Date().getMonth(),
+        showMY: false
+    };
+    const CHECKER_DP_STATE = {
+        activeField: 'dateFrom',
+        year: new Date().getFullYear(),
+        month: new Date().getMonth(),
+        showMY: false
     };
 
     const defaultAdvancedFilters = () => ({
@@ -1083,6 +1256,9 @@
 
         if (role === 'admin' || role === 'superadmin') {
             document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
+        }
+        if (role === 'admin') {
+            document.querySelectorAll('.checker-admin-only').forEach(el => el.style.display = 'flex');
         }
     }
 
@@ -1171,8 +1347,81 @@
     }
 
     function nextDueDate(row) {
-        const snap = row.latest_snapshot || {};
-        return row.due || row.next_due_date || snap.oldest_due || '';
+        const firstDue = parseIsoDateOnly(row.first_due_date);
+        if (!firstDue) return row.due || row.next_due_date || '';
+
+        const termCount = Number(row.installment_count || 0);
+        const today = startOfToday();
+        let term = currentScheduleTerm(row);
+        let due = addMonthsClamped(firstDue, term - 1);
+
+        if (today > due) {
+            term += 1;
+            due = addMonthsClamped(firstDue, term - 1);
+        }
+
+        if (termCount && term > termCount) return row.last_due_date || dueToIso(addMonthsClamped(firstDue, termCount - 1));
+        return dueToIso(due);
+    }
+
+    function parseIsoDateOnly(value) {
+        if (!value) return null;
+        const [y, m, d] = String(value).slice(0, 10).split('-').map(Number);
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
+    }
+
+    function startOfToday() {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    }
+
+    function dueToIso(dateValue) {
+        if (!dateValue) return '';
+        const y = dateValue.getFullYear();
+        const m = String(dateValue.getMonth() + 1).padStart(2, '0');
+        const d = String(dateValue.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function addMonthsClamped(dateValue, months) {
+        const y = dateValue.getFullYear();
+        const m = dateValue.getMonth() + months;
+        const d = dateValue.getDate();
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        return new Date(y, m, Math.min(d, lastDay));
+    }
+
+    function currentScheduleTerm(row) {
+        const firstDue = parseIsoDateOnly(row.first_due_date);
+        if (!firstDue) return 1;
+
+        const today = startOfToday();
+        if (today < firstDue) return 1;
+
+        const termCount = Number(row.installment_count || 0);
+        const diffMonths = (today.getFullYear() - firstDue.getFullYear()) * 12
+            + (today.getMonth() - firstDue.getMonth());
+        const term = Math.max(1, diffMonths + 1);
+        return termCount ? Math.min(term, termCount) : term;
+    }
+
+    function getInstallmentAmountForTerm(row, term) {
+        const installments = [
+            Number(row.installment_1 || 0),
+            Number(row.installment_2 || 0),
+            Number(row.installment_3 || 0),
+            Number(row.installment_4 || 0)
+        ].filter(amount => amount > 0);
+        if (!installments.length) return Number(row.installmentAmount || 0);
+        if (term <= 1) return installments[0];
+        if (term <= 2) return installments[1] ?? installments[0];
+        if (term <= 3) return installments[2] ?? installments[1] ?? installments[0];
+        return installments[3] ?? installments[2] ?? installments[1] ?? installments[0];
+    }
+
+    function currentInstallmentAmount(row) {
+        return getInstallmentAmountForTerm(row, currentScheduleTerm(row));
     }
 
     function dpdDays(row) {
@@ -1359,6 +1608,195 @@
         closeFilterDateFieldMenu();
     }
 
+    function filterDpInputId(field) {
+        return field === 'dateTo' ? 'filter-date-to' : 'filter-date-from';
+    }
+
+    function filterDpDisplayId(field) {
+        return field === 'dateTo' ? 'filter-dp-display-date-to' : 'filter-dp-display-date-from';
+    }
+
+    function filterDpTextId(field) {
+        return field === 'dateTo' ? 'filter-dp-text-date-to' : 'filter-dp-text-date-from';
+    }
+
+    function filterDpFormatDisplay(value, placeholder) {
+        if (!value) return placeholder;
+        const [y, m, d] = value.split('-');
+        return d && m && y ? `${d}/${m}/${y}` : placeholder;
+    }
+
+    function filterDpSyncDisplays() {
+        const fromText = document.getElementById('filter-dp-text-date-from');
+        const toText = document.getElementById('filter-dp-text-date-to');
+        if (fromText) {
+            fromText.textContent = filterDpFormatDisplay(draftAdvancedFilters.dateFrom, 'เริ่มต้น');
+            fromText.className = draftAdvancedFilters.dateFrom ? 'text-slate-700' : 'text-slate-400';
+        }
+        if (toText) {
+            toText.textContent = filterDpFormatDisplay(draftAdvancedFilters.dateTo, 'สิ้นสุด');
+            toText.className = draftAdvancedFilters.dateTo ? 'text-slate-700' : 'text-slate-400';
+        }
+    }
+
+    function filterDpOpen(field = 'dateFrom', event = null) {
+        if (event) event.stopPropagation();
+        FILTER_DP_STATE.activeField = field;
+        const value = draftAdvancedFilters[field] || '';
+        if (value) {
+            const [y, m] = value.split('-').map(Number);
+            FILTER_DP_STATE.year = y;
+            FILTER_DP_STATE.month = m - 1;
+        }
+        FILTER_DP_STATE.showMY = false;
+        filterDpRender();
+
+        const popup = document.getElementById('filter-dp-popup');
+        const display = document.getElementById(filterDpDisplayId(field));
+        if (!popup || !display) return;
+        if (popup.parentElement !== document.body) {
+            document.body.appendChild(popup);
+        }
+
+        document.querySelectorAll('#filter-dp-display-date-from, #filter-dp-display-date-to').forEach(el => el.classList.remove('open'));
+        popup.classList.add('open');
+        display.classList.add('open');
+
+        popup.style.top = '';
+        popup.style.bottom = '';
+        popup.style.left = '';
+        popup.style.width = '';
+        popup.style.maxHeight = '';
+
+        const rect = display.getBoundingClientRect();
+        const drawerRect = document.getElementById('filter-drawer')?.getBoundingClientRect();
+        const popupW = 288;
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        const spaceAbove = rect.top - 8;
+        let left = rect.left;
+        if (left + popupW > window.innerWidth - 8) left = window.innerWidth - popupW - 8;
+        if (drawerRect) {
+            const drawerPadding = 12;
+            if (left + popupW > drawerRect.right - drawerPadding) left = drawerRect.right - popupW - drawerPadding;
+            if (left < drawerRect.left + drawerPadding) left = drawerRect.left + drawerPadding;
+        }
+        if (left < 8) left = 8;
+
+        popup.style.left = left + 'px';
+        popup.style.width = popupW + 'px';
+        if (spaceBelow >= 340) {
+            popup.style.top = (rect.bottom + 6) + 'px';
+            popup.style.maxHeight = spaceBelow + 'px';
+        } else if (spaceAbove >= 340) {
+            popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+            popup.style.maxHeight = spaceAbove + 'px';
+        } else {
+            popup.style.top = '8px';
+            popup.style.maxHeight = (window.innerHeight - 16) + 'px';
+        }
+        popup.style.overflowY = 'auto';
+    }
+
+    function filterDpClose() {
+        document.getElementById('filter-dp-popup')?.classList.remove('open');
+        document.getElementById('filter-dp-display-date-from')?.classList.remove('open');
+        document.getElementById('filter-dp-display-date-to')?.classList.remove('open');
+        FILTER_DP_STATE.showMY = false;
+    }
+
+    function filterDpToggleMY() {
+        FILTER_DP_STATE.showMY = !FILTER_DP_STATE.showMY;
+        filterDpRender();
+    }
+
+    function filterDpNavMonth(delta) {
+        FILTER_DP_STATE.month += delta;
+        if (FILTER_DP_STATE.month > 11) { FILTER_DP_STATE.month = 0; FILTER_DP_STATE.year++; }
+        if (FILTER_DP_STATE.month < 0) { FILTER_DP_STATE.month = 11; FILTER_DP_STATE.year--; }
+        filterDpRender();
+    }
+
+    function filterDpNavYear(delta) {
+        FILTER_DP_STATE.year += delta;
+        filterDpRender();
+    }
+
+    function filterDpRender() {
+        const state = FILTER_DP_STATE;
+        const title = document.getElementById('filter-dp-title');
+        if (title) title.textContent = FILTER_DP_MONTHS[state.month] + ' ' + (state.year + 543);
+
+        const cal = document.getElementById('filter-dp-cal');
+        const my = document.getElementById('filter-dp-my');
+        if (state.showMY) {
+            cal?.classList.add('hidden');
+            my?.classList.remove('hidden');
+            const yearLabel = document.getElementById('filter-dp-year-label');
+            if (yearLabel) yearLabel.textContent = 'พ.ศ. ' + (state.year + 543);
+            const grid = document.getElementById('filter-dp-months');
+            if (grid) {
+                grid.innerHTML = FILTER_DP_MONTHS.map((_, idx) => {
+                    const active = idx === state.month ? ' active' : '';
+                    return `<div class="dp-my-item${active}" onclick="filterDpSelectMonth(${idx})">${FILTER_DP_SHORT_MONTHS[idx]}</div>`;
+                }).join('');
+            }
+            return;
+        }
+
+        my?.classList.add('hidden');
+        cal?.classList.remove('hidden');
+        filterDpRenderDays();
+    }
+
+    function filterDpSelectMonth(month) {
+        FILTER_DP_STATE.month = month;
+        FILTER_DP_STATE.showMY = false;
+        filterDpRender();
+    }
+
+    function filterDpRenderDays() {
+        const state = FILTER_DP_STATE;
+        const el = document.getElementById('filter-dp-days');
+        if (!el) return;
+        const today = startOfToday();
+        const first = new Date(state.year, state.month, 1);
+        const last = new Date(state.year, state.month + 1, 0);
+        const selected = draftAdvancedFilters[state.activeField] || '';
+        let html = '';
+
+        for (let i = 0; i < first.getDay(); i++) {
+            html += `<div class="dp-day dp-day-other">${new Date(state.year, state.month, -first.getDay() + i + 1).getDate()}</div>`;
+        }
+        for (let d = 1; d <= last.getDate(); d++) {
+            const date = new Date(state.year, state.month, d);
+            const str = `${state.year}-${String(state.month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            let cls = 'dp-day';
+            if (str === selected) cls += ' dp-day-selected';
+            else if (date.getTime() === today.getTime()) cls += ' dp-day-today';
+            html += `<div class="${cls}" onclick="filterDpSelectDay('${str}')">${d}</div>`;
+        }
+        const totalCells = first.getDay() + last.getDate();
+        for (let i = 1; i <= Math.max(0, 42 - totalCells); i++) html += `<div class="dp-day dp-day-other">${i}</div>`;
+        el.innerHTML = html;
+    }
+
+    function filterDpSelectDay(value) {
+        const field = FILTER_DP_STATE.activeField;
+        setDraftFilterValue(field, value);
+        filterDpClose();
+    }
+
+    function filterDpClear() {
+        setDraftFilterValue(FILTER_DP_STATE.activeField, '');
+        filterDpClose();
+    }
+
+    function filterDpSelectToday() {
+        const today = startOfToday();
+        const value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        filterDpSelectDay(value);
+    }
+
     function syncPerPageDropdown() {
         const label = document.getElementById('per-page-label');
         if (label) label.textContent = `${perPage} รายการ`;
@@ -1512,6 +1950,7 @@
         syncFilterDateFieldDropdown();
         if (dateFrom) dateFrom.value = draftAdvancedFilters.dateFrom;
         if (dateTo) dateTo.value = draftAdvancedFilters.dateTo;
+        filterDpSyncDisplays();
         if (outstandingMin) outstandingMin.value = draftAdvancedFilters.outstandingMin;
         if (outstandingMax) outstandingMax.value = draftAdvancedFilters.outstandingMax;
         const badgeEl = document.getElementById('advanced-filter-count');
@@ -1525,6 +1964,7 @@
     function applyAdvancedFilters() {
         activeAdvancedFilters = cloneAdvancedFilters(draftAdvancedFilters);
         syncAdvancedFilterUI();
+        filterDpClose();
         closeDrawer();
         loadData(1);
     }
@@ -1533,6 +1973,7 @@
         activeAdvancedFilters = defaultAdvancedFilters();
         draftAdvancedFilters = defaultAdvancedFilters();
         syncAdvancedFilterUI();
+        filterDpClose();
         loadData(1);
     }
 
@@ -1575,7 +2016,7 @@
                 : '';
             const principal = row.principal ?? row.principal_sued ?? 0;
             const snap = row.latest_snapshot || {};
-            const installmentAmount = row.installment_1 ?? row.installmentAmount ?? 0;
+            const installmentAmount = currentInstallmentAmount(row);
             return `
                 <tr class="main-row">
                     <td class="px-4 py-3 text-center">
@@ -1635,7 +2076,7 @@
                                         ${kv('วันครบกำหนดงวดแรก', fmtDate(row.first_due_date))}
                                         ${kv('วันครบกำหนดงวดสุดท้าย', fmtDate(row.last_due_date))}
                                         ${kv('จำนวนงวด', row.installment_count ? row.installment_count + ' งวด' : '-')}
-                                        ${kv('ยอดชำระต่องวด', fmtMoney(installmentAmount))}
+                                        ${kv('ยอดชำระงวดปัจจุบัน', fmtMoney(installmentAmount))}
                                         ${kv('อัตราดอกเบี้ยเมื่อผิดนัดชำระ', fmtPct(row.default_interest_rate))}
                                         ${kv('วันครบกำหนดถัดไป', fmtDate(nextDueDate(row)))}
                                     </div>
@@ -1792,6 +2233,250 @@
         }
     }
 
+    function setCheckerDefaultDates() {
+        const today = startOfToday();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const fromEl = document.getElementById('checker-date-from');
+        const toEl = document.getElementById('checker-date-to');
+        if (fromEl && !fromEl.value) fromEl.value = dueToIso(firstDay);
+        if (toEl && !toEl.value) toEl.value = dueToIso(today);
+        checkerDpSyncDisplays();
+    }
+
+    function openCheckerExportModal() {
+        setCheckerDefaultDates();
+        document.getElementById('checker-export-modal')?.classList.remove('hidden');
+    }
+
+    function closeCheckerExportModal() {
+        checkerDpClose();
+        document.getElementById('checker-export-modal')?.classList.add('hidden');
+    }
+
+    function setRawExportWaiting(show) {
+        const modal = document.getElementById('raw-export-wait-modal');
+        const btn = document.getElementById('checker-export-btn');
+        if (modal) modal.classList.toggle('hidden', !show);
+        if (btn) {
+            btn.disabled = show;
+            btn.classList.toggle('opacity-60', show);
+            btn.classList.toggle('cursor-not-allowed', show);
+        }
+    }
+
+    function checkerDpValue(field) {
+        return document.getElementById(field === 'dateTo' ? 'checker-date-to' : 'checker-date-from')?.value || '';
+    }
+
+    function checkerDpSetValue(field, value) {
+        const el = document.getElementById(field === 'dateTo' ? 'checker-date-to' : 'checker-date-from');
+        if (el) el.value = value;
+        checkerDpSyncDisplays();
+    }
+
+    function checkerDpDisplayId(field) {
+        return field === 'dateTo' ? 'checker-dp-display-date-to' : 'checker-dp-display-date-from';
+    }
+
+    function checkerDpSyncDisplays() {
+        const pairs = [
+            ['dateFrom', 'checker-dp-text-date-from', 'เริ่มต้น'],
+            ['dateTo', 'checker-dp-text-date-to', 'สิ้นสุด'],
+        ];
+        pairs.forEach(([field, id, placeholder]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = checkerDpValue(field);
+            el.textContent = filterDpFormatDisplay(value, placeholder);
+            el.className = value ? 'text-slate-700' : 'text-slate-400';
+        });
+    }
+
+    function checkerDpOpen(field = 'dateFrom', event = null) {
+        if (event) event.stopPropagation();
+        CHECKER_DP_STATE.activeField = field;
+        const value = checkerDpValue(field);
+        if (value) {
+            const [y, m] = value.split('-').map(Number);
+            CHECKER_DP_STATE.year = y;
+            CHECKER_DP_STATE.month = m - 1;
+        }
+        CHECKER_DP_STATE.showMY = false;
+        checkerDpRender();
+
+        const popup = document.getElementById('checker-dp-popup');
+        const display = document.getElementById(checkerDpDisplayId(field));
+        if (!popup || !display) return;
+        if (popup.parentElement !== document.body) document.body.appendChild(popup);
+
+        document.querySelectorAll('#checker-dp-display-date-from, #checker-dp-display-date-to').forEach(el => el.classList.remove('open'));
+        popup.classList.add('open');
+        display.classList.add('open');
+
+        const rect = display.getBoundingClientRect();
+        const popupW = 288;
+        let left = rect.left;
+        if (left + popupW > window.innerWidth - 8) left = window.innerWidth - popupW - 8;
+        if (left < 8) left = 8;
+
+        popup.style.left = left + 'px';
+        popup.style.width = popupW + 'px';
+        popup.style.top = (rect.bottom + 6) + 'px';
+        popup.style.bottom = '';
+        popup.style.maxHeight = Math.max(320, window.innerHeight - rect.bottom - 18) + 'px';
+        popup.style.overflowY = 'auto';
+    }
+
+    function checkerDpClose() {
+        document.getElementById('checker-dp-popup')?.classList.remove('open');
+        document.getElementById('checker-dp-display-date-from')?.classList.remove('open');
+        document.getElementById('checker-dp-display-date-to')?.classList.remove('open');
+        CHECKER_DP_STATE.showMY = false;
+    }
+
+    function checkerDpToggleMY() {
+        CHECKER_DP_STATE.showMY = !CHECKER_DP_STATE.showMY;
+        checkerDpRender();
+    }
+
+    function checkerDpNavMonth(delta) {
+        CHECKER_DP_STATE.month += delta;
+        if (CHECKER_DP_STATE.month > 11) { CHECKER_DP_STATE.month = 0; CHECKER_DP_STATE.year++; }
+        if (CHECKER_DP_STATE.month < 0) { CHECKER_DP_STATE.month = 11; CHECKER_DP_STATE.year--; }
+        checkerDpRender();
+    }
+
+    function checkerDpNavYear(delta) {
+        CHECKER_DP_STATE.year += delta;
+        checkerDpRender();
+    }
+
+    function checkerDpRender() {
+        const state = CHECKER_DP_STATE;
+        const title = document.getElementById('checker-dp-title');
+        if (title) title.textContent = FILTER_DP_MONTHS[state.month] + ' ' + (state.year + 543);
+
+        const cal = document.getElementById('checker-dp-cal');
+        const my = document.getElementById('checker-dp-my');
+        if (state.showMY) {
+            cal?.classList.add('hidden');
+            my?.classList.remove('hidden');
+            const yearLabel = document.getElementById('checker-dp-year-label');
+            if (yearLabel) yearLabel.textContent = 'พ.ศ. ' + (state.year + 543);
+            const grid = document.getElementById('checker-dp-months');
+            if (grid) {
+                grid.innerHTML = FILTER_DP_MONTHS.map((_, idx) => {
+                    const active = idx === state.month ? ' active' : '';
+                    return `<div class="dp-my-item${active}" onclick="checkerDpSelectMonth(${idx})">${FILTER_DP_SHORT_MONTHS[idx]}</div>`;
+                }).join('');
+            }
+            return;
+        }
+
+        my?.classList.add('hidden');
+        cal?.classList.remove('hidden');
+        checkerDpRenderDays();
+    }
+
+    function checkerDpSelectMonth(month) {
+        CHECKER_DP_STATE.month = month;
+        CHECKER_DP_STATE.showMY = false;
+        checkerDpRender();
+    }
+
+    function checkerDpRenderDays() {
+        const state = CHECKER_DP_STATE;
+        const el = document.getElementById('checker-dp-days');
+        if (!el) return;
+        const today = startOfToday();
+        const first = new Date(state.year, state.month, 1);
+        const last = new Date(state.year, state.month + 1, 0);
+        const selected = checkerDpValue(state.activeField);
+        let html = '';
+
+        for (let i = 0; i < first.getDay(); i++) html += `<div class="dp-day dp-day-other"></div>`;
+        for (let d = 1; d <= last.getDate(); d++) {
+            const date = new Date(state.year, state.month, d);
+            const str = `${state.year}-${String(state.month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            let cls = 'dp-day';
+            const isFuture = date > today;
+            if (isFuture) cls += ' dp-day-disabled';
+            else if (str === selected) cls += ' dp-day-selected';
+            else if (date.getTime() === today.getTime()) cls += ' dp-day-today';
+            html += `<div class="${cls}"${isFuture ? '' : ` onclick="checkerDpSelectDay('${str}')"`}>${d}</div>`;
+        }
+        el.innerHTML = html;
+    }
+
+    function checkerDpSelectDay(value) {
+        checkerDpSetValue(CHECKER_DP_STATE.activeField, value);
+        checkerDpClose();
+    }
+
+    function checkerDpClear() {
+        checkerDpSetValue(CHECKER_DP_STATE.activeField, '');
+        checkerDpClose();
+    }
+
+    function checkerDpSelectToday() {
+        checkerDpSelectDay(dueToIso(startOfToday()));
+    }
+
+    async function handleCheckerExport() {
+        const fromEl = document.getElementById('checker-date-from');
+        const toEl = document.getElementById('checker-date-to');
+        const btn = document.getElementById('checker-export-btn');
+        const dateFrom = fromEl?.value || '';
+        const dateTo = toEl?.value || '';
+
+        if (!dateFrom || !dateTo) {
+            alert('กรุณาเลือกช่วงวันที่สำหรับ Raw Data Export');
+            return;
+        }
+        if (dateTo < dateFrom) {
+            alert('วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น');
+            return;
+        }
+        if (dateFrom > dueToIso(startOfToday()) || dateTo > dueToIso(startOfToday())) {
+            alert('ไม่สามารถเลือกวันที่ในอนาคตได้');
+            return;
+        }
+
+        const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+        const token = getCookie('token');
+
+        try {
+            setRawExportWaiting(true);
+            const res = await fetch(`/api/customers/checker-export?${params}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'checker export failed');
+            }
+
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename="?([^"]+)"?/i);
+            const filename = match ? match[1] : `Checker_Raw_${dateFrom}_to_${dateTo}.xlsx`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            closeCheckerExportModal();
+        } catch (err) {
+            console.error(err);
+            alert('ดาวน์โหลด Checker file ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            setRawExportWaiting(false);
+        }
+    }
+
     function handleSort(field) {
         if (sortField === field) {
             sortDir = sortDir === 'asc' ? 'desc' : 'asc';
@@ -1832,6 +2517,7 @@
     }
 
     function closeDrawer() {
+        filterDpClose();
         document.getElementById('drawer-overlay').classList.add('hidden');
         document.getElementById('filter-drawer').classList.remove('open');
         closeFilterDateFieldMenu();
@@ -1996,14 +2682,14 @@
 
     function normalizeBlackCaseNo(value) {
         const raw = String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
-        const match = raw.match(/^([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))\/(25\d{2})$/);
+        const match = raw.match(/^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/);
         if (!match) return raw;
-        return `${match[1]} ${match[2] || match[3]}/${match[4]}`;
+        return `${match[1]}${match[2]}/${match[3]}`;
     }
 
     function isValidBlackCaseNo(value) {
         if (!value) return false;
-        return /^([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
+        return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
     }
 
     function formatIsoDateForReview(value) {
@@ -2044,7 +2730,7 @@
         }
 
         if (!isValidBlackCaseNo(blackCaseVal)) {
-            showAddModalError('คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            showAddModalError('คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
             return false;
         }
 
@@ -2204,7 +2890,7 @@
     document.getElementById('add-black-case-no').addEventListener('input', function() {
         const value = normalizeBlackCaseNo(this.value);
         if (!value || !isValidBlackCaseNo(value)) {
-            document.getElementById('add-warn-black-case-no-msg').textContent = 'รูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569';
+            document.getElementById('add-warn-black-case-no-msg').textContent = 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568';
             document.getElementById('add-warn-black-case-no').classList.remove('hidden');
         } else {
             this.value = value;
@@ -2489,13 +3175,18 @@
     document.addEventListener('click', event => {
         if (!event.target.closest('#per-page-dropdown')) closePerPageMenu();
         if (!event.target.closest('#filter-date-field-dropdown')) closeFilterDateFieldMenu();
+        if (!event.target.closest('#filter-dp-popup') && !event.target.closest('#filter-dp-wrap-date-from') && !event.target.closest('#filter-dp-wrap-date-to')) filterDpClose();
+        if (!event.target.closest('#checker-dp-popup') && !event.target.closest('#checker-dp-wrap-date-from') && !event.target.closest('#checker-dp-wrap-date-to')) checkerDpClose();
     });
 
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
             closePerPageMenu();
             closeFilterDateFieldMenu();
+            filterDpClose();
+            checkerDpClose();
             closeDrawer();
+            closeCheckerExportModal();
         }
     });
 

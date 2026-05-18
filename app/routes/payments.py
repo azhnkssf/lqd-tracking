@@ -7,7 +7,7 @@ from app.services.schedule_service import (
     is_single_default_judgment, build_installment_payment_allocations
 )
 from app.services.status_service import refresh_customer_status
-from app.services.customer_list_cache_service import refresh_customer_list_cache
+from app.services.customer_list_cache_service import calculate_customer_list_cache, refresh_customer_list_cache
 from app.services.judgment_service import calculate_judgment_difference, with_judgment_difference
 from datetime import date
 
@@ -121,33 +121,12 @@ def get_payments(account_no):
     payments = [dict(p) for p in payments]
 
     from datetime import date as _date
-    _first_due = cus['first_due_date']
-    if not isinstance(_first_due, _date):
-        _first_due = _date.fromisoformat(str(_first_due))
-
-    if not payments and _date.today() < _first_due:
-        computed_status = 'ยังไม่ถึงกำหนด'
-        daily_rows   = []
-        payment_rows = []
-        last_T       = float(cus['principal'])
-    elif not payments:
-        computed_status = 'ค้างชำระ'
-        daily_rows      = generate_full_daily_schedule(cus, payments)
-        payment_rows    = []
-        last_T          = float(cus['principal'])
-    else:
-        daily_rows   = generate_full_daily_schedule(cus, payments)
-        payment_rows = [r for r in daily_rows if r['is_pay_date']]
-        last_row     = daily_rows[-1] if daily_rows else None
-        last_T       = last_row['T'] if last_row else float(cus['principal'])
-        last_owed    = last_row['outstanding'] if last_row else 0.0
-
-        if round(last_T, 2) <= 0:
-            computed_status = 'ปิดบัญชี'
-        elif last_owed > 0:
-            computed_status = 'ค้างชำระ'
-        else:
-            computed_status = 'ชำระปกติ'
+    today = _date.today()
+    daily_rows = generate_full_daily_schedule(cus, payments, end_date=today)
+    payment_rows = [r for r in daily_rows if r['is_pay_date']]
+    last_row = daily_rows[-1] if daily_rows else None
+    last_T = last_row['T'] if last_row else float(cus['principal'])
+    computed_status = calculate_customer_list_cache(cus, payments, today)['ui_payment_status']
 
     plan_rows = generate_schedule(
         filing_date    = cus['filing_date'],

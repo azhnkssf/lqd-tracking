@@ -317,7 +317,7 @@
                             </div>
                             <div>
                                 <label class="form-label-styled">คดีหมายเลขดำที่ <span class="text-red-500">*</span></label>
-                                <input id="black-case-no" class="form-input-styled" type="text" placeholder="เช่น ผบ 1234/2567 หรือ ผบ E814/2569" autocomplete="off">
+                                <input id="black-case-no" class="form-input-styled" type="text" placeholder="เช่น ผบ1234/2567 หรือ พE325/2568" autocomplete="off">
                                 <p id="warn-black-case-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-black-case-no-msg">รูปแบบคดีหมายเลขดำไม่ถูกต้อง</span></p>
                             </div>
                             <div>
@@ -690,11 +690,23 @@
         return /^([A-Za-zก-ฮ]{1,8})(?:\s+([A-Za-z]?\d{1,8})|(\d{1,8}))\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
     }
 
+    function normalizeBlackCaseNo(value) {
+        const raw = String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
+        const match = raw.match(/^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/);
+        if (!match) return raw;
+        return `${match[1]}${match[2]}/${match[3]}`;
+    }
+
+    function isValidBlackCaseNo(value) {
+        if (!value) return false;
+        return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
+    }
+
     function handleBlackCaseNoInput() {
         const el = document.getElementById('black-case-no');
         const value = normalizeBlackCaseNo(el.value);
         if (!value || !isValidBlackCaseNo(value)) {
-            showFieldWarn('black-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            showFieldWarn('black-case-no', 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
         } else {
             el.value = value;
             hideFieldWarn('black-case-no');
@@ -922,7 +934,7 @@
 
         const blackCaseVal = normalizeBlackCaseNo(document.getElementById('black-case-no').value);
         if (!isValidBlackCaseNo(blackCaseVal)) {
-            showError('คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            showError('คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
             document.getElementById('black-case-no').classList.add('error');
             return false;
         }

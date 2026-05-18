@@ -1,5 +1,6 @@
 from datetime import date
 from app.database import get_db
+from app.services.closure_service import get_actual_closed_date
 from app.services.customer_list_cache_service import refresh_customer_list_cache
 from app.services.schedule_service import generate_full_daily_schedule
 from dateutil.relativedelta import relativedelta
@@ -118,15 +119,16 @@ def refresh_customer_status(account_no, db=None):
         )
 
     if new_status == 'ปิดบัญชี' and cus.get('case_status') != 'ปิดบัญชี':
+        actual_closed_date = get_actual_closed_date(cus, pays) or date.today().isoformat()
         db.execute(
             "UPDATE customers SET case_status = 'ปิดบัญชี' WHERE account_no = ?",
             (account_no,)
         )
         db.execute('''
             INSERT INTO case_status_logs
-            (account_no, from_status, to_status, changed_by, note)
-            VALUES (?, ?, 'ปิดบัญชี', NULL, 'ระบบปิดบัญชีอัตโนมัติ')
-        ''', (account_no, cus.get('case_status')))
+            (account_no, from_status, to_status, changed_by, changed_at, note)
+            VALUES (?, ?, 'ปิดบัญชี', NULL, ?, 'ระบบปิดบัญชีอัตโนมัติ')
+        ''', (account_no, cus.get('case_status'), actual_closed_date))
 
     refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()

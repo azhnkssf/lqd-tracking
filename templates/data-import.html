@@ -100,23 +100,29 @@
         stroke-linecap: round;
         stroke-dasharray: 58 170;
     }
-    .processing-bar { @apply relative h-1.5 w-full overflow-hidden rounded-full bg-blue-100; }
+    .processing-bar {
+        @apply relative h-1.5 w-full overflow-hidden rounded-full bg-blue-100;
+        transform: translateZ(0);
+    }
     .processing-bar::before {
         content: "";
         position: absolute;
         top: 0;
         bottom: 0;
-        width: 42%;
+        left: 0;
+        width: 38%;
         border-radius: 9999px;
-        background: linear-gradient(90deg, rgba(45,50,130,0.05), rgba(45,50,130,0.95), rgba(45,50,130,0.12));
-        animation: processing-slide 1.35s ease-in-out infinite;
+        background: linear-gradient(90deg, rgba(45,50,130,0), rgba(45,50,130,0.28) 22%, rgba(45,50,130,0.92) 58%, rgba(45,50,130,0));
+        box-shadow: 0 0 10px rgba(45,50,130,0.2);
+        will-change: transform;
+        animation: processing-slide 1.7s linear infinite;
     }
     @keyframes processing-spin {
         to { transform: rotate(360deg); }
     }
     @keyframes processing-slide {
-        0% { transform: translateX(-110%); }
-        100% { transform: translateX(250%); }
+        0% { transform: translate3d(-125%, 0, 0); }
+        100% { transform: translate3d(365%, 0, 0); }
     }
 </style>
 </head>

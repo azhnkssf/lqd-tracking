@@ -101,11 +101,61 @@ def normalize_red_case_no(value):
     return normalize_black_case_no(value)
 
 
+def normalize_black_case_no(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+
+    raw = re.sub(r'\s*/\s*', '/', raw)
+    raw = re.sub(r'\s+', ' ', raw)
+    match = re.fullmatch('([A-Za-z\u0E01-\u0E2E]{1,8})\\s*([A-Za-z]?\\d{1,8})/(25\\d{2})', raw)
+    if not match:
+        return None
+
+    return f'{match.group(1)}{match.group(2)}/{match.group(3)}'
+
+
+def normalize_red_case_no(value):
+    return normalize_black_case_no(value)
+
+
 def parse_float(val, default=0.0):
     try:
         return round(float(str(val).replace(',', '')), 2) if val not in (None, '') else default
     except Exception:
         return default
+
+
+def parse_required_float(val, field_label):
+    if val in (None, ''):
+        raise ValueError(f'{field_label}ว่างเปล่า')
+
+    text = str(val).replace(',', '').strip()
+    if not text:
+        raise ValueError(f'{field_label}ว่างเปล่า')
+
+    try:
+        return round(float(text), 2)
+    except Exception:
+        raise ValueError(f'{field_label}ต้องเป็นตัวเลข')
+
+
+def parse_required_int(val, field_label):
+    if val in (None, ''):
+        raise ValueError(f'{field_label}ว่างเปล่า')
+
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float) and val.is_integer():
+        return int(val)
+
+    text = str(val).replace(',', '').strip()
+    if not text:
+        raise ValueError(f'{field_label}ว่างเปล่า')
+    if not re.fullmatch(r'\d+', text):
+        raise ValueError(f'{field_label}ต้องเป็นจำนวนเต็ม')
+
+    return int(text)
 
 
 def parse_required_money(val):
@@ -182,7 +232,7 @@ def download_customer_template():
         'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *',
         'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม (ไม่เกิน 100 ตัวอักษร)'
     ]
-    example = ['700004761131', 'มานิตย์ บุญรอด', 'ผบ E814/2569', '2026-03-12', 250000, '2026-02-10', 30, '']
+    example = ['700004761131', 'มานิตย์ บุญรอด', 'ผบE814/2569', '2026-03-12', 250000, '2026-02-10', 30, '']
 
     ws.append(keys)
     ws.append(labels)
@@ -289,7 +339,7 @@ def download_judgment_template():
         'ดอกเบี้ยเมื่อผิดนัด (%)', 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม (ไม่เกิน 100 ตัวอักษร)',
     ]
     example = [
-        '700004761131', 'พิพากษาตามยอม', 'ผบ 1234/2567', '2026-02-18', 190000, 190000,
+        '700004761131', 'พิพากษาตามยอม', 'ผบ1234/2567', '2026-02-18', 190000, 190000,
         0, 3000, 2000, 24, '2026-03-18',
         8500, 0, 0, 0, 15, '',
     ]
@@ -430,7 +480,7 @@ def import_customers():
                 'row': row_idx,
                 'account_no': account_no,
                 'status': 'error',
-                'message': 'คดีหมายเลขดำที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569'
+                'message': 'คดีหมายเลขดำที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568'
             })
             error += 1
             continue
@@ -669,7 +719,7 @@ def import_judgment():
         try:
             red_case_no = normalize_red_case_no(row[2] if len(row) > 2 else None)
             if not red_case_no:
-                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569')
+                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568')
 
             judgment_date_raw  = row[3]
             first_due_date_raw = row[10]
@@ -689,17 +739,17 @@ def import_judgment():
                 first_due_date,
             )
 
-            total_debt     = parse_float(row[4])
-            principal      = parse_float(row[5])
-            interest_rate  = parse_float(str(row[6] or '').replace('%', '').strip())
+            total_debt     = parse_required_float(row[4], 'ยอดหนี้รวม')
+            principal      = parse_required_float(row[5], 'เงินต้น')
+            interest_rate  = parse_required_float(str(row[6]).replace('%', '').strip() if row[6] not in (None, '') else row[6], 'ดอกเบี้ย')
             court_fee      = parse_float(row[7])
             lawyer_fee     = parse_float(row[8])
-            inst_count     = parse_int(row[9])
-            inst1          = parse_float(row[11])
+            inst_count     = parse_required_int(row[9], 'จำนวนงวด')
+            inst1          = parse_required_float(row[11], 'ค่างวด 1')
             inst2          = parse_float(row[12])
             inst3          = parse_float(row[13])
             inst4          = parse_float(row[14])
-            default_rate   = parse_float(str(row[15] or '').replace('%', '').strip())
+            default_rate   = parse_required_float(str(row[15]).replace('%', '').strip() if row[15] not in (None, '') else row[15], 'ดอกเบี้ยผิดนัด')
             judgment_note  = str(row[16]).strip() if len(row) > 16 and row[16] not in (None, '') else ''
             if len(judgment_note) > 100:
                 raise ValueError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร')

@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from dateutil.relativedelta import relativedelta
+from app.services.closure_service import get_actual_closed_date
 from app.services.schedule_service import generate_full_daily_schedule, get_due_date
 
 
@@ -29,6 +30,8 @@ CASE_STATUS_REPORT_MAP = {
     'พิพากษาตามยอม'   : '31',
     'ปิดบัญชี'         : '11',
 }
+
+RETROACTIVE_ENFORCEMENT_REASON_CODE = 'RETROACTIVE_ENFORCEMENT_REPORT_FIX'
 
 
 def _get_report_group(cus, snap):
@@ -195,7 +198,27 @@ def _same_month(d1, d2):
     return d1.year == d2.year and d1.month == d2.month
 
 
-def _get_case_effective_date(cus):
+def _month_key(val):
+    d = _parse_report_date(val)
+    return d.strftime('%Y-%m') if d else None
+
+
+def _month_label(month_key):
+    if not month_key or '-' not in str(month_key):
+        return month_key or ''
+    year, month = str(month_key).split('-', 1)
+    return f'{month}/{year}'
+
+
+def _is_before_month(d1, d2):
+    d1 = _parse_report_date(d1)
+    d2 = _parse_report_date(d2)
+    if not d1 or not d2:
+        return False
+    return (d1.year, d1.month) < (d2.year, d2.month)
+
+
+def _get_case_effective_date(cus, payments=None):
     """
     วันที่ที่เคสควรถูกนับเข้า report ตามสถานะปัจจุบัน
     ใช้เพื่อกันข้อมูลที่เกิดหลัง As of Report Date ไม่ให้ย้อนมาออกในรายงานเดือนก่อน
@@ -220,17 +243,107 @@ def _get_case_effective_date(cus):
     if case_status == 'พิพากษาตามยอม':
         return _parse_report_date(cus.get('judgment_date')) or _parse_report_date(cus.get('filing_date'))
 
+    if case_status == 'ปิดบัญชี':
+        return _parse_report_date(_get_closed_date(cus, payments))
+
     return _parse_report_date(cus.get('filing_date'))
 
 
-def _is_customer_effective_after_report(cus, report_date_str):
-    effective_date = _get_case_effective_date(cus)
+def _get_retroactive_mark(db, account_no, affected_report_month, reason_code=RETROACTIVE_ENFORCEMENT_REASON_CODE):
+    if not db or not account_no or not affected_report_month:
+        return None
+    try:
+        row = db.execute('''
+            SELECT m.*, u.display_name AS marked_by_name
+            FROM report_retroactive_fix_marks m
+            LEFT JOIN users u ON u.id = m.marked_by
+            WHERE m.account_no = ?
+              AND m.affected_report_month = ?
+              AND m.reason_code = ?
+            LIMIT 1
+        ''', (account_no, affected_report_month, reason_code)).fetchone()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, include_marked=True):
+    """
+    ตรวจเคสบังคับคดีที่มาจากพิพากษาตามยอม และวันที่ของหมายอยู่เดือนก่อนหน้า
+    เพื่อเตือนว่ารายงานเดือนเก่าอาจต้องถูกแก้จาก 31 เป็น 30
+    """
+    if not cus:
+        return None
+
+    if db and not cus.get('_has_consent_to_enforcement_log'):
+        cus = _attach_case_status_log_context(cus, db)
+
+    if not _is_consent_enforcement_case(cus):
+        return None
+
+    effective_date = (
+        _parse_report_date(cus.get('enforcement_judgment_date')) or
+        _parse_report_date(cus.get('enforcement_received_date')) or
+        _parse_report_date(cus.get('enforcement_date'))
+    )
+    if not effective_date:
+        return None
+
+    reference_date = _parse_report_date(report_date_str)
+    if not reference_date:
+        reference_date = _parse_report_date(cus.get('enforcement_recorded_at')) or date.today()
+
+    if not _is_before_month(effective_date, reference_date):
+        return None
+
+    affected_report_month = _month_key(effective_date)
+    source_report_month = _month_key(reference_date)
+    mark = _get_retroactive_mark(db, cus.get('account_no'), affected_report_month)
+    if mark and not include_marked:
+        return None
+
+    affected_label = _month_label(affected_report_month)
+    source_label = _month_label(source_report_month)
+    message = (
+        f'วันที่ของหมายบังคับคดีอยู่ในเดือน {affected_label} '
+        f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+    )
+    if source_label and source_label != affected_label:
+        message = (
+            f'วันที่ของหมายบังคับคดีอยู่ในเดือน {affected_label} '
+            f'แต่กำลังตรวจรายงานเดือน {source_label} '
+            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        )
+
+    return {
+        'account_no'            : cus.get('account_no'),
+        'name'                  : cus.get('name'),
+        'case_status'           : cus.get('case_status'),
+        'from_status'           : 'พิพากษาตามยอม',
+        'effective_date'        : effective_date.isoformat(),
+        'enforcement_date'      : effective_date.isoformat(),
+        'affected_report_month' : affected_report_month,
+        'affected_month_label'  : affected_label,
+        'source_report_month'   : source_report_month,
+        'source_month_label'    : source_label,
+        'reason_code'           : RETROACTIVE_ENFORCEMENT_REASON_CODE,
+        'reason'                : message,
+        'marked'                : bool(mark),
+        'marked_at'             : mark.get('marked_at') if mark else None,
+        'marked_by'             : mark.get('marked_by') if mark else None,
+        'marked_by_name'        : mark.get('marked_by_name') if mark else None,
+        'note'                  : mark.get('note') if mark else None,
+    }
+
+
+def _is_customer_effective_after_report(cus, report_date_str, payments=None):
+    effective_date = _get_case_effective_date(cus, payments)
     report_date = _parse_report_date(report_date_str)
     return bool(effective_date and report_date and effective_date > report_date)
 
 
-def _future_effective_reason(cus, report_date_str):
-    effective_date = _get_case_effective_date(cus)
+def _future_effective_reason(cus, report_date_str, payments=None):
+    effective_date = _get_case_effective_date(cus, payments)
     report_date = _parse_report_date(report_date_str)
     if not effective_date or not report_date or effective_date <= report_date:
         return None
@@ -265,7 +378,7 @@ def _future_effective_reason(cus, report_date_str):
     return code, text, effective_date.isoformat()
 
 
-def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, effective_date=None):
+def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, effective_date=None, payments=None):
     return {
         'account_no'     : cus.get('account_no'),
         'name'           : cus.get('name'),
@@ -277,7 +390,7 @@ def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, eff
             cus.get('enforcement_received_date') or
             cus.get('enforcement_date')
         ),
-        'closed_date'    : _get_closed_date(cus),
+        'closed_date'    : _get_closed_date(cus, payments),
         'effective_date' : effective_date,
         'report_date'    : report_date_str,
         'reason_code'    : reason_code,
@@ -340,11 +453,15 @@ def _extract_date_from_log(log):
     return _parse_report_date(log.get('changed_at'))
 
 
-def _get_closed_date(cus):
+def _get_closed_date(cus, payments=None):
     """
-    วันที่ปิดบัญชี = วันที่สถานะเปลี่ยนจากสถานะใด ๆ ไปเป็น ปิดบัญชี
-    แหล่งหลักคือ case_status_logs.changed_at
+    วันที่ปิดบัญชี = วันที่จ่ายเงินแล้วปิดบัญชีจริง
+    ใช้ payment/schedule ก่อน เพื่อไม่ให้วันที่ import/refresh status กลายเป็นวันที่ปิดบัญชี
     """
+    actual_closed_date = get_actual_closed_date(cus, payments or [])
+    if actual_closed_date:
+        return actual_closed_date
+
     closed_date = cus.get('_closed_date')
     if closed_date:
         return closed_date.isoformat()
@@ -427,15 +544,14 @@ def _build_enforcement_remark(cus, snap, report_date_str):
     if not effective_date or not report_date or not _same_month(effective_date, report_date):
         return ''
 
-    default_date = snap.get('default_date') if snap else None
-    default_yyyymmdd = _fmt_date_yyyymmdd(default_date)
-    if not default_yyyymmdd:
+    enforcement_yyyymmdd = _fmt_date_yyyymmdd(effective_date)
+    if not enforcement_yyyymmdd:
         return ''
 
-    default_date_text = f'{default_yyyymmdd[:4]}-{default_yyyymmdd[4:6]}-{default_yyyymmdd[6:8]}'
-    default_month_text = f'{default_yyyymmdd[:4]}-{default_yyyymmdd[4:6]}'
+    enforcement_date_text = f'{enforcement_yyyymmdd[:4]}-{enforcement_yyyymmdd[4:6]}-{enforcement_yyyymmdd[6:8]}'
+    enforcement_month_text = f'{enforcement_yyyymmdd[:4]}-{enforcement_yyyymmdd[4:6]}'
 
-    return f'เคสนี้ผิดนัดตั้งแต่วันที่ {default_date_text} ต้องกลับไปแก้รายงานตั้งแต่ {default_month_text} มาด้วย'
+    return f'บัญชีนี้วันที่ของหมายบังคับคดีเป็น {enforcement_date_text} ต้องตรวจสอบแก้ไขรายงานย้อนหลังตั้งแต่เดือน {enforcement_month_text} เป็นต้นมา'
 
 def get_snapshot_at_date(cus, payments, report_date):
     """
@@ -529,6 +645,8 @@ def get_snapshot_at_date(cus, payments, report_date):
 
         'default_date'       : default_date,
         'default_amount'     : default_amount,
+        'oldest_due'         : oldest_due_str,
+        'oldest_due_amount'  : target_row.get('oldest_due_amount', 0),
         'dpd_days'           : target_row.get('dpd_days', 0),
         'dpd_months'         : dpd_months,
         'ncb_days'           : target_row.get('ncb_days', '31'),
@@ -613,11 +731,19 @@ def process_registry_file(ws, db, report_date_str):
 
         # Block เคสที่สถานะ/วันที่สำคัญเกิดหลัง As of Report Date
         # เช่น กรอกเคสยื่นฟ้องเดือนเมษายน แต่ขอ report สิ้นเดือนมีนาคม
-        if cus and _is_customer_effective_after_report(cus, report_date_str):
-            reason = _future_effective_reason(cus, report_date_str)
+        effective_payments = None
+        if cus and (cus.get('case_status') or '').strip() == 'ปิดบัญชี':
+            effective_payments = db.execute(
+                'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+                (account_no,)
+            ).fetchall()
+            effective_payments = [dict(p) for p in effective_payments]
+
+        if cus and _is_customer_effective_after_report(cus, report_date_str, effective_payments):
+            reason = _future_effective_reason(cus, report_date_str, effective_payments)
             if reason:
                 not_generated.append(_build_not_generated_row(
-                    cus, reason[0], reason[1], report_date_str, reason[2]
+                    cus, reason[0], reason[1], report_date_str, reason[2], effective_payments
                 ))
             continue
 
@@ -654,11 +780,13 @@ def process_registry_file(ws, db, report_date_str):
         # ============================================================
         # มีใน DB — คำนวณ snapshot แล้วจัดกลุ่มตาม case_status
         # ============================================================
-        payments = db.execute(
-            'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
-            (account_no,)
-        ).fetchall()
-        payments = [dict(p) for p in payments]
+        payments = effective_payments
+        if payments is None:
+            payments = db.execute(
+                'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+                (account_no,)
+            ).fetchall()
+            payments = [dict(p) for p in payments]
 
         snap = get_report30_snapshot_at_date(cus, payments, report_date_str)
         if not snap:
@@ -673,7 +801,7 @@ def process_registry_file(ws, db, report_date_str):
         group = _get_report_group(cus, snap)
 
         if group == '11':
-            report_11.append(_build_report11_row(account_no, cus))
+            report_11.append(_build_report11_row(account_no, cus, payments))
 
         elif group == '30':
             report_30.append(_build_report30_row_from_db(
@@ -926,11 +1054,11 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
         'remark'             : '',
     }
     
-def _build_report11_row(account_no, cus):
+def _build_report11_row(account_no, cus, payments=None):
     """สร้าง row Status 11 (ปิดบัญชี)"""
     return {
         'account_no'   : account_no,
-        'closed_date'  : _get_closed_date(cus),
+        'closed_date'  : _get_closed_date(cus, payments),
         'ncb_status'   : '11',
         'status_label' : 'ปิดบัญชี',
     }

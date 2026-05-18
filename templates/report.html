@@ -182,7 +182,7 @@ tailwind.config = {
 
 <!-- (Toast Modal, Navbar, Sidebar ยังคงเดิมเหมือนโค้ดต้นฉบับ) -->
 <div id="toast-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onclick="closeToast()"></div>
+    <div id="toast-backdrop" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onclick="closeToast()"></div>
     <div class="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
         <div class="p-6 flex flex-col items-center text-center">
             <div id="toast-icon-wrap" class="w-14 h-14 rounded-full flex items-center justify-center mb-4">
@@ -191,7 +191,7 @@ tailwind.config = {
             <h3 id="toast-title" class="text-base font-bold text-slate-800 mb-1"></h3>
             <p id="toast-message" class="text-sm text-slate-500 leading-relaxed"></p>
         </div>
-        <div class="px-6 pb-5">
+        <div id="toast-actions" class="px-6 pb-5">
             <button onclick="closeToast()" class="w-full py-2.5 bg-primary hover:bg-primary-muted text-white font-bold rounded-xl transition-all text-sm">ตกลง</button>
         </div>
     </div>
@@ -401,6 +401,8 @@ tailwind.config = {
                             <span class="w-2 h-2 rounded-full bg-primary"></span>Report 31</button>
                         <button onclick="switchTab('11')" id="tab-11" class="tab-btn tab-inactive">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>Status 11</button>
+                        <button onclick="switchTab('retro')" id="tab-retro" class="tab-btn tab-inactive">
+                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>แจ้งเตือนย้อนหลัง</button>
                         <button onclick="switchTab('skipped')" id="tab-skipped" class="tab-btn tab-inactive">
                             <span class="w-2 h-2 rounded-full bg-slate-400"></span>Not Generated</button>
                     </div>
@@ -480,6 +482,8 @@ tailwind.config = {
     // ============================================================
     // Toast
     // ============================================================
+    let toastClosable = true;
+
     function showToast(type, title, message) {
         const map = {
             success: { bg:'bg-emerald-50', color:'text-emerald-500', icon:'check_circle' },
@@ -495,9 +499,28 @@ tailwind.config = {
         icon.textContent = cfg.icon;
         document.getElementById('toast-title').textContent   = title;
         document.getElementById('toast-message').textContent = message;
+        document.getElementById('toast-actions').classList.remove('hidden');
+        toastClosable = true;
         document.getElementById('toast-modal').classList.remove('hidden');
     }
-    function closeToast() { document.getElementById('toast-modal').classList.add('hidden'); }
+
+    function showProcessingModal(title, message) {
+        toastClosable = false;
+        document.getElementById('toast-icon-wrap').className = 'w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-blue-50';
+        const icon = document.getElementById('toast-icon');
+        icon.className = 'material-symbols-outlined text-3xl text-blue-500 animate-spin';
+        icon.style.fontVariationSettings = '"FILL" 1';
+        icon.textContent = 'progress_activity';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-message').textContent = message;
+        document.getElementById('toast-actions').classList.add('hidden');
+        document.getElementById('toast-modal').classList.remove('hidden');
+    }
+
+    function closeToast() {
+        if (!toastClosable) return;
+        document.getElementById('toast-modal').classList.add('hidden');
+    }
 
     // ============================================================
     // Date Picker
@@ -689,7 +712,7 @@ tailwind.config = {
     async function generateReportDB() {
         const btn = document.getElementById('btn-generate-report');
         btn.disabled = true;
-        btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังประมวลผล...';
+        showProcessingModal('กำลังประมวลผลรายงาน', 'ระบบกำลังสร้างรายงาน กรุณารอจนกว่าจะดำเนินการเสร็จ');
 
         try {
             const res = await fetch('/api/report/generate-db', {
@@ -709,11 +732,11 @@ tailwind.config = {
             reportData = data;
             showResults(data);
             loadHistory();
+            showToast('success', 'ประมวลผลสำเร็จ', 'สร้างรายงานเรียบร้อยแล้ว');
         } catch(e) {
             showToast('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined text-xl" style=\'font-variation-settings:"FILL" 1\'>analytics</span>ประมวลผลรายงาน';
             updateGenerateBtn();
         }
     }
@@ -746,6 +769,7 @@ tailwind.config = {
         if (data.summary.report_30 > 0)      switchTab('30');
         else if (data.summary.report_31 > 0) switchTab('31');
         else if ((data.summary.report_11 || 0) > 0) switchTab('11');
+        else if ((data.retroactive_alerts || []).length > 0) switchTab('retro');
         else if ((data.not_generated || []).length > 0) switchTab('skipped');
         else switchTab('30');
 
@@ -779,7 +803,7 @@ tailwind.config = {
     function switchTab(tab) {
         activeTab = tab;
         // ปรับ ID Tag ให้ตรงกับ HTML ใหม่
-        ['30','31','11','skipped'].forEach(t => {
+        ['30','31','11','retro','skipped'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if(el) {
                 el.classList.toggle('tab-active', t === tab);
@@ -791,6 +815,7 @@ tailwind.config = {
 
     function updateResultTabs(data) {
         const tabRules = {
+            retro: (data.retroactive_alerts || []).length > 0,
             skipped: (data.not_generated || []).length > 0,
         };
 
@@ -857,6 +882,20 @@ tailwind.config = {
                 <td class="text-slate-600">${safeHtml(r.status_label || 'ปิดบัญชี')}</td>
                 </tr>`).join('');
 
+        } else if (tab === 'retro') {
+            renderHeader(['เลขที่บัญชี','ชื่อลูกค้า','วันที่ของหมาย','เดือนที่ต้องตรวจสอบ','เดือนรายงาน','สถานะ','เหตุผล']);
+            const rows = reportData.retroactive_alerts || [];
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-300">ไม่มีรายการแจ้งเตือนย้อนหลัง</td></tr>`; return; }
+            body.innerHTML = rows.map(r => `<tr>
+                <td><span class="font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span></td>
+                <td>${safeHtml(r.name || '-')}</td>
+                <td class="text-slate-400">${fmtDate(r.effective_date || r.enforcement_date)}</td>
+                <td><span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">${safeHtml(r.affected_month_label || r.affected_report_month || '-')}</span></td>
+                <td class="text-slate-500">${safeHtml(r.source_month_label || r.source_report_month || '-')}</td>
+                <td>${r.marked ? '<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">แก้แล้ว</span>' : '<span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">รอยืนยัน</span>'}</td>
+                <td class="text-amber-700 whitespace-normal min-w-[280px]">${safeHtml(r.reason || '-')}</td>
+                </tr>`).join('');
+
         } else if (tab === 'skipped') {
             renderHeader(['เลขที่บัญชี','ชื่อลูกค้า','สถานะปัจจุบัน','วันที่มีผล','Report Date','Reason Code','เหตุผล']);
             const rows = reportData.not_generated || [];
@@ -875,7 +914,7 @@ tailwind.config = {
 
     async function exportReport() {
         if (!reportData) { showToast('warning', 'ยังไม่มีข้อมูล', 'กรุณา Generate Report ก่อน Export'); return; }
-        showToast('info', 'กำลัง Export', 'ระบบกำลังสร้างไฟล์ Excel...');
+        showProcessingModal('กำลัง Export', 'ระบบกำลังสร้างไฟล์ Excel กรุณารอจนกว่าจะดาวน์โหลดเสร็จ');
 
         try {
             const payload = {
@@ -884,6 +923,7 @@ tailwind.config = {
                 report_31: reportData.report_31 || [],
                 report_11: reportData.report_11 || [],
                 alerts: reportData.alerts || [],
+                retroactive_alerts: reportData.retroactive_alerts || [],
                 missing_db: reportData.missing_db || [],
                 not_generated: reportData.not_generated || [],
             };

@@ -2,12 +2,17 @@ import json
 import io
 import re
 import openpyxl
-from datetime import date
+from datetime import date, datetime, timedelta
+from openpyxl.styles import PatternFill, Font, Alignment
 from flask import Blueprint, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
-from app.services.report_service import get_snapshot_at_date
+from app.services.report_service import (
+    RETROACTIVE_ENFORCEMENT_REASON_CODE,
+    build_retroactive_enforcement_alert,
+    get_snapshot_at_date,
+)
 from app.services.customer_list_cache_service import (
     refresh_all_customer_list_cache,
     refresh_customer_list_cache,
@@ -38,6 +43,10 @@ def _can_edit_customer_detail(user, case_status):
     return user['role'] == 'admin'
 
 
+def _can_record_enforcement_role(user):
+    return bool(user and user['role'] in ('user', 'admin'))
+
+
 def _log_case_status(db, account_no, from_status, to_status, changed_by, note=''):
     db.execute('''
         INSERT INTO case_status_logs
@@ -62,6 +71,82 @@ def _parse_iso_date(value):
         return date.fromisoformat(str(value)[:10])
     except Exception:
         return None
+
+
+def _parse_checker_date_arg(name, default_value):
+    value = request.args.get(name, '').strip()
+    parsed = _parse_iso_date(value)
+    return parsed or default_value
+
+
+def _checker_user_name(row, prefix=''):
+    display_name = row.get(f'{prefix}display_name') if prefix else row.get('display_name')
+    username = row.get(f'{prefix}username') if prefix else row.get('username')
+    return display_name or username or ''
+
+
+def _checker_autofit(ws):
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or '')) for cell in col), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 3, 12), 55)
+
+
+def _checker_style_sheet(ws):
+    header_fill = PatternFill(start_color='1E1B4B', end_color='1E1B4B', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True)
+    header_alignment = Alignment(horizontal='center', vertical='center')
+    body_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = body_alignment
+
+    ws.freeze_panes = 'A2'
+    _checker_autofit(ws)
+
+
+def _checker_add_sheet(wb, title, headers, rows):
+    ws = wb.create_sheet(title)
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+    _checker_style_sheet(ws)
+    return ws
+
+
+def _checker_money(value):
+    if value is None or value == '':
+        return ''
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def _checker_json_changes(value):
+    try:
+        data = json.loads(value or '{}')
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    rows = []
+    for field, change in data.items():
+        if isinstance(change, dict):
+            rows.append((
+                field,
+                change.get('label') or field,
+                change.get('from'),
+                change.get('to'),
+            ))
+        else:
+            rows.append((field, field, '', change))
+    return rows
 
 
 def _validate_judgment_timeline(filing_date, judgment_type, judgment_date, first_due_date):
@@ -101,6 +186,24 @@ def _normalize_black_case_no(value):
     case_no = match.group(2) or match.group(3)
     year = match.group(4)
     return f'{case_type} {case_no}/{year}'
+
+
+def _normalize_red_case_no(value):
+    return _normalize_black_case_no(value)
+
+
+def _normalize_black_case_no(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+
+    raw = re.sub(r'\s*/\s*', '/', raw)
+    raw = re.sub(r'\s+', ' ', raw)
+    match = re.fullmatch('([A-Za-z\u0E01-\u0E2E]{1,8})\\s*([A-Za-z]?\\d{1,8})/(25\\d{2})', raw)
+    if not match:
+        return None
+
+    return f'{match.group(1)}{match.group(2)}/{match.group(3)}'
 
 
 def _normalize_red_case_no(value):
@@ -355,7 +458,7 @@ def list_customers():
     sort_by     = request.args.get('sort_by', '').strip()
     sort_dir    = request.args.get('sort_dir', 'desc').strip().lower()
     offset      = (page - 1) * per_page
-    allowed_date_fields = {'due', 'filingDate', 'judgmentDate', 'lastPaymentDate'}
+    allowed_date_fields = {'due', 'nextDue', 'filingDate', 'judgmentDate', 'lastPaymentDate'}
     if date_field not in allowed_date_fields:
         date_field = 'due'
 
@@ -391,7 +494,8 @@ def list_customers():
             params.append(outstanding_max)
 
     sql_date_columns = {
-        'due': 'ui_next_due_date',
+        'due': 'first_due_date',
+        'nextDue': 'ui_next_due_date',
         'filingDate': 'filing_date',
         'judgmentDate': 'judgment_date',
     }
@@ -471,6 +575,238 @@ def list_customers():
     }), 200
 
 
+@bp.route('/checker-export', methods=['GET'])
+def export_checker_raw():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user['role'] != 'admin':
+        return jsonify({'error': 'Forbidden'}), 403
+
+    today = date.today()
+    default_from = today.replace(day=1)
+    date_from = _parse_checker_date_arg('date_from', default_from)
+    date_to = _parse_checker_date_arg('date_to', today)
+    if date_to < date_from:
+        return jsonify({'error': 'date_to must be after date_from'}), 400
+    if date_from > today or date_to > today:
+        return jsonify({'error': 'future dates are not allowed'}), 400
+
+    start_at = datetime.combine(date_from, datetime.min.time()).isoformat(sep=' ')
+    end_at = datetime.combine(date_to + timedelta(days=1), datetime.min.time()).isoformat(sep=' ')
+
+    db = get_db()
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    customer_cols = [
+        'account_no', 'name', 'case_status', 'status',
+        'black_case_no', 'red_case_no',
+        'filing_date', 'filing_capital', 'default_date', 'pre_filing_dpd_days',
+        'judgment_date', 'total_debt', 'principal', 'judgment_difference',
+        'interest_rate', 'court_fee', 'lawyer_fee',
+        'installment_count', 'first_due_date', 'last_due_date',
+        'installment_1', 'installment_2', 'installment_3', 'installment_4',
+        'enforcement_order_no', 'enforcement_judgment_date',
+        'enforcement_received_date', 'enforcement_recorded_at',
+        'created_at', 'updated_at',
+    ]
+    money_cols = {
+        'filing_capital', 'total_debt', 'principal', 'judgment_difference',
+        'interest_rate', 'court_fee', 'lawyer_fee', 'installment_1',
+        'installment_2', 'installment_3', 'installment_4',
+    }
+    customer_value = lambda row, col: _checker_money(row.get(col)) if col in money_cols else row.get(col)
+
+    new_customers = [dict(r) for r in db.execute(f'''
+        SELECT c.*, u.display_name, u.username
+        FROM customers c
+        LEFT JOIN users u ON u.id = c.created_by
+        WHERE c.created_at >= ? AND c.created_at < ?
+        ORDER BY c.created_at ASC, c.id ASC
+    ''', (start_at, end_at)).fetchall()]
+
+    status_logs = [dict(r) for r in db.execute('''
+        SELECT csl.*, c.name, c.black_case_no, c.red_case_no,
+               u.display_name, u.username
+        FROM case_status_logs csl
+        LEFT JOIN customers c ON c.account_no = csl.account_no
+        LEFT JOIN users u ON u.id = csl.changed_by
+        WHERE csl.changed_at >= ? AND csl.changed_at < ?
+        ORDER BY csl.changed_at ASC, csl.id ASC
+    ''', (start_at, end_at)).fetchall()]
+
+    edits = [dict(r) for r in db.execute('''
+        SELECT ce.*, c.name, c.case_status, u.display_name, u.username
+        FROM customer_edits ce
+        LEFT JOIN customers c ON c.account_no = ce.account_no
+        LEFT JOIN users u ON u.id = ce.edited_by
+        WHERE ce.edited_at >= ? AND ce.edited_at < ?
+        ORDER BY ce.edited_at ASC, ce.id ASC
+    ''', (start_at, end_at)).fetchall()]
+
+    deleted_customers = [dict(r) for r in db.execute(f'''
+        SELECT c.*, u.display_name, u.username
+        FROM customers c
+        LEFT JOIN users u ON u.id = c.created_by
+        WHERE c.deleted_at >= ? AND c.deleted_at < ?
+        ORDER BY c.deleted_at ASC, c.id ASC
+    ''', (start_at, end_at)).fetchall()]
+
+    touched_accounts = sorted({
+        *(r.get('account_no') for r in new_customers),
+        *(r.get('account_no') for r in status_logs),
+        *(r.get('account_no') for r in edits),
+        *(r.get('account_no') for r in deleted_customers),
+    } - {None, ''})
+
+    current_rows = []
+    if touched_accounts:
+        placeholders = ','.join(['?'] * len(touched_accounts))
+        current_rows = [dict(r) for r in db.execute(f'''
+            SELECT c.*, creator.display_name AS creator_display_name, creator.username AS creator_username,
+                   enf.display_name AS enforcement_display_name, enf.username AS enforcement_username
+            FROM customers c
+            LEFT JOIN users creator ON creator.id = c.created_by
+            LEFT JOIN users enf ON enf.id = c.enforcement_recorded_by
+            WHERE c.account_no IN ({placeholders})
+            ORDER BY c.account_no ASC
+        ''', touched_accounts).fetchall()]
+
+    judgment_statuses = {'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว'}
+    judgment_logs = [r for r in status_logs if r.get('to_status') in judgment_statuses]
+    enforcement_logs = [r for r in status_logs if r.get('to_status') == 'บังคับคดี']
+    judgment_rows = [dict(r) for r in db.execute('''
+        SELECT csl.changed_at, csl.to_status, csl.note, csl.account_no,
+               c.name, c.judgment_date, c.red_case_no, c.total_debt, c.principal,
+               c.first_due_date, c.installment_count,
+               u.display_name, u.username
+        FROM case_status_logs csl
+        LEFT JOIN customers c ON c.account_no = csl.account_no
+        LEFT JOIN users u ON u.id = csl.changed_by
+        WHERE csl.changed_at >= ? AND csl.changed_at < ?
+          AND csl.to_status IN (?, ?)
+        ORDER BY csl.changed_at ASC, csl.id ASC
+    ''', (start_at, end_at, 'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว')).fetchall()]
+    enforcement_rows = [dict(r) for r in db.execute('''
+        SELECT csl.changed_at, csl.from_status, csl.to_status, csl.note, csl.account_no,
+               c.name, c.enforcement_order_no, c.enforcement_judgment_date,
+               c.enforcement_received_date, u.display_name, u.username
+        FROM case_status_logs csl
+        LEFT JOIN customers c ON c.account_no = csl.account_no
+        LEFT JOIN users u ON u.id = csl.changed_by
+        WHERE csl.changed_at >= ? AND csl.changed_at < ?
+          AND csl.to_status = ?
+        ORDER BY csl.changed_at ASC, csl.id ASC
+    ''', (start_at, end_at, 'บังคับคดี')).fetchall()]
+
+    summary_rows = [
+        ['Date From', date_from.isoformat()],
+        ['Date To', date_to.isoformat()],
+        ['Exported At', datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+        ['Exported By', _checker_user_name(dict(user))],
+        ['New Customers', len(new_customers)],
+        ['Status Changes', len(status_logs)],
+        ['Judgment Recorded', len(judgment_logs)],
+        ['Enforcement Recorded', len(enforcement_logs)],
+        ['Field Changes', sum(len(_checker_json_changes(r.get('changes'))) for r in edits)],
+        ['Deleted Customers', len(deleted_customers)],
+        ['Touched Accounts', len(touched_accounts)],
+    ]
+    _checker_add_sheet(wb, 'Summary', ['Metric', 'Value'], summary_rows)
+
+    _checker_add_sheet(
+        wb,
+        'New Customers',
+        ['created_at', 'maker', *customer_cols],
+        [[r.get('created_at'), _checker_user_name(r), *[customer_value(r, col) for col in customer_cols]] for r in new_customers]
+    )
+
+    _checker_add_sheet(
+        wb,
+        'Status Changes',
+        ['changed_at', 'maker', 'account_no', 'name', 'from_status', 'to_status', 'note', 'black_case_no', 'red_case_no'],
+        [[
+            r.get('changed_at'), _checker_user_name(r), r.get('account_no'), r.get('name'),
+            r.get('from_status'), r.get('to_status'), r.get('note'),
+            r.get('black_case_no'), r.get('red_case_no'),
+        ] for r in status_logs]
+    )
+
+    _checker_add_sheet(
+        wb,
+        'Judgment Recorded',
+        ['recorded_at', 'maker', 'account_no', 'name', 'judgment_type', 'judgment_date', 'red_case_no', 'total_debt', 'principal', 'first_due_date', 'installment_count', 'note'],
+        [[
+            r.get('changed_at'), _checker_user_name(r), r.get('account_no'), r.get('name'),
+            r.get('to_status'), r.get('judgment_date'), r.get('red_case_no'),
+            _checker_money(r.get('total_debt')), _checker_money(r.get('principal')),
+            r.get('first_due_date'), r.get('installment_count'), r.get('note'),
+        ] for r in judgment_rows]
+    )
+
+    _checker_add_sheet(
+        wb,
+        'Enforcement Recorded',
+        ['recorded_at', 'maker', 'account_no', 'name', 'from_status', 'to_status', 'enforcement_order_no', 'enforcement_judgment_date', 'enforcement_received_date', 'note'],
+        [[
+            r.get('changed_at'), _checker_user_name(r), r.get('account_no'), r.get('name'),
+            r.get('from_status'), r.get('to_status'), r.get('enforcement_order_no'),
+            r.get('enforcement_judgment_date'), r.get('enforcement_received_date'), r.get('note'),
+        ] for r in enforcement_rows]
+    )
+
+    field_change_rows = []
+    for edit in edits:
+        for field, label, old_value, new_value in _checker_json_changes(edit.get('changes')):
+            field_change_rows.append([
+                edit.get('edited_at'), _checker_user_name(edit), edit.get('account_no'),
+                edit.get('name'), edit.get('case_status'), field, label, old_value, new_value,
+            ])
+    _checker_add_sheet(
+        wb,
+        'Field Changes',
+        ['edited_at', 'maker', 'account_no', 'name', 'current_case_status', 'field', 'label', 'old_value', 'new_value'],
+        field_change_rows
+    )
+
+    _checker_add_sheet(
+        wb,
+        'Deleted Customers',
+        ['deleted_at', 'created_by', *customer_cols],
+        [[r.get('deleted_at'), _checker_user_name(r), *[customer_value(r, col) for col in customer_cols]] for r in deleted_customers]
+    )
+
+    _checker_add_sheet(
+        wb,
+        'Current Snapshot',
+        ['created_by', 'enforcement_recorded_by', *customer_cols],
+        [[
+            _checker_user_name(r, 'creator_'),
+            _checker_user_name(r, 'enforcement_'),
+            *[customer_value(r, col) for col in customer_cols],
+        ] for r in current_rows]
+    )
+
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                if isinstance(cell.value, float):
+                    cell.number_format = '#,##0.00'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f'Checker_Raw_{date_from.isoformat()}_to_{date_to.isoformat()}.xlsx'
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
 @bp.route('/cache/refresh-all', methods=['POST'])
 def refresh_customer_list_cache_all():
     user = get_current_user()
@@ -540,7 +876,7 @@ def create_customer():
         return jsonify({'error': 'วันที่ยื่นฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
     if not black_case_no:
-        return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569'}), 400
+        return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568'}), 400
 
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', default_date):
         return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
@@ -627,6 +963,11 @@ def get_customer(account_no):
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
 
     cus = _attach_case_status_logs(db, with_judgment_difference(dict(row)))
+    cus['retroactive_enforcement_alert'] = build_retroactive_enforcement_alert(
+        cus,
+        db=db,
+        include_marked=True,
+    )
 
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
@@ -638,6 +979,65 @@ def get_customer(account_no):
     cus.pop('_case_status_logs', None)
 
     return jsonify(cus), 200
+
+
+@bp.route('/<account_no>/retroactive-enforcement-fix', methods=['POST'])
+def mark_retroactive_enforcement_fix(account_no):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user['role'] != 'admin':
+        return jsonify({'error': 'เฉพาะ Admin เท่านั้นที่ยืนยันการแก้รายงานย้อนหลังได้'}), 403
+
+    db = get_db()
+    row = db.execute(
+        'SELECT * FROM customers WHERE account_no = ? AND is_deleted = 0',
+        (account_no,)
+    ).fetchone()
+    if not row:
+        return jsonify({'error': 'ไม่พบข้อมูล'}), 404
+
+    cus = _attach_case_status_logs(db, dict(row))
+    alert = build_retroactive_enforcement_alert(cus, db=db, include_marked=True)
+    if not alert:
+        return jsonify({'error': 'บัญชีนี้ไม่มีรายการรายงานย้อนหลังที่ต้องยืนยัน'}), 400
+
+    if alert.get('marked'):
+        return jsonify({
+            'message': 'รายการนี้ถูกยืนยันแล้ว',
+            'retroactive_enforcement_alert': alert,
+        }), 200
+
+    data = request.get_json(silent=True) or {}
+    note = str(data.get('note') or '').strip() or 'แก้รายงานย้อนหลังแล้ว'
+
+    try:
+        db.execute('''
+            INSERT INTO report_retroactive_fix_marks
+            (account_no, affected_report_month, effective_date, reason_code,
+             source_report_month, marked_by, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            account_no,
+            alert['affected_report_month'],
+            alert['effective_date'],
+            RETROACTIVE_ENFORCEMENT_REASON_CODE,
+            alert.get('source_report_month'),
+            user['id'],
+            note,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        return jsonify({'error': 'ไม่สามารถบันทึกการยืนยันได้ หรือรายการนี้ถูกยืนยันแล้ว'}), 409
+
+    cus = _attach_case_status_logs(db, dict(row))
+    updated_alert = build_retroactive_enforcement_alert(cus, db=db, include_marked=True)
+
+    return jsonify({
+        'message': f'ยืนยันว่าแก้รายงานเดือน {alert["affected_month_label"]} แล้ว',
+        'retroactive_enforcement_alert': updated_alert,
+    }), 200
 
 
 @bp.route('/<account_no>/judgment', methods=['PATCH'])
@@ -681,7 +1081,7 @@ def update_judgment(account_no):
     first_due_date = data.get('first_due_date', '')
 
     if not red_case_no:
-        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE 814/2569'}), 400
+        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568'}), 400
     if len(judgment_note) > 100:
         return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
 
@@ -824,7 +1224,7 @@ def update_enforcement(account_no):
         return jsonify({'error': 'ไม่พบข้อมูล'}), 404
     cus = dict(cus)
 
-    if not _can_edit_customer_detail(user, cus.get('case_status')):
+    if not _can_record_enforcement_role(user):
         return jsonify({'error': 'ไม่มีสิทธิ์แก้ไขข้อมูลในสถานะนี้'}), 403
 
     data = request.get_json()
@@ -833,6 +1233,8 @@ def update_enforcement(account_no):
     missing = [f for f in required if not data.get(f)]
     if missing:
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
+    if data.get('enforcement_judgment_date') > date.today().isoformat():
+        return jsonify({'error': 'วันที่ของหมายบังคับคดีต้องไม่เป็นวันที่ในอนาคต'}), 400
     if not cus.get('red_case_no'):
         return jsonify({'error': 'ไม่พบคดีหมายเลขแดงที่สำหรับบันทึกหมายบังคับคดี'}), 400
 
@@ -964,7 +1366,7 @@ def bulk_judgment():
             from dateutil.relativedelta import relativedelta as _rd
             red_case_no    = _normalize_red_case_no(row[2] if len(row) > 2 else None)
             if not red_case_no:
-                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ 1234/2567 หรือ ผบ E814/2569')
+                raise ValueError('คดีหมายเลขแดงที่ว่างเปล่าหรือรูปแบบไม่ถูกต้อง เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568')
             judgment_date  = str(row[3]).strip() if len(row) > 3 and row[3] else None
             total_debt     = float(row[4] or 0)
             principal      = float(row[5] or 0)
@@ -1123,8 +1525,10 @@ def update_customer(account_no):
 
     data = request.get_json()
 
-    required = ['filing_date', 'filing_capital', 'red_case_no', 'judgment_date', 'total_debt', 'principal',
+    required = ['filing_date', 'filing_capital', 'judgment_date', 'total_debt', 'principal',
             'interest_rate', 'installment_count', 'first_due_date', 'installment_1']
+    if not (old.get('red_case_no') or '').strip():
+        required.append('red_case_no')
     missing = [f for f in required if data.get(f) is None]
     if missing:
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing)}'}), 400
@@ -1158,10 +1562,18 @@ def update_customer(account_no):
     if filing_capital <= 0:
         return jsonify({'error': 'ทุนทรัพย์ที่ฟ้องต้องมากกว่า 0'}), 400
 
-    red_case_no = _normalize_red_case_no(data.get('red_case_no'))
+    old_red_case_no = str(old.get('red_case_no') or '').strip()
+    normalized_old_red_case_no = _normalize_red_case_no(old_red_case_no)
+    incoming_red_case_no = _normalize_red_case_no(data.get('red_case_no'))
+    red_case_no = incoming_red_case_no
+    if old_red_case_no:
+        if incoming_red_case_no and normalized_old_red_case_no and incoming_red_case_no != normalized_old_red_case_no:
+            return jsonify({'error': 'คดีหมายเลขแดงที่ถูกบันทึกครั้งแรกแล้ว ไม่อนุญาตให้แก้ไข'}), 400
+        red_case_no = old_red_case_no
+
     judgment_note = str(data.get('judgment_note') or '').strip()
     if not red_case_no:
-        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567 หรือ ผบE 814/2569'}), 400
+        return jsonify({'error': 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568'}), 400
     if len(judgment_note) > 100:
         return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
 

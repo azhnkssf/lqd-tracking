@@ -2,6 +2,7 @@ from datetime import date
 
 from app.database import get_db
 from app.services.report_service import get_snapshot_at_date
+from dateutil.relativedelta import relativedelta
 
 
 def _parse_iso_date(value):
@@ -87,6 +88,41 @@ def _display_dpd_days(snap):
     return int(float(snap.get('dpd_days') or 0))
 
 
+def _scheduled_due_date(first_due_date, term):
+    return first_due_date + relativedelta(months=term - 1)
+
+
+def _current_schedule_term(cus, today):
+    first_due_date = _parse_iso_date(cus.get('first_due_date'))
+    if not first_due_date:
+        return 1
+    if today < first_due_date:
+        return 1
+
+    term_count = int(float(cus.get('installment_count') or 0))
+    diff_months = (today.year - first_due_date.year) * 12 + (today.month - first_due_date.month)
+    term = max(1, diff_months + 1)
+    return min(term, term_count) if term_count else term
+
+
+def _next_scheduled_due_date(cus, today):
+    first_due_date = _parse_iso_date(cus.get('first_due_date'))
+    if not first_due_date:
+        return None
+
+    term_count = int(float(cus.get('installment_count') or 0))
+    term = _current_schedule_term(cus, today)
+    due_date = _scheduled_due_date(first_due_date, term)
+
+    if today > due_date:
+        term += 1
+        due_date = _scheduled_due_date(first_due_date, term)
+
+    if term_count and term > term_count:
+        return _scheduled_due_date(first_due_date, term_count)
+    return due_date
+
+
 def calculate_customer_list_cache(cus, payments=None, today=None):
     today = today or date.today()
     payments = payments or []
@@ -107,7 +143,7 @@ def calculate_customer_list_cache(cus, payments=None, today=None):
         'ui_outstanding': round(float((snap or {}).get('outstanding_raw') or (snap or {}).get('outstanding') or 0), 2),
         'ui_dpd_days': _display_dpd_days(snap),
         'ui_dpd_months': int(float((snap or {}).get('dpd_months') or 0)),
-        'ui_next_due_date': (snap or {}).get('oldest_due') or cus.get('first_due_date'),
+        'ui_next_due_date': (_next_scheduled_due_date(cus, today) or _parse_iso_date(cus.get('first_due_date')) or today).isoformat(),
         'ui_last_payment_date': latest_payment.get('payment_date') if latest_payment else None,
         'ui_last_payment_amount': float(latest_payment.get('amount') or 0) if latest_payment else 0,
         'ui_snapshot_date': today.isoformat(),

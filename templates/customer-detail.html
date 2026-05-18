@@ -218,6 +218,16 @@
     .admin-only { display: none; }
     .btn-primary-modern { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:bg-primary-muted transition-all whitespace-nowrap; }
     .btn-secondary-modern { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white text-indigo-600 border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-50 transition-all shadow-sm whitespace-nowrap; }
+    .retro-toggle-btn {
+        @apply inline-flex h-10 items-center justify-between gap-3 rounded-full border bg-white px-3 text-xs font-bold leading-none transition-all disabled:cursor-not-allowed disabled:opacity-70;
+    }
+    .retro-toggle-track {
+        @apply relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors;
+    }
+    .retro-toggle-dot {
+        @apply absolute left-0 top-1/2 h-5 w-5 rounded-full bg-white shadow transition-transform;
+        transform: translate(0.125rem, -50%);
+    }
     .detail-card-heading {
         background: linear-gradient(90deg, #eff6ff 0%, #ffffff 48%, #eef2ff 100%) !important;
         border-bottom-color: #dbeafe !important;
@@ -399,6 +409,9 @@
     }
     .case-entry-card .autocalc-input {
         -webkit-text-fill-color: #94a3b8;
+    }
+    .case-entry-card .autocalc-input:disabled {
+        opacity: 1;
     }
     .auto-badge-soft {
         @apply text-[9px] px-1.5 py-0.5 rounded-full font-extrabold;
@@ -1161,6 +1174,36 @@
                                 <p id="enf-info-recorded" class="text-sm font-semibold text-slate-600">-</p>
                             </div>
                         </div>
+
+                        <div id="retro-enforcement-panel" class="mt-4 border border-amber-100 bg-amber-50/60 rounded-2xl px-4 py-3">
+                            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                <div class="flex items-start gap-3 min-w-0">
+                                    <div class="w-9 h-9 rounded-xl bg-white text-amber-600 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                                        <span class="material-symbols-outlined text-[20px]" style='font-variation-settings:"FILL" 1'>manage_history</span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <p class="text-sm font-extrabold text-slate-800">การแก้รายงานย้อนหลัง</p>
+                                            <span id="retro-enforcement-status-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">-</span>
+                                        </div>
+                                        <p id="retro-enforcement-message" class="text-[12px] text-slate-500 mt-1">กำลังตรวจสอบสถานะรายงานย้อนหลัง...</p>
+                                        <p id="retro-enforcement-meta" class="text-[11px] text-slate-400 mt-1">-</p>
+                                    </div>
+                                </div>
+
+                                <button id="retro-enforcement-toggle"
+                                    type="button"
+                                    role="switch"
+                                    aria-checked="false"
+                                    onclick="openRetroEnforcementConfirm()"
+                                    class="retro-toggle-btn w-full sm:w-[245px] border-slate-200 text-slate-500">
+                                    <span id="retro-enforcement-toggle-label" class="truncate leading-none">แก้รายงานแล้ว</span>
+                                    <span id="retro-enforcement-toggle-knob" class="retro-toggle-track bg-slate-200">
+                                        <span class="retro-toggle-dot"></span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1320,7 +1363,7 @@
                             </div>
                             <div>
                                 <label class="form-label-styled">คดีหมายเลขแดงที่ <span class="text-red-500">*</span></label>
-                                <input id="red-case-no" class="form-input-styled font-medium" type="text" placeholder="กรอกคดีหมายเลขแดงที่" autocomplete="off">
+                                <input id="red-case-no" class="form-input-styled font-medium" type="text" placeholder="เช่น ผบ1234/2567 หรือ พE325/2568" autocomplete="off">
                                 <p id="warn-red-case-no" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span>รูปแบบคดีหมายเลขแดงไม่ถูกต้อง</span></p>
                             </div>
                             <div>
@@ -1932,6 +1975,46 @@
     </div>
 </footer>
 
+<!-- Retroactive Enforcement Confirm Modal -->
+<div id="retro-enforcement-confirm-modal" class="hidden fixed inset-0 z-[320] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onclick="closeRetroEnforcementConfirm()"></div>
+    <div class="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-amber-100 overflow-hidden">
+        <div class="px-6 py-5 border-b border-amber-100 bg-amber-50">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-white text-amber-600 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined" style='font-variation-settings:"FILL" 1'>warning</span>
+                </div>
+                <div>
+                    <h3 class="text-lg font-extrabold text-slate-800">ยืนยันว่าแก้รายงานย้อนหลังแล้ว?</h3>
+                    <p class="text-xs text-slate-500 mt-1">หลังจากยืนยันแล้ว จะไม่สามารถยกเลิกสถานะนี้ได้</p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-5 space-y-3 text-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">เลขที่บัญชี</p>
+                    <p id="retro-modal-account" class="text-sm font-bold text-slate-800 mt-1">-</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">เดือนที่ต้องตรวจสอบ</p>
+                    <p id="retro-modal-month" class="text-sm font-bold text-amber-700 mt-1">-</p>
+                </div>
+            </div>
+            <p id="retro-modal-message" class="text-slate-600 leading-6">-</p>
+            <div class="rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-xs font-semibold text-red-600">
+                โปรดกดปุ่มยืนยันเฉพาะเมื่อได้ตรวจสอบหรือแก้รายงานเดือนเก่าเรียบร้อยแล้วเท่านั้น
+            </div>
+        </div>
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <button type="button" onclick="closeRetroEnforcementConfirm()" class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-all">ยกเลิก</button>
+            <button type="button" id="retro-modal-confirm-btn" onclick="confirmRetroEnforcementFix()" class="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-all">
+                ยืนยันว่าแก้รายงานแล้ว
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     const role        = sessionStorage.getItem('role') || '';
     const displayName = sessionStorage.getItem('display_name') || '';
@@ -1942,6 +2025,10 @@
 
     function isUserRole() {
         return role === 'user';
+    }
+
+    function canRecordEnforcementRole() {
+        return isUserRole() || isAdminRole();
     }
 
     function editPermissionMessage(caseStatus) {
@@ -2039,6 +2126,8 @@
             el.classList.toggle('cursor-not-allowed', locked);
         });
 
+        applyRedCaseNoLock(locked);
+
         const editableDateIds = [
             'judgment-date',
             'first-due-date'
@@ -2076,6 +2165,26 @@
         // หลัง lock/unlock ตามสิทธิ์แล้ว ให้ apply rule เฉพาะประเภทคำพิพากษาซ้ำ
         // เพื่อกันไม่ให้เคสพิพากษาฝ่ายเดียวถูกปลดล็อกกลับมาเป็นหลายงวด
         applyJudgmentTypeInputRules(false);
+    }
+
+    function applyRedCaseNoLock(lockedByPermission = false) {
+        const el = document.getElementById('red-case-no');
+        if (!el) return;
+
+        const hasRecordedRedCaseNo = Boolean((originalData?.red_case_no || currentCus?.red_case_no || '').trim());
+        const locked = lockedByPermission || hasRecordedRedCaseNo;
+
+        el.readOnly = locked;
+        el.disabled = locked;
+        el.classList.toggle('autocalc-input', locked);
+        el.classList.toggle('bg-slate-100', locked);
+        el.classList.toggle('border-slate-300', locked);
+        el.classList.toggle('text-slate-500', locked);
+        el.classList.toggle('cursor-not-allowed', locked);
+        el.style.opacity = locked ? '1' : '';
+        el.title = hasRecordedRedCaseNo
+            ? 'คดีหมายเลขแดงที่ถูกบันทึกครั้งแรกแล้ว ไม่อนุญาตให้แก้ไข'
+            : '';
     }
 
     function getActiveJudgmentType() {
@@ -2276,6 +2385,7 @@
                     fillEnforcementInfo(data)
                 }
             }
+            applyRedCaseNoLock(currentCus ? !canEditJudgmentData(currentCus.case_status) : false);
 
             previewDone = false;
             setSubmitEnabled(false);
@@ -2445,13 +2555,26 @@
         return /^[A-Za-zก-ฮ]{1,8}(?:\s+[A-Za-z]?\d{1,8}|\d{1,8})\/25\d{2}$/.test(value);
     }
 
+    function normalizeCaseNo(value) {
+        const raw = String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
+        const match = raw.match(/^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/);
+        if (!match) return raw;
+        return `${match[1]}${match[2]}/${match[3]}`;
+    }
+
+    function isValidCaseNo(value) {
+        if (!value) return false;
+        return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
+    }
+
     function handleRedCaseNoInput() {
         const el = document.getElementById('red-case-no');
         if (!el) return;
         const value = normalizeCaseNo(el.value);
         if (!value || !isValidCaseNo(value)) {
-            showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
         } else {
+            el.value = value;
             hideFieldWarn('red-case-no');
         }
     }
@@ -2927,7 +3050,7 @@ function setupFriendlyInputFocus() {
 
         const redCaseVal = normalizeCaseNo(document.getElementById('red-case-no').value);
         if (!isValidCaseNo(redCaseVal)) {
-            showError('คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+            showError('คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
             document.getElementById('red-case-no').classList.add('error');
             return false;
         }
@@ -3094,7 +3217,9 @@ function setupFriendlyInputFocus() {
         const payload = {
             filing_date: dpGetValue('filing-date'),
             filing_capital: parseNumber(document.getElementById('filing-capital').value),
-            red_case_no: normalizeCaseNo(document.getElementById('red-case-no').value),
+            red_case_no: document.getElementById('red-case-no').disabled && originalData?.red_case_no
+                ? originalData.red_case_no
+                : normalizeCaseNo(document.getElementById('red-case-no').value),
             judgment_date: dpGetValue('judgment-date'),
             judgment_note: document.getElementById('judgment-note').value.trim(),
             total_debt: parseNumber(document.getElementById('total-debt').value),
@@ -3357,7 +3482,7 @@ function setupFriendlyInputFocus() {
             const redCaseValue = normalizeCaseNo(redCaseEl.value);
             if (!isValidCaseNo(redCaseValue)) {
                 redCaseEl.classList.add('error');
-                showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดี เลขที่/ปี พ.ศ. เช่น ผบ 1234/2567, ผบ E814/2569 หรือ ผบE 2548/2569');
+                showFieldWarn('red-case-no', 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568');
                 if (showErrorMessage) {
                     showAlert('warning', 'กรุณากรอกข้อมูลให้ถูกต้อง', 'คดีหมายเลขแดงที่ต้องอยู่ในรูปแบบที่กำหนด');
                 }
@@ -3386,7 +3511,9 @@ function setupFriendlyInputFocus() {
         const cur = {
             filing_date:           document.getElementById('filing-date').value          || '',
             filing_capital:        parseNum(document.getElementById('filing-capital')?.value || '0'),
-            red_case_no:           normalizeCaseNo(document.getElementById('red-case-no').value),
+            red_case_no:           document.getElementById('red-case-no').disabled && originalData?.red_case_no
+                ? originalData.red_case_no
+                : normalizeCaseNo(document.getElementById('red-case-no').value),
             judgment_date:         document.getElementById('judgment-date').value         || '',
             judgment_note:         document.getElementById('judgment-note').value.trim(),
             first_due_date:        document.getElementById('first-due-date').value        || '',
@@ -3716,8 +3843,9 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
 
     DP_FIELDS.forEach(id => {
         const now = new Date();
-        DP_STATE[id] = { year: now.getFullYear(), month: now.getMonth(), selected: null, minDate: null, showMY: false };
+        DP_STATE[id] = { year: now.getFullYear(), month: now.getMonth(), selected: null, minDate: null, maxDate: null, showMY: false };
     });
+    DP_STATE['enf-judgment-date'].maxDate = dpDateStr(new Date());
 
     function dpGetValue(id) {
         return document.getElementById(id).value;
@@ -3826,6 +3954,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         const today    = new Date();
         today.setHours(0,0,0,0);
         const minDate  = s.minDate ? new Date(s.minDate + 'T00:00:00') : null;
+        const maxDate  = s.maxDate ? new Date(s.maxDate + 'T00:00:00') : null;
         const first    = new Date(s.year, s.month, 1);
         const last     = new Date(s.year, s.month + 1, 0);
         const startDay = first.getDay();
@@ -3844,7 +3973,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             const str     = dpDateStr(date);
             const isToday = date.getTime() === today.getTime();
             const isSel   = str === selStr;
-            const isDisabled = minDate && date < minDate;
+            const isDisabled = (minDate && date < minDate) || (maxDate && date > maxDate);
             let cls = 'dp-day';
             if (isDisabled) cls += ' dp-day-disabled';
             else if (isSel) cls += ' dp-day-selected';
@@ -3869,6 +3998,9 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
     }
 
     function dpSelectDay(id, dateStr) {
+        const state = DP_STATE[id];
+        if ((state.minDate && dateStr < state.minDate) || (state.maxDate && dateStr > state.maxDate)) return;
+
         dpSetValue(id, dateStr);
         const disp = document.getElementById('dp-text-' + id);
         disp.textContent = dpFormatDisplay(dateStr);
@@ -3900,6 +4032,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         const str   = dpDateStr(today);
         const state = DP_STATE[id];
         if (state.minDate && str < state.minDate) return;
+        if (state.maxDate && str > state.maxDate) return;
         dpSelectDay(id, str);
     }
 
@@ -3907,6 +4040,12 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         DP_STATE[id].minDate = minDateStr;
         const cur = dpGetValue(id);
         if (cur && cur < minDateStr) { dpClear(id); }
+    }
+
+    function dpSetMax(id, maxDateStr) {
+        DP_STATE[id].maxDate = maxDateStr;
+        const cur = dpGetValue(id);
+        if (cur && cur > maxDateStr) { dpClear(id); }
     }
 
     function dpAfterSelect(id) {
@@ -4131,7 +4270,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             if (jtr) jtr.classList.remove('hidden')
 
         } else if (['พิพากษาตามยอม','พิพากษาฝ่ายเดียว'].includes(caseStatus)) {
-            if (canEdit && currentCus?.can_record_enforcement === true) {
+            if (canRecordEnforcementRole() && currentCus?.can_record_enforcement === true) {
                 const redCaseInput = document.getElementById('enf-red-case-no')
                 if (redCaseInput) redCaseInput.value = currentCus?.red_case_no || '-'
                 const el = document.getElementById('section-enforcement-form')
@@ -4160,14 +4299,128 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         if (el('enf-info-red-case-no'))   el('enf-info-red-case-no').textContent   = cus.red_case_no || cus.enforcement_order_no || '-'
         if (el('enf-info-judgment-date')) el('enf-info-judgment-date').textContent = fmt(cus.enforcement_judgment_date)
         if (el('enf-info-recorded'))      el('enf-info-recorded').textContent      = cus.enforcement_recorded_at ? fmtTs(cus.enforcement_recorded_at) : '-'
+        renderRetroactiveEnforcement(cus)
+    }
+
+    function setRetroToggleState(isOn, disabled, label, title = '') {
+        const btn = document.getElementById('retro-enforcement-toggle')
+        const labelEl = document.getElementById('retro-enforcement-toggle-label')
+        const knob = document.getElementById('retro-enforcement-toggle-knob')
+        const knobDot = knob?.querySelector('span')
+        if (!btn || !labelEl || !knob || !knobDot) return
+
+        btn.disabled = !!disabled
+        btn.title = title
+        btn.setAttribute('aria-checked', isOn ? 'true' : 'false')
+        labelEl.textContent = label
+        btn.classList.toggle('border-emerald-200', isOn)
+        btn.classList.toggle('text-emerald-700', isOn)
+        btn.classList.toggle('border-slate-200', !isOn)
+        btn.classList.toggle('text-slate-500', !isOn)
+        knob.classList.toggle('bg-emerald-500', isOn)
+        knob.classList.toggle('bg-slate-200', !isOn)
+        knobDot.style.transform = isOn
+            ? 'translate(1.375rem, -50%)'
+            : 'translate(0.125rem, -50%)'
+    }
+
+    function renderRetroactiveEnforcement(cus) {
+        const alert = cus?.retroactive_enforcement_alert
+        const badge = document.getElementById('retro-enforcement-status-badge')
+        const message = document.getElementById('retro-enforcement-message')
+        const meta = document.getElementById('retro-enforcement-meta')
+        if (!badge || !message || !meta) return
+
+        badge.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border'
+
+        if (!alert) {
+            badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-100')
+            badge.textContent = 'ไม่มีรายการย้อนหลัง'
+            message.textContent = 'ไม่มีรายการที่ต้องยืนยันว่าแก้รายงานย้อนหลังจาก 31 เป็น 30'
+            meta.textContent = 'รายการนี้ใช้เฉพาะเคสบังคับคดีที่มาจากพิพากษาตามยอม และวันที่ของหมายอยู่ก่อนเดือนที่บันทึก/ตรวจรายงาน'
+            setRetroToggleState(false, true, 'ไม่มีรายการที่ต้องยืนยัน')
+            return
+        }
+
+        const affected = alert.affected_month_label || alert.affected_report_month || '-'
+        const source = alert.source_month_label || alert.source_report_month || '-'
+
+        if (alert.marked) {
+            badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-100')
+            badge.textContent = 'แก้แล้ว'
+            message.textContent = `ยืนยันแล้วว่าแก้รายงานเดือน ${affected} เรียบร้อย`
+            meta.textContent = `ยืนยันโดย ${alert.marked_by_name || '-'} วันที่ ${fmtTs(alert.marked_at)}`
+            setRetroToggleState(true, true, `แก้รายงาน ${affected} แล้ว`)
+            return
+        }
+
+        badge.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-100')
+        badge.textContent = 'รอยืนยัน'
+        message.textContent = alert.reason || `กรุณาตรวจสอบ/แก้รายงานเดือน ${affected}`
+        meta.textContent = `วันที่ของหมาย: ${fmtDate(alert.effective_date || alert.enforcement_date)} | เดือนรายงานที่พบ: ${source}`
+
+        if (isAdminRole()) {
+            setRetroToggleState(false, false, `แก้รายงาน ${affected} แล้ว`)
+        } else {
+            setRetroToggleState(false, true, `แก้รายงาน ${affected} แล้ว`, 'เฉพาะ Admin เท่านั้นที่ยืนยันได้')
+        }
+    }
+
+    function openRetroEnforcementConfirm() {
+        const alert = currentCus?.retroactive_enforcement_alert
+        if (!alert || alert.marked) return
+        if (!isAdminRole()) {
+            showAlert('warning', 'ไม่มีสิทธิ์ยืนยัน', 'เฉพาะ Admin เท่านั้นที่ยืนยันว่าแก้รายงานย้อนหลังแล้วได้')
+            return
+        }
+
+        const affected = alert.affected_month_label || alert.affected_report_month || '-'
+        document.getElementById('retro-modal-account').textContent = currentCus?.account_no || accountNo || '-'
+        document.getElementById('retro-modal-month').textContent = affected
+        document.getElementById('retro-modal-message').textContent = alert.reason || `กรุณายืนยันว่าแก้รายงานเดือน ${affected} แล้ว`
+        document.getElementById('retro-enforcement-confirm-modal')?.classList.remove('hidden')
+    }
+
+    function closeRetroEnforcementConfirm() {
+        document.getElementById('retro-enforcement-confirm-modal')?.classList.add('hidden')
+    }
+
+    async function confirmRetroEnforcementFix() {
+        const btn = document.getElementById('retro-modal-confirm-btn')
+        if (btn) {
+            btn.disabled = true
+            btn.textContent = 'กำลังบันทึก...'
+        }
+        try {
+            const res = await fetch(`/api/customers/${accountNo}/retroactive-enforcement-fix`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('token')}` },
+                body: JSON.stringify({ note: 'แก้รายงานย้อนหลังแล้ว' })
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                showAlert('error', 'ไม่สามารถยืนยันได้', data.error || 'เกิดข้อผิดพลาด')
+                return
+            }
+            closeRetroEnforcementConfirm()
+            showSuccessToast('บันทึกสำเร็จ', data.message || 'ยืนยันว่าแก้รายงานย้อนหลังแล้ว')
+            await loadCustomerData()
+        } catch(e) {
+            showAlert('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้')
+        } finally {
+            if (btn) {
+                btn.disabled = false
+                btn.textContent = 'ยืนยันว่าแก้รายงานแล้ว'
+            }
+        }
     }
 
     async function submitEnforcement() {
-        if (!isAdminRole()) {
+        if (!canRecordEnforcementRole()) {
             showAlert(
                 'warning',
                 'ไม่สามารถบันทึกหมายบังคับคดีได้',
-                'ฟังก์ชันนี้อนุญาตเฉพาะ Admin เท่านั้น'
+                'ฟังก์ชันนี้อนุญาตเฉพาะ Admin และ User เท่านั้น'
             );
             return;
         }
@@ -4175,6 +4428,9 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         const judgmentDate = dpGetValue('enf-judgment-date')
         if (!judgmentDate) {
             showAlert('warning', 'กรุณากรอกข้อมูลให้ครบ', 'ต้องเลือกวันที่ของหมายบังคับคดี'); return
+        }
+        if (judgmentDate > dpDateStr(new Date())) {
+            showAlert('warning', 'วันที่ไม่ถูกต้อง', 'วันที่ของหมายบังคับคดีต้องไม่เป็นวันที่ในอนาคต'); return
         }
         try {
             const res = await fetch(`/api/customers/${accountNo}/enforcement`, {
