@@ -77,10 +77,23 @@
                 </label>
                 <label class="block">
                     <span class="text-xs font-bold text-slate-600">Role</span>
-                    <select id="role" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                    </select>
+                    <div class="relative mt-2">
+                        <input id="role" type="hidden" value="user">
+                        <button id="role-trigger" type="button" onclick="toggleRoleMenu()" class="w-full h-11 rounded-[12px] border border-blue-100 bg-slate-50 px-3 text-left text-sm font-semibold text-slate-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between">
+                            <span id="role-label">User</span>
+                            <span class="material-symbols-outlined text-[20px] text-slate-400">expand_more</span>
+                        </button>
+                        <div id="role-menu" class="hidden absolute left-0 right-0 top-[48px] z-30 overflow-hidden rounded-[12px] border border-blue-100 bg-white shadow-xl shadow-indigo-100">
+                            <button type="button" onclick="selectRole('user')" data-role-option="user" class="role-option flex w-full items-center justify-between px-3 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-primary">
+                                <span>User</span>
+                                <span class="material-symbols-outlined hidden text-[18px] text-primary">check</span>
+                            </button>
+                            <button type="button" onclick="selectRole('admin')" data-role-option="admin" class="role-option flex w-full items-center justify-between px-3 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-primary">
+                                <span>Admin</span>
+                                <span class="material-symbols-outlined hidden text-[18px] text-primary">check</span>
+                            </button>
+                        </div>
+                    </div>
                 </label>
 
                 <button id="create-btn" type="submit" class="w-full h-11 rounded-[12px] bg-primary text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-primary-muted transition">
@@ -143,6 +156,26 @@
         const box = document.getElementById('form-message');
         box.textContent = text;
         box.className = `rounded-[12px] border px-4 py-3 text-sm font-semibold ${ok ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`;
+    }
+
+    function toggleRoleMenu() {
+        document.getElementById('role-menu').classList.toggle('hidden');
+    }
+
+    function closeRoleMenu() {
+        document.getElementById('role-menu').classList.add('hidden');
+    }
+
+    function selectRole(role) {
+        document.getElementById('role').value = role;
+        document.getElementById('role-label').textContent = roleLabels[role] || role;
+        document.querySelectorAll('[data-role-option]').forEach(option => {
+            const isActive = option.dataset.roleOption === role;
+            option.classList.toggle('bg-blue-50', isActive);
+            option.classList.toggle('text-primary', isActive);
+            option.querySelector('.material-symbols-outlined').classList.toggle('hidden', !isActive);
+        });
+        closeRoleMenu();
     }
 
     function showTempModal(password) {
@@ -259,6 +292,7 @@
                 return;
             }
             document.getElementById('create-form').reset();
+            selectRole('user');
             showFormMessage('สร้างผู้ใช้สำเร็จ', true);
             showTempModal(data.temporary_password);
             loadUsers();
@@ -323,6 +357,14 @@
         if (email) email.addEventListener('blur', () => { email.value = email.value.trim().toLowerCase(); });
         const username = document.getElementById('username');
         if (username) username.addEventListener('blur', () => { username.value = username.value.trim(); });
+        selectRole(document.getElementById('role').value || 'user');
+        document.addEventListener('click', event => {
+            const trigger = document.getElementById('role-trigger');
+            const menu = document.getElementById('role-menu');
+            if (!trigger.contains(event.target) && !menu.contains(event.target)) {
+                closeRoleMenu();
+            }
+        });
         loadUsers();
     });
 </script>

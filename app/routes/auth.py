@@ -1,6 +1,7 @@
 from flask import Blueprint, current_app, request, jsonify
 from app.logging_config import log_event
 from app.services import auth_service
+from app.services.password_policy_service import get_policy
 from app.services.user_validation_service import validate_user_fields
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -100,6 +101,34 @@ def change_password():
     return jsonify({
         'message': 'Password changed',
         'redirect_to': auth_service.get_login_redirect(refreshed),
+    }), 200
+
+
+@bp.route('/password-policy', methods=['GET'])
+def password_policy():
+    token = request.cookies.get(current_app.config['AUTH_COOKIE_NAME']) or request.headers.get('Authorization', '').replace('Bearer ', '')
+    user = auth_service.get_user_by_token(token)
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    policy = get_policy()
+    return jsonify({
+        'policy': {
+            'min_password_length': policy['min_password_length'],
+            'required_character_groups': policy['required_character_groups'],
+            'password_history_count': policy['password_history_count'],
+            'forbid_user_identifiers': policy['forbid_user_identifiers'],
+            'forbid_name_identifiers': policy['forbid_name_identifiers'],
+            'forbid_numeric_sequences': policy['forbid_numeric_sequences'],
+        },
+        'user': {
+            'username': user['username'],
+            'employee_id': user['employee_id'],
+            'email': user['email'],
+            'first_name': user['first_name'],
+            'last_name': user['last_name'],
+            'display_name': user['display_name'],
+        }
     }), 200
 
 

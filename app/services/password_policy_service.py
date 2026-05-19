@@ -25,6 +25,24 @@ DEFAULT_POLICY = {
     'forbid_numeric_sequences': 1,
 }
 
+CONFIGURABLE_POLICY_FIELDS = [
+    'min_password_length',
+    'required_character_groups',
+    'password_history_count',
+    'user_max_age_days',
+    'admin_max_age_days',
+    'superadmin_max_age_days',
+    'temporary_password_length',
+    'lockout_failed_attempts',
+    'lockout_window_minutes',
+    'lockout_duration_minutes',
+    'expiry_warning_days',
+]
+
+POLICY_ENABLED_DEFAULTS = {
+    f'{key}_enabled': 0 for key in CONFIGURABLE_POLICY_FIELDS
+}
+
 POLICY_LIMITS = {
     'min_password_length': {'min': 8, 'max': 128},
     'required_character_groups': {'min': 3, 'max': 4},
@@ -59,7 +77,7 @@ def _normalize_warning_days(value):
 
 
 def _seed_policy_defaults(db):
-    for key, value in DEFAULT_POLICY.items():
+    for key, value in {**DEFAULT_POLICY, **POLICY_ENABLED_DEFAULTS}.items():
         db.execute(
             'INSERT OR IGNORE INTO password_policy_settings (key, value) VALUES (?, ?)',
             (key, str(value))
@@ -77,6 +95,8 @@ def get_policy():
             policy[key] = _normalize_warning_days(raw.get(key, default))
         else:
             policy[key] = _coerce_int(raw.get(key, default), default)
+    for key, default in POLICY_ENABLED_DEFAULTS.items():
+        policy[key] = _coerce_int(raw.get(key, default), default)
     return policy
 
 
@@ -86,6 +106,9 @@ def update_policy_settings(data, updated_by=None):
     errors = []
 
     for key, value in (data or {}).items():
+        if key in POLICY_ENABLED_DEFAULTS:
+            updates[key] = 1 if _coerce_int(value, 0) else 0
+            continue
         if key not in DEFAULT_POLICY:
             continue
         if key == 'expiry_warning_days':
