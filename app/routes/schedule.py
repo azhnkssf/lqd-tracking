@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from app.services.auth_service import get_user_by_token
 from app.services.schedule_service import generate_schedule, generate_monthly_summary
 
@@ -6,8 +6,15 @@ bp = Blueprint('schedule', __name__, url_prefix='/api/schedule')
 
 
 def get_current_user():
-    token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    token = request.cookies.get(current_app.config.get('AUTH_COOKIE_NAME', 'token')) or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+@bp.before_request
+def block_superadmin_from_schedule_api():
+    user = get_current_user()
+    if user and user['role'] == 'superadmin':
+        return jsonify({'error': 'Superadmin is limited to user management.'}), 403
 
 
 @bp.route('/preview', methods=['POST'])

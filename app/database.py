@@ -6,9 +6,14 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(
             current_app.config['DATABASE'],
-            detect_types=sqlite3.PARSE_DECLTYPES
+            detect_types=sqlite3.PARSE_DECLTYPES,
+            timeout=current_app.config.get('SQLITE_TIMEOUT_SECONDS', 30),
         )
         g.db.row_factory = sqlite3.Row
+        g.db.execute('PRAGMA foreign_keys = ON')
+        g.db.execute(f"PRAGMA busy_timeout = {int(current_app.config.get('SQLITE_BUSY_TIMEOUT_MS', 30000))}")
+        g.db.execute(f"PRAGMA journal_mode = {current_app.config.get('SQLITE_JOURNAL_MODE', 'WAL')}")
+        g.db.execute(f"PRAGMA synchronous = {current_app.config.get('SQLITE_SYNCHRONOUS', 'NORMAL')}")
     return g.db
 
 
@@ -101,6 +106,30 @@ def init_db(app):
                 display_name  TEXT,
                 role          TEXT NOT NULL DEFAULT 'user',
                 created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS password_history (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER NOT NULL REFERENCES users(id),
+                password_hash TEXT NOT NULL,
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS auth_events (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER REFERENCES users(id),
+                username      TEXT,
+                event_type    TEXT NOT NULL,
+                remote_addr   TEXT,
+                details       TEXT,
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS password_policy_settings (
+                key           TEXT PRIMARY KEY,
+                value         TEXT NOT NULL,
+                updated_by    INTEGER REFERENCES users(id),
+                updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS sessions (
@@ -313,6 +342,45 @@ def init_db(app):
             except Exception:
                 pass
 
+        user_security_columns = [
+            "ALTER TABLE users ADD COLUMN first_name TEXT",
+            "ALTER TABLE users ADD COLUMN last_name TEXT",
+            "ALTER TABLE users ADD COLUMN employee_id TEXT",
+            "ALTER TABLE users ADD COLUMN email TEXT",
+            "ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN password_changed_at DATETIME",
+            "ALTER TABLE users ADD COLUMN password_expires_at DATETIME",
+            "ALTER TABLE users ADD COLUMN failed_login_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN failed_login_window_started_at DATETIME",
+            "ALTER TABLE users ADD COLUMN locked_until DATETIME",
+            "ALTER TABLE users ADD COLUMN created_by INTEGER REFERENCES users(id)",
+            "ALTER TABLE users ADD COLUMN updated_at DATETIME",
+        ]
+        for col_def in user_security_columns:
+            try:
+                db.execute(col_def)
+            except Exception:
+                pass
+
+        try:
+            user_age = int(current_app.config.get('PASSWORD_MAX_AGE_DAYS_USER', 90))
+            admin_age = int(current_app.config.get('PASSWORD_MAX_AGE_DAYS_ADMIN', 90))
+            superadmin_age = int(current_app.config.get('PASSWORD_MAX_AGE_DAYS_SUPERADMIN', 30))
+            db.execute(f'''
+                UPDATE users
+                SET password_changed_at = COALESCE(password_changed_at, CURRENT_TIMESTAMP),
+                    password_expires_at = CASE
+                        WHEN role = 'superadmin' THEN datetime(CURRENT_TIMESTAMP, '+{superadmin_age} days')
+                        WHEN role = 'admin' THEN datetime(CURRENT_TIMESTAMP, '+{admin_age} days')
+                        ELSE datetime(CURRENT_TIMESTAMP, '+{user_age} days')
+                    END
+                WHERE password_expires_at IS NULL
+                  AND COALESCE(must_change_password, 0) = 0
+            ''')
+        except Exception:
+            pass
+
         try:
             db.execute('''
                 UPDATE customers
@@ -342,6 +410,11 @@ def init_db(app):
             "CREATE INDEX IF NOT EXISTS idx_payments_account_date ON payments(account_no, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_report_retro_marks_account ON report_retroactive_fix_marks(account_no)",
             "CREATE INDEX IF NOT EXISTS idx_report_retro_marks_month ON report_retroactive_fix_marks(affected_report_month)",
+            "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_employee_id ON users(employee_id) WHERE employee_id IS NOT NULL AND employee_id != ''",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL AND email != ''",
+            "CREATE INDEX IF NOT EXISTS idx_auth_events_user ON auth_events(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(event_type)",
         ]
         for statement in indexes:
             try:

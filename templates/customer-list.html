@@ -1023,7 +1023,7 @@
                         <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 text-[18px] pointer-events-none">person</span>
                         <input id="add-customer-name" class="add-input" type="text" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" autocomplete="off">
                     </div>
-                    <p class="add-helper">ไม่อนุญาตให้กรอกตัวเลขหรืออักขระพิเศษ</p>
+                    <p class="add-helper">ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)</p>
                     <p id="add-warn-customer-name" class="add-warning hidden">
                         <span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span>
                         <span id="add-warn-customer-name-msg">ไม่อนุญาตให้ใช้อักขระพิเศษ</span>
@@ -2692,6 +2692,10 @@
         return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(String(value || '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim());
     }
 
+    function hasInvalidCustomerNameChars(value) {
+        return !/^[A-Za-z0-9ก-ฮะ-์.\-\s]*$/.test(value || '');
+    }
+
     function formatIsoDateForReview(value) {
         if (!value) return '-';
         const [y, m, d] = value.split('-');
@@ -2734,8 +2738,8 @@
             return false;
         }
 
-        if (/[!@#$%^&*()_+\=\[\]{};':"\|,<>\/?`~0-9]/.test(nameVal)) {
-            showAddModalError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
+        if (hasInvalidCustomerNameChars(nameVal)) {
+            showAddModalError('ชื่อ-นามสกุล/ชื่อบริษัทใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)');
             return false;
         }
 
@@ -2878,9 +2882,8 @@
     });
 
     document.getElementById('add-customer-name').addEventListener('input', function() {
-        const hasSpecial = /[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(this.value);
-        if (hasSpecial) {
-            document.getElementById('add-warn-customer-name-msg').textContent = 'ไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข';
+        if (hasInvalidCustomerNameChars(this.value)) {
+            document.getElementById('add-warn-customer-name-msg').textContent = 'ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)';
             document.getElementById('add-warn-customer-name').classList.remove('hidden');
         } else {
             document.getElementById('add-warn-customer-name').classList.add('hidden');

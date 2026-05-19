@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html class="light" lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Initial Setup | LQD Tracking</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    surface: "#F0F7FF",
+                    primary: "#2D3282",
+                    "primary-muted": "#3F45B5",
+                    "on-surface": "#1E293B"
+                },
+                fontFamily: { headline: ["Kanit", "sans-serif"], body: ["Kanit", "sans-serif"] }
+            }
+        }
+    }
+</script>
+<style>
+    * { font-family: "Kanit", sans-serif; }
+    body { background: #F0F7FF; color: #1E293B; }
+    .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 420, "GRAD" 0, "opsz" 24; }
+</style>
+</head>
+<body>
+<main class="min-h-screen flex items-center justify-center px-5 py-8">
+    <section class="w-full max-w-[760px] bg-white border border-blue-100 rounded-[18px] shadow-xl shadow-indigo-100/60 overflow-hidden">
+        <div class="px-7 py-6 border-b border-blue-50 flex items-center justify-between gap-5">
+            <div class="flex items-center gap-4 min-w-0">
+                <div class="w-11 h-11 rounded-[12px] bg-primary text-white grid place-items-center shadow-lg shadow-indigo-200">
+                    <span class="material-symbols-outlined" style='font-variation-settings: "FILL" 1;'>shield_person</span>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">Initial Super Admin Setup</h1>
+                    <p class="text-sm text-slate-500 mt-1">สร้างบัญชีผู้ดูแลระบบคนแรกสำหรับจัดการผู้ใช้</p>
+                </div>
+            </div>
+        </div>
+
+        <form id="setup-form" class="p-7" onsubmit="submitSetup(event)">
+            <div id="message" class="hidden mb-5 rounded-[12px] border px-4 py-3 text-sm font-semibold"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">ชื่อ</span>
+                    <input id="first_name" maxlength="80" pattern="[A-Za-zก-ฮะ-์.' \-]{1,80}" title="ใช้ได้เฉพาะตัวอักษร ช่องว่าง จุด apostrophe และ hyphen" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">นามสกุล</span>
+                    <input id="last_name" maxlength="80" pattern="[A-Za-zก-ฮะ-์.' \-]{1,80}" title="ใช้ได้เฉพาะตัวอักษร ช่องว่าง จุด apostrophe และ hyphen" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">รหัสพนักงาน</span>
+                    <input id="employee_id" maxlength="20" pattern="[A-Z0-9]{3,20}" title="ใช้ได้เฉพาะ A-Z และ 0-9 ความยาว 3-20 ตัว" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold uppercase tracking-wide focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">อีเมล</span>
+                    <input id="email" type="email" maxlength="254" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block md:col-span-2">
+                    <span class="text-sm font-bold text-slate-700">Username</span>
+                    <input id="username" autocomplete="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="ใช้ได้เฉพาะตัวอักษร ตัวเลข จุด underscore หรือ hyphen ความยาว 3-50 ตัว" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">Password</span>
+                    <input id="password" type="password" autocomplete="new-password" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-bold text-slate-700">Confirm Password</span>
+                    <input id="confirm_password" type="password" autocomplete="new-password" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-4 py-3 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+            </div>
+
+            <div class="mt-5 rounded-[12px] bg-blue-50 border border-blue-100 px-4 py-3 text-xs leading-6 text-slate-600">
+                หน้า setup นี้จะใช้ได้เฉพาะตอนที่ยังไม่มีผู้ใช้ในระบบเท่านั้น หลังสร้าง Super Admin แล้วระบบจะปิดหน้านี้โดยอัตโนมัติ
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button id="submit-btn" type="submit" class="h-12 px-6 rounded-[12px] bg-primary text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-primary-muted transition">
+                    Create Super Admin
+                </button>
+            </div>
+        </form>
+    </section>
+</main>
+
+<script>
+    function showMessage(text, ok = false) {
+        const box = document.getElementById('message');
+        box.textContent = text;
+        box.className = `mb-5 rounded-[12px] border px-4 py-3 text-sm font-semibold ${ok ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`;
+    }
+
+    async function submitSetup(event) {
+        event.preventDefault();
+        normalizeSetupInputs();
+        if (!event.target.checkValidity()) {
+            event.target.reportValidity();
+            return;
+        }
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+        try {
+            const payload = {};
+            ['first_name', 'last_name', 'employee_id', 'email', 'username', 'password', 'confirm_password'].forEach(id => {
+                payload[id] = document.getElementById(id).value.trim();
+            });
+            const response = await fetch('/api/auth/setup-superadmin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                showMessage(data.error || 'ไม่สามารถสร้าง Super Admin ได้');
+                return;
+            }
+            showMessage('สร้าง Super Admin สำเร็จ กำลังไปหน้า Login', true);
+            setTimeout(() => { window.location.href = '/login'; }, 800);
+        } catch (err) {
+            showMessage('ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Create Super Admin';
+        }
+    }
+
+    function normalizeSetupInputs() {
+        const employee = document.getElementById('employee_id');
+        const email = document.getElementById('email');
+        const username = document.getElementById('username');
+        if (employee) employee.value = employee.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (email) email.value = email.value.trim().toLowerCase();
+        if (username) username.value = username.value.trim();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const employee = document.getElementById('employee_id');
+        if (employee) {
+            employee.addEventListener('input', () => {
+                const start = employee.selectionStart;
+                employee.value = employee.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                employee.setSelectionRange(start, start);
+            });
+        }
+        const email = document.getElementById('email');
+        if (email) email.addEventListener('blur', () => { email.value = email.value.trim().toLowerCase(); });
+        const username = document.getElementById('username');
+        if (username) username.addEventListener('blur', () => { username.value = username.value.trim(); });
+    });
+</script>
+</body>
+</html>

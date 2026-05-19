@@ -4,7 +4,7 @@ import re
 import openpyxl
 from datetime import date, datetime, timedelta
 from openpyxl.styles import PatternFill, Font, Alignment
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, current_app, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
@@ -31,8 +31,15 @@ CASE_STATUS_TRANSITIONS = {
 
 
 def get_current_user():
-    token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    token = request.cookies.get(current_app.config.get('AUTH_COOKIE_NAME', 'token')) or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+@bp.before_request
+def block_superadmin_from_customer_api():
+    user = get_current_user()
+    if user and user['role'] == 'superadmin':
+        return jsonify({'error': 'Superadmin is limited to user management.'}), 403
 
 
 def _can_edit_customer_detail(user, case_status):
@@ -219,6 +226,15 @@ def _parse_positive_int(value):
     if not re.fullmatch(r'\d+', text):
         return None
     return int(text)
+
+
+def _is_valid_customer_name(value):
+    text = str(value or '').strip()
+    if not text:
+        return False
+    if re.search(r'\s{2,}', text):
+        return False
+    return bool(re.fullmatch(r'[A-Za-z0-9ก-ฮะ-์.\-\s]+', text))
 
 
 def _first_day_next_month(d):
@@ -872,6 +888,9 @@ def create_customer():
     if not account_no.isdigit() or len(account_no) != 12:
         return jsonify({'error': 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก'}), 400
 
+    if not _is_valid_customer_name(name):
+        return jsonify({'error': 'ชื่อ-นามสกุล/ชื่อบริษัทใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)'}), 400
+
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', filing_date):
         return jsonify({'error': 'วันที่ยื่นฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
@@ -1026,6 +1045,26 @@ def mark_retroactive_enforcement_fix(account_no):
             user['id'],
             note,
         ))
+        db.execute(
+            'INSERT INTO customer_edits (customer_id, account_no, edited_by, changes) VALUES (?, ?, ?, ?)',
+            (
+                row['id'],
+                account_no,
+                user['id'],
+                json.dumps({
+                    'retroactive_enforcement_fix': {
+                        'label': 'การแก้รายงานย้อนหลัง',
+                        'from': 'รอยืนยัน',
+                        'to': f'ยืนยันแล้ว ({alert["affected_month_label"]})',
+                    },
+                    'retroactive_enforcement_effective_date': {
+                        'label': 'วันที่ของหมายบังคับคดี',
+                        'from': None,
+                        'to': alert['effective_date'],
+                    },
+                }, ensure_ascii=False),
+            )
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -1182,6 +1221,7 @@ def update_judgment(account_no):
         'installment_count':     'จำนวนงวด',
         'default_interest_rate': 'ดอกเบี้ยผิดนัด',
         'first_due_date':        'วันครบกำหนดงวดแรก',
+        'last_due_date':         'วันครบกำหนดงวดสุดท้าย',
         'installment_1':         'ค่างวด 1',
         'installment_2':         'ค่างวด 2',
         'installment_3':         'ค่างวด 3',
@@ -1190,6 +1230,7 @@ def update_judgment(account_no):
     data['red_case_no'] = red_case_no
     data['judgment_note'] = judgment_note
     data['judgment_difference'] = judgment_difference
+    data['last_due_date'] = last_due_date
     judgment_changes = {}
     for field, label in JUDGMENT_LABELS.items():
         old_val = cus.get(field) if field != 'judgment_type' else cus.get('case_status')
@@ -1280,6 +1321,35 @@ def update_enforcement(account_no):
         user['id'],
         f'บันทึกหมายบังคับคดี วันที่ของหมาย {data["enforcement_judgment_date"]}'
     )
+
+    enforcement_changes = {}
+    enforcement_new_values = {
+        'case_status': 'บังคับคดี',
+        'enforcement_order_no': cus['red_case_no'],
+        'enforcement_judgment_date': data['enforcement_judgment_date'],
+        'enforcement_received_date': None,
+    }
+    enforcement_labels = {
+        'case_status': 'สถานะคดี',
+        'enforcement_order_no': 'หมายเลขบังคับคดี',
+        'enforcement_judgment_date': 'วันที่ของหมายบังคับคดี',
+        'enforcement_received_date': 'วันที่ได้รับหมายบังคับคดี',
+    }
+    for field, new_val in enforcement_new_values.items():
+        old_val = cus.get(field)
+        if str(old_val) != str(new_val):
+            enforcement_changes[field] = {
+                'label': enforcement_labels[field],
+                'from': old_val,
+                'to': new_val,
+            }
+
+    if enforcement_changes:
+        db.execute(
+            'INSERT INTO customer_edits (customer_id, account_no, edited_by, changes) VALUES (?, ?, ?, ?)',
+            (cus['id'], account_no, user['id'], json.dumps(enforcement_changes, ensure_ascii=False))
+        )
+
     refresh_customer_list_cache(account_no, db=db, commit=False)
     db.commit()
 
@@ -1547,6 +1617,7 @@ def update_customer(account_no):
         'default_interest_rate': 'ดอกเบี้ยผิดนัด',
         'installment_count':     'จำนวนงวด',
         'first_due_date':        'วันครบกำหนดงวดแรก',
+        'last_due_date':         'วันครบกำหนดงวดสุดท้าย',
         'installment_1':         'ค่างวด 1',
         'installment_2':         'ค่างวด 2',
         'installment_3':         'ค่างวด 3',
@@ -1591,6 +1662,7 @@ def update_customer(account_no):
         'default_interest_rate': float(data.get('default_interest_rate', 0)),
         'installment_count':     int(data['installment_count']),
         'first_due_date':        data['first_due_date'],
+        'last_due_date':         data.get('last_due_date'),
         'installment_1':         float(data['installment_1']),
         'installment_2':         float(data.get('installment_2', 0)),
         'installment_3':         float(data.get('installment_3', 0)),
@@ -1649,7 +1721,7 @@ def update_customer(account_no):
         new_vals['installment_count'],
         new_vals['default_interest_rate'],
         new_vals['first_due_date'],
-        data.get('last_due_date'),
+        new_vals['last_due_date'],
         new_vals['installment_1'],
         new_vals['installment_2'],
         new_vals['installment_3'],

@@ -905,14 +905,19 @@
             const data = await response.json();
 
             if (response.ok) {
-                document.cookie = `token=${data.token}; path=/; SameSite=Strict`;
-
                 sessionStorage.setItem('role', data.user.role);
                 sessionStorage.setItem('display_name', data.user.display_name);
+                if (data.password_warning_days) {
+                    sessionStorage.setItem('password_warning_days', data.password_warning_days);
+                    sessionStorage.removeItem('password_warning_seen');
+                } else {
+                    sessionStorage.removeItem('password_warning_days');
+                    sessionStorage.removeItem('password_warning_seen');
+                }
 
-                window.location.href = '/inventory';
+                window.location.href = data.redirect_to || '/inventory';
             } else {
-                showError('Username หรือ Password ไม่ถูกต้อง');
+                showError(data.error || 'Username หรือ Password ไม่ถูกต้อง');
             }
         } catch (err) {
             showError('ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่อีกครั้ง');

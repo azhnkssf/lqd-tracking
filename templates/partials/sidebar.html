@@ -6,26 +6,38 @@
     </div>
 
     <nav class="flex-1 space-y-1">
+        <a id="menu-users" href="/users"
+           class="superadmin-only hidden group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'users' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'users' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'users' %}style='font-variation-settings: "FILL" 1;'{% endif %}>manage_accounts</span>
+            <span class="text-sm {% if active_page == 'users' %}font-semibold{% endif %}">User Management</span>
+        </a>
+
+        <a id="menu-password-policy" href="/password-policy"
+           class="superadmin-only hidden group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'password-policy' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+            <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'password-policy' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'password-policy' %}style='font-variation-settings: "FILL" 1;'{% endif %}>admin_panel_settings</span>
+            <span class="text-sm {% if active_page == 'password-policy' %}font-semibold{% endif %}">Password Policy</span>
+        </a>
+
         <a href="/customer-list"
-           class="group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'customer-list' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+           class="work-menu group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'customer-list' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
             <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'customer-list' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'customer-list' %}style='font-variation-settings: "FILL" 1;'{% endif %}>groups</span>
             <span class="text-sm {% if active_page == 'customer-list' %}font-semibold{% endif %}">Customer List</span>
         </a>
 
         <a href="/payment-record"
-           class="group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'payment-record' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+           class="work-menu group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'payment-record' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
             <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'payment-record' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'payment-record' %}style='font-variation-settings: "FILL" 1;'{% endif %}>history</span>
             <span class="text-sm {% if active_page == 'payment-record' %}font-semibold{% endif %}">Payment Record</span>
         </a>
 
         <a id="menu-import" href="/data-import"
-           class="admin-only group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'data-import' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+           class="admin-only work-menu group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'data-import' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
             <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'data-import' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'data-import' %}style='font-variation-settings: "FILL" 1;'{% endif %}>upload_file</span>
             <span class="text-sm {% if active_page == 'data-import' %}font-semibold{% endif %}">Data Import Center</span>
         </a>
 
         <a id="menu-report" href="/report"
-           class="admin-only group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'report' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
+           class="admin-only work-menu group flex items-center gap-3 px-3.5 py-3 rounded-[10px] transition-all mb-1 {% if active_page == 'report' %}bg-primary text-white shadow-md shadow-indigo-100{% else %}bg-transparent text-slate-600 hover:bg-blue-50 hover:text-primary font-medium{% endif %}">
             <span class="material-symbols-outlined font-normal transition-colors {% if active_page != 'report' %}text-slate-400 group-hover:text-primary{% endif %}" {% if active_page == 'report' %}style='font-variation-settings: "FILL" 1;'{% endif %}>assessment</span>
             <span class="text-sm {% if active_page == 'report' %}font-semibold{% endif %}">Report Center</span>
         </a>
@@ -38,3 +50,66 @@
         </a>
     </div>
 </aside>
+
+<div id="password-warning-modal" class="hidden fixed inset-0 z-[90] items-center justify-center bg-slate-900/35 px-5 py-8">
+    <div class="w-full max-w-[460px] overflow-hidden rounded-[16px] border border-blue-100 bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-blue-50 px-5 py-4">
+            <div class="flex items-center gap-3">
+                <div class="grid h-10 w-10 place-items-center rounded-[12px] bg-blue-50 text-primary">
+                    <span class="material-symbols-outlined" style='font-variation-settings: "FILL" 1;'>lock_clock</span>
+                </div>
+                <h3 class="text-base font-bold text-slate-900">Password Expiring</h3>
+            </div>
+            <button type="button" onclick="closePasswordWarningModal()" class="text-slate-400 transition hover:text-slate-700" aria-label="Close password warning">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="space-y-5 p-5">
+            <p id="password-warning-message" class="text-sm font-medium leading-7 text-slate-600"></p>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button type="button" onclick="closePasswordWarningModal()" class="h-11 rounded-[12px] border border-blue-100 bg-white text-sm font-bold text-slate-600 transition hover:bg-blue-50">
+                    Later
+                </button>
+                <button type="button" onclick="goToChangePassword()" class="h-11 rounded-[12px] bg-primary text-sm font-bold text-white shadow-lg shadow-indigo-100 transition hover:bg-primary-muted">
+                    Change Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function closePasswordWarningModal() {
+        const modal = document.getElementById('password-warning-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function goToChangePassword() {
+        window.location.href = '/change-password';
+    }
+
+    function showPasswordWarningModal(days) {
+        const modal = document.getElementById('password-warning-modal');
+        const message = document.getElementById('password-warning-message');
+        if (!modal || !message) return;
+        message.textContent = `รหัสผ่านของคุณจะหมดอายุในอีก ${days} วัน กรุณาเปลี่ยนรหัสผ่านก่อนถึงกำหนด`;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    (function () {
+        const role = sessionStorage.getItem('role') || '';
+        if (role === 'superadmin') {
+            document.querySelectorAll('.superadmin-only').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll('.work-menu').forEach(el => el.classList.add('hidden'));
+        }
+
+        const warningDays = sessionStorage.getItem('password_warning_days');
+        if (warningDays && !sessionStorage.getItem('password_warning_seen')) {
+            sessionStorage.setItem('password_warning_seen', '1');
+            setTimeout(() => showPasswordWarningModal(warningDays), 300);
+        }
+    })();
+</script>

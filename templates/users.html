@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="light" lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>User Management | LQD Tracking Management System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    surface: "#F0F7FF",
+                    primary: "#2D3282",
+                    "primary-muted": "#3F45B5",
+                    "accent-coral": "#FF5F5F",
+                    "on-surface": "#1E293B"
+                },
+                fontFamily: { headline: ["Kanit", "sans-serif"], body: ["Kanit", "sans-serif"] }
+            }
+        }
+    }
+</script>
+<style>
+    * { font-family: "Kanit", sans-serif; }
+    body { background: #F0F7FF; color: #1E293B; }
+    .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 420, "GRAD" 0, "opsz" 24; }
+</style>
+</head>
+<body class="font-body">
+{% include "partials/navbar.html" %}
+{% include "partials/sidebar.html" %}
+
+<main class="pt-20 md:pl-56 min-h-screen">
+    <div class="px-5 md:px-8 py-6 space-y-6">
+        <section class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">User Management</h1>
+                <p class="text-sm text-slate-500 mt-1">จัดการบัญชีผู้ใช้ การ reset temporary password และ unlock account</p>
+            </div>
+            <div class="rounded-[12px] border border-blue-100 bg-white px-4 py-3 text-xs text-slate-600 leading-6">
+                Temporary password จะถูกแสดงครั้งเดียว และผู้ใช้ต้องเปลี่ยนรหัสผ่านทันทีหลัง login
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6 items-start">
+            <form id="create-form" class="bg-white border border-blue-100 rounded-[16px] shadow-sm p-5 space-y-4" onsubmit="createUser(event)">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-base font-bold text-slate-900">Create User</h2>
+                    <span class="material-symbols-outlined text-primary">person_add</span>
+                </div>
+                <div id="form-message" class="hidden rounded-[12px] border px-4 py-3 text-sm font-semibold"></div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label class="block">
+                        <span class="text-xs font-bold text-slate-600">ชื่อ</span>
+                        <input id="first_name" maxlength="80" pattern="[A-Za-zก-ฮะ-์.' \-]{1,80}" title="ใช้ได้เฉพาะตัวอักษร ช่องว่าง จุด apostrophe และ hyphen" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold text-slate-600">นามสกุล</span>
+                        <input id="last_name" maxlength="80" pattern="[A-Za-zก-ฮะ-์.' \-]{1,80}" title="ใช้ได้เฉพาะตัวอักษร ช่องว่าง จุด apostrophe และ hyphen" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                    </label>
+                </div>
+
+                <label class="block">
+                    <span class="text-xs font-bold text-slate-600">รหัสพนักงาน</span>
+                    <input id="employee_id" maxlength="20" pattern="[A-Z0-9]{3,20}" title="ใช้ได้เฉพาะ A-Z และ 0-9 ความยาว 3-20 ตัว" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold uppercase tracking-wide focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold text-slate-600">อีเมล</span>
+                    <input id="email" type="email" maxlength="254" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold text-slate-600">Username</span>
+                    <input id="username" maxlength="50" pattern="[A-Za-z0-9._-]{3,50}" title="ใช้ได้เฉพาะตัวอักษร ตัวเลข จุด underscore หรือ hyphen ความยาว 3-50 ตัว" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary" required>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold text-slate-600">Role</span>
+                    <select id="role" class="mt-2 w-full rounded-[12px] border-blue-100 bg-slate-50 px-3 py-2.5 text-sm font-semibold focus:border-primary focus:ring-primary">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </label>
+
+                <button id="create-btn" type="submit" class="w-full h-11 rounded-[12px] bg-primary text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-primary-muted transition">
+                    Create User
+                </button>
+            </form>
+
+            <section class="bg-white border border-blue-100 rounded-[16px] shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b border-blue-50 flex items-center justify-between gap-4">
+                    <h2 class="text-base font-bold text-slate-900">Users</h2>
+                    <button type="button" onclick="loadUsers()" class="h-9 px-3 rounded-[10px] border border-blue-100 text-primary text-sm font-bold hover:bg-blue-50 transition">
+                        Refresh
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-bold">User</th>
+                                <th class="px-4 py-3 text-left font-bold">Role</th>
+                                <th class="px-4 py-3 text-left font-bold">Status</th>
+                                <th class="px-4 py-3 text-left font-bold">Password</th>
+                                <th class="px-4 py-3 text-right font-bold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-body" class="divide-y divide-blue-50"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </div>
+</main>
+
+<div id="temp-modal" class="hidden fixed inset-0 z-[80] bg-slate-900/35 px-5 py-8 items-center justify-center">
+    <div class="w-full max-w-[460px] rounded-[16px] bg-white border border-blue-100 shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-blue-50 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900">Temporary Password</h3>
+            <button type="button" onclick="closeTempModal()" class="text-slate-400 hover:text-slate-700">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-5 space-y-4">
+            <p class="text-sm text-slate-600">รหัสผ่านนี้แสดงครั้งเดียว กรุณาส่งต่อให้ผู้ใช้ผ่านช่องทางที่ปลอดภัย</p>
+            <div id="temp-password" class="rounded-[12px] border border-blue-100 bg-slate-50 px-4 py-3 text-lg font-bold tracking-wide text-primary break-all"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button id="copy-password-btn" type="button" onclick="copyTempPassword()" class="h-11 rounded-[12px] border border-blue-100 bg-white text-primary text-sm font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[20px]">content_copy</span>
+                    <span id="copy-password-label">Copy Password</span>
+                </button>
+                <button type="button" onclick="closeTempModal()" class="h-11 rounded-[12px] bg-primary text-white text-sm font-bold hover:bg-primary-muted transition">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const roleLabels = { user: 'User', admin: 'Admin', superadmin: 'Super Admin' };
+
+    function showFormMessage(text, ok = false) {
+        const box = document.getElementById('form-message');
+        box.textContent = text;
+        box.className = `rounded-[12px] border px-4 py-3 text-sm font-semibold ${ok ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`;
+    }
+
+    function showTempModal(password) {
+        document.getElementById('temp-password').textContent = password;
+        document.getElementById('copy-password-label').textContent = 'Copy Password';
+        document.getElementById('temp-modal').classList.remove('hidden');
+        document.getElementById('temp-modal').classList.add('flex');
+    }
+
+    function closeTempModal() {
+        document.getElementById('temp-password').textContent = '';
+        document.getElementById('temp-modal').classList.add('hidden');
+        document.getElementById('temp-modal').classList.remove('flex');
+    }
+
+    async function copyTempPassword() {
+        const password = document.getElementById('temp-password').textContent;
+        const label = document.getElementById('copy-password-label');
+        if (!password) return;
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(password);
+            } else {
+                const input = document.createElement('textarea');
+                input.value = password;
+                input.setAttribute('readonly', '');
+                input.style.position = 'fixed';
+                input.style.opacity = '0';
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+            }
+            label.textContent = 'Copied';
+            setTimeout(() => { label.textContent = 'Copy Password'; }, 1800);
+        } catch (err) {
+            label.textContent = 'Copy failed';
+            setTimeout(() => { label.textContent = 'Copy Password'; }, 1800);
+        }
+    }
+
+    function formatDate(value) {
+        if (!value) return '-';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return '-';
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function statusBadge(user) {
+        if (!user.is_active) return '<span class="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600">Inactive</span>';
+        if (user.locked_until) return '<span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">Locked</span>';
+        return '<span class="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">Active</span>';
+    }
+
+    function renderUsers(users) {
+        const body = document.getElementById('users-body');
+        body.innerHTML = users.map(user => `
+            <tr class="hover:bg-blue-50/40">
+                <td class="px-4 py-4">
+                    <div class="font-bold text-slate-900">${user.display_name || user.username}</div>
+                    <div class="text-xs text-slate-500 mt-1">${user.username} · ${user.employee_id || '-'} · ${user.email || '-'}</div>
+                </td>
+                <td class="px-4 py-4 text-slate-700 font-semibold">${roleLabels[user.role] || user.role}</td>
+                <td class="px-4 py-4">${statusBadge(user)}</td>
+                <td class="px-4 py-4 text-xs text-slate-500">
+                    <div>${user.must_change_password ? 'Force change' : 'Normal'}</div>
+                    <div>Expire: ${formatDate(user.password_expires_at)}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <div class="flex justify-end gap-2">
+                        <button type="button" onclick="toggleStatus(${user.id}, ${user.is_active ? 'false' : 'true'})" class="h-9 px-3 rounded-[10px] border border-blue-100 text-xs font-bold text-slate-600 hover:bg-blue-50">${user.is_active ? 'Disable' : 'Enable'}</button>
+                        <button type="button" onclick="unlockUser(${user.id})" class="h-9 px-3 rounded-[10px] border border-blue-100 text-xs font-bold text-primary hover:bg-blue-50">Unlock</button>
+                        ${user.role === 'superadmin' ? '' : `<button type="button" onclick="resetPassword(${user.id})" class="h-9 px-3 rounded-[10px] bg-primary text-xs font-bold text-white hover:bg-primary-muted">Reset</button>`}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadUsers() {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        if (!response.ok) {
+            if (data.redirect_to) window.location.href = data.redirect_to;
+            return;
+        }
+        renderUsers(data.users || []);
+    }
+
+    async function createUser(event) {
+        event.preventDefault();
+        normalizeUserInputs();
+        if (!event.target.checkValidity()) {
+            event.target.reportValidity();
+            return;
+        }
+        const btn = document.getElementById('create-btn');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+        try {
+            const payload = {};
+            ['first_name', 'last_name', 'employee_id', 'email', 'username', 'role'].forEach(id => {
+                payload[id] = document.getElementById(id).value.trim();
+            });
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                showFormMessage(data.error || 'ไม่สามารถสร้างผู้ใช้ได้');
+                return;
+            }
+            document.getElementById('create-form').reset();
+            showFormMessage('สร้างผู้ใช้สำเร็จ', true);
+            showTempModal(data.temporary_password);
+            loadUsers();
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Create User';
+        }
+    }
+
+    function normalizeUserInputs() {
+        const employee = document.getElementById('employee_id');
+        const email = document.getElementById('email');
+        const username = document.getElementById('username');
+        if (employee) employee.value = employee.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (email) email.value = email.value.trim().toLowerCase();
+        if (username) username.value = username.value.trim();
+    }
+
+    async function toggleStatus(userId, isActive) {
+        await fetch(`/api/users/${userId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: isActive })
+        });
+        loadUsers();
+    }
+
+    async function unlockUser(userId) {
+        await fetch(`/api/users/${userId}/unlock`, { method: 'POST' });
+        loadUsers();
+    }
+
+    async function resetPassword(userId) {
+        const response = await fetch(`/api/users/${userId}/reset-password`, { method: 'POST' });
+        const data = await response.json();
+        if (response.ok) showTempModal(data.temporary_password);
+        loadUsers();
+    }
+
+    async function handleLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        sessionStorage.clear();
+        window.location.href = '/login';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const role = sessionStorage.getItem('role') || '';
+        const roleLabel = roleLabels[role] || role;
+        if (!role) { window.location.href = '/login'; return; }
+        if (document.getElementById('nav-role')) document.getElementById('nav-role').textContent = roleLabel;
+        if (document.getElementById('sidebar-role-label')) document.getElementById('sidebar-role-label').textContent = roleLabel + ' Terminal';
+        if (document.getElementById('nav-avatar')) document.getElementById('nav-avatar').textContent = (sessionStorage.getItem('display_name') || role || '-').charAt(0).toUpperCase();
+        const employee = document.getElementById('employee_id');
+        if (employee) {
+            employee.addEventListener('input', () => {
+                const start = employee.selectionStart;
+                employee.value = employee.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                employee.setSelectionRange(start, start);
+            });
+        }
+        const email = document.getElementById('email');
+        if (email) email.addEventListener('blur', () => { email.value = email.value.trim().toLowerCase(); });
+        const username = document.getElementById('username');
+        if (username) username.addEventListener('blur', () => { username.value = username.value.trim(); });
+        loadUsers();
+    });
+</script>
+</body>
+</html>

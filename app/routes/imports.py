@@ -15,8 +15,15 @@ bp = Blueprint('imports', __name__, url_prefix='/api/import')
 
 
 def get_current_user():
-    token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    token = request.cookies.get(current_app.config.get('AUTH_COOKIE_NAME', 'token')) or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+@bp.before_request
+def block_superadmin_from_import_api():
+    user = get_current_user()
+    if user and user['role'] == 'superadmin':
+        return jsonify({'error': 'Superadmin is limited to user management.'}), 403
 
 
 def parse_account_no(val):
@@ -34,6 +41,15 @@ def parse_account_no(val):
     s = s.replace('-', '').replace(' ', '')
 
     return s
+
+
+def is_valid_customer_name(value):
+    text = str(value or '').strip()
+    if not text:
+        return False
+    if re.search(r'\s{2,}', text):
+        return False
+    return bool(re.fullmatch(r'[A-Za-z0-9ก-ฮะ-์.\-\s]+', text))
 
 
 def parse_date(val):
@@ -471,6 +487,11 @@ def import_customers():
         if not name:
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
                             'message': 'ชื่อ-นามสกุลว่างเปล่า'})
+            error += 1
+            continue
+        if not is_valid_customer_name(name):
+            results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
+                            'message': 'ชื่อ-นามสกุล/ชื่อบริษัทใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)'})
             error += 1
             continue
 

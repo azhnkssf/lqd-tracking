@@ -649,12 +649,15 @@
     }
 
     // ---- Customer Name validation ----
+    function hasInvalidCustomerNameChars(value) {
+        return !/^[A-Za-z0-9ก-ฮะ-์.\-\s]*$/.test(value || '');
+    }
+
     function handleCustomerNameInput() {
         const el  = document.getElementById('customer-name');
         const val = el.value;
-        const hasSpecial = /[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(val);
-        if (hasSpecial) {
-            showFieldWarn('customer-name', 'ไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลขในชื่อ-นามสกุล');
+        if (hasInvalidCustomerNameChars(val)) {
+            showFieldWarn('customer-name', 'ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)');
         } else {
             hideFieldWarn('customer-name');
         }
@@ -926,8 +929,8 @@
         }
 
         const nameVal = document.getElementById('customer-name').value;
-        if (/[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(nameVal)) {
-            showError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
+        if (hasInvalidCustomerNameChars(nameVal)) {
+            showError('ชื่อ-นามสกุล/ชื่อบริษัทใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)');
             document.getElementById('customer-name').classList.add('error');
             return false;
         }

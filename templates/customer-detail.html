@@ -2466,12 +2466,15 @@
     }
 
     // ---- Customer Name validation ----
+    function hasInvalidCustomerNameChars(value) {
+        return !/^[A-Za-z0-9ก-ฮะ-์.\-\s]*$/.test(value || '');
+    }
+
     function handleCustomerNameInput() {
         const el  = document.getElementById('customer-name');
         const val = el.value;
-        const hasSpecial = /[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(val);
-        if (hasSpecial) {
-            showFieldWarn('customer-name', 'ไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลขในชื่อ-นามสกุล');
+        if (hasInvalidCustomerNameChars(val)) {
+            showFieldWarn('customer-name', 'ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)');
         } else {
             hideFieldWarn('customer-name');
         }
@@ -3042,8 +3045,8 @@ function setupFriendlyInputFocus() {
         }
 
         const nameVal = document.getElementById('customer-name').value;
-        if (/[!@#$%^&*()_+\=\[\]{};':"\|,.<>\/?`~0-9]/.test(nameVal)) {
-            showError('ชื่อ-นามสกุลไม่อนุญาตให้ใช้อักขระพิเศษหรือตัวเลข');
+        if (hasInvalidCustomerNameChars(nameVal)) {
+            showError('ชื่อ-นามสกุล/ชื่อบริษัทใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)');
             document.getElementById('customer-name').classList.add('error');
             return false;
         }
@@ -4405,6 +4408,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
             closeRetroEnforcementConfirm()
             showSuccessToast('บันทึกสำเร็จ', data.message || 'ยืนยันว่าแก้รายงานย้อนหลังแล้ว')
             await loadCustomerData()
+            loadEditHistory()
         } catch(e) {
             showAlert('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้')
         } finally {
@@ -4438,7 +4442,7 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
                 body: JSON.stringify({ enforcement_judgment_date: judgmentDate })
             })
             const data = await res.json()
-            if (res.ok) { showSuccessToast('บันทึกสำเร็จ', 'บันทึกหมายบังคับคดีเรียบร้อย สถานะเปลี่ยนเป็น บังคับคดี'); await loadCustomerData() }
+            if (res.ok) { showSuccessToast('บันทึกสำเร็จ', 'บันทึกหมายบังคับคดีเรียบร้อย สถานะเปลี่ยนเป็น บังคับคดี'); await loadCustomerData(); loadEditHistory() }
             else { showAlert('error', 'เกิดข้อผิดพลาด', data.error || 'ไม่สามารถบันทึกได้') }
         } catch(e) { showAlert('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้') }
     }

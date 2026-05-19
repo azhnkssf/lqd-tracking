@@ -3,7 +3,7 @@ import openpyxl
 from decimal import Decimal, ROUND_DOWN, InvalidOperation
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.worksheet.worksheet import Worksheet
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, current_app, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.report_service import (
@@ -24,8 +24,15 @@ bp = Blueprint('reports', __name__, url_prefix='/api/report')
 
 
 def get_current_user():
-    token = request.cookies.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    token = request.cookies.get(current_app.config.get('AUTH_COOKIE_NAME', 'token')) or request.headers.get('Authorization', '').replace('Bearer ', '')
     return get_user_by_token(token)
+
+
+@bp.before_request
+def block_superadmin_from_report_api():
+    user = get_current_user()
+    if user and user['role'] == 'superadmin':
+        return jsonify({'error': 'Superadmin is limited to user management.'}), 403
 
 
 def trunc_money(v, default=0):
