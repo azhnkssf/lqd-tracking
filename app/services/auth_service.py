@@ -18,11 +18,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 VALID_ROLES = {'user', 'admin', 'superadmin'}
-PASSWORD_HASH_METHOD = 'pbkdf2:sha256'
 
 
 def hash_password(password):
-    return generate_password_hash(password, method=PASSWORD_HASH_METHOD)
+    return generate_password_hash(password)
 
 
 def _legacy_hash_password(password):

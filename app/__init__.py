@@ -1,6 +1,3 @@
-import json
-import os
-
 from flask import Flask
 from config import Config
 from app.database import close_db, init_db
@@ -20,34 +17,6 @@ def create_app():
         app.logger.warning(message)
 
     app.teardown_appcontext(close_db)
-
-    def _vite_manifest():
-        manifest_path = os.path.join(app.static_folder, 'dist', '.vite', 'manifest.json')
-        try:
-            with open(manifest_path, encoding='utf-8') as manifest_file:
-                return json.load(manifest_file)
-        except FileNotFoundError:
-            app.logger.warning('Vite manifest not found at %s. Run npm run build before opening React pages.', manifest_path)
-            return {}
-
-    @app.context_processor
-    def inject_vite_assets():
-        vite_dev_server_url = os.environ.get('VITE_DEV_SERVER_URL', '').rstrip('/')
-
-        def vite_asset(entry):
-            manifest = _vite_manifest()
-            asset = manifest.get(entry, {}).get('file')
-            return f'dist/{asset}' if asset else 'dist/assets/main.js'
-
-        def vite_css(entry):
-            manifest = _vite_manifest()
-            return [f'dist/{path}' for path in manifest.get(entry, {}).get('css', [])]
-
-        return {
-            'vite_dev_server_url': vite_dev_server_url,
-            'vite_asset': vite_asset,
-            'vite_css': vite_css,
-        }
 
     from app.routes import auth, customers, schedule, payments, imports, reports, users
     app.register_blueprint(auth.bp)
@@ -181,7 +150,7 @@ def create_app():
         _, redirect_response = _guard_page()
         if redirect_response:
             return redirect_response
-        return render_template('customer-list-react.html')
+        return render_template('customer-list.html')
 
     @app.route('/report')
     def report_page():
