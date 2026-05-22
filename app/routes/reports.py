@@ -17,6 +17,7 @@ from app.services.report_service import (
     _attach_case_status_log_context,
     _future_effective_reason,
     _build_not_generated_row,
+    _build_customer_as_of_report_date,
     build_retroactive_enforcement_alert,
     REPORT30_HEADERS,
     build_report30_export_values,
@@ -495,15 +496,24 @@ def generate_report_db():
         cus         = dict(cus_row)
         cus         = _attach_case_status_log_context(cus, db)
         account_no  = cus['account_no']
-        case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+
+        # Keep latest DB customer only for retroactive alert diagnostics.
+        latest_cus = cus
+
         retroactive_alert = build_retroactive_enforcement_alert(
-            cus,
+            latest_cus,
             db=db,
             report_date_str=report_date,
             include_marked=False,
         )
         if retroactive_alert:
             retroactive_alerts.append(retroactive_alert)
+
+        # Use customer status as of report_date for report classification.
+        # Example: current status is บังคับคดี, but enforcement date is after report_date.
+        # Then rollback to previous status, e.g. พิพากษาฝ่ายเดียว / พิพากษาตามยอม.
+        cus = _build_customer_as_of_report_date(cus, report_date)
+        case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 
         payments = None
         if case_status == 'ปิดบัญชี':
