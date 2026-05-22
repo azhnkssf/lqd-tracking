@@ -765,6 +765,7 @@
                             <button type="button" data-date-field="nextDue" onclick="selectFilterDateField('nextDue')" class="filter-select-option" role="option">วันครบกำหนดถัดไป</button>
                             <button type="button" data-date-field="filingDate" onclick="selectFilterDateField('filingDate')" class="filter-select-option" role="option">วันที่ยื่นฟ้อง</button>
                             <button type="button" data-date-field="judgmentDate" onclick="selectFilterDateField('judgmentDate')" class="filter-select-option" role="option">วันที่พิพากษา</button>
+                            <button type="button" data-date-field="enforcementJudgmentDate" onclick="selectFilterDateField('enforcementJudgmentDate')" class="filter-select-option" role="option">วันที่ของหมายบังคับคดี</button>
                             <button type="button" data-date-field="lastPaymentDate" onclick="selectFilterDateField('lastPaymentDate')" class="filter-select-option" role="option">วันที่ชำระล่าสุด</button>
                         </div>
                     </div>
@@ -1213,6 +1214,7 @@
         nextDue: { short: 'ถัดไป', full: 'วันครบกำหนดถัดไป' },
         filingDate: { short: 'ยื่นฟ้อง', full: 'วันที่ยื่นฟ้อง' },
         judgmentDate: { short: 'พิพากษา', full: 'วันที่พิพากษา' },
+        enforcementJudgmentDate: { short: 'หมายบังคับ', full: 'วันที่ของหมายบังคับคดี' },
         lastPaymentDate: { short: 'ชำระล่าสุด', full: 'วันที่ชำระล่าสุด' }
     };
     const FILTER_DP_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];

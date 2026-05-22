@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 type Role = 'user' | 'admin' | 'superadmin' | '';
 
@@ -84,12 +85,16 @@ type AddForm = {
 const CASE_STATUSES = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
 const PAYMENT_STATUSES = ['ค้างชำระ', 'ชำระปกติ', 'ยังไม่ถึงกำหนด', 'ไม่มีแผนชำระ', 'ชำระครบแล้ว'];
 const DATE_FIELDS = [
-  { value: 'due', label: 'วันครบกำหนดงวดแรก' },
-  { value: 'nextDue', label: 'วันครบกำหนดถัดไป' },
-  { value: 'filingDate', label: 'วันที่ยื่นฟ้อง' },
-  { value: 'judgmentDate', label: 'วันที่พิพากษา' },
-  { value: 'lastPaymentDate', label: 'วันที่ชำระล่าสุด' },
+  { value: 'due', shortLabel: 'งวดแรก', label: 'วันครบกำหนดงวดแรก' },
+  { value: 'nextDue', shortLabel: 'ถัดไป', label: 'วันครบกำหนดถัดไป' },
+  { value: 'filingDate', shortLabel: 'ยื่นฟ้อง', label: 'วันที่ยื่นฟ้อง' },
+  { value: 'judgmentDate', shortLabel: 'พิพากษา', label: 'วันที่พิพากษา' },
+  { value: 'enforcementJudgmentDate', shortLabel: 'หมายบังคับ', label: 'วันที่ของหมายบังคับคดี' },
+  { value: 'lastPaymentDate', shortLabel: 'ชำระล่าสุด', label: 'วันที่ชำระล่าสุด' },
 ];
+const FILTER_DP_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const FILTER_DP_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const FILTER_DP_WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
 function emptyFilters(): Filters {
   return {
@@ -153,6 +158,21 @@ function fmtDate(value?: string) {
   if (!value) return '-';
   const [y, m, d] = String(value).slice(0, 10).split('-');
   return y && m && d ? `${d}/${m}/${y}` : '-';
+}
+
+function todayDateOnly() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+}
+
+function dateToIso(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+}
+
+function calendarDateFromIso(value?: string) {
+  if (!value) return null;
+  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : null;
 }
 
 function fmtTimestamp(value?: string) {
@@ -969,9 +989,7 @@ function FilterDrawer({ draft, setDraft, onApply, onReset, onClose }: {
             <section className="filter-section"><p className="filter-title">สถานะคดี</p><div className="filter-check-grid">{CASE_STATUSES.map(status => <label key={status} className={`filter-check-row ${draft.caseStatuses.includes(status) ? 'active' : ''}`}><span>{status}</span><input checked={draft.caseStatuses.includes(status)} onChange={() => toggle('caseStatuses', status)} type="checkbox" className="filter-check-input" /></label>)}</div></section>
             <section className="filter-section"><p className="filter-title">สถานะการชำระเงิน</p><div className="filter-check-grid">{PAYMENT_STATUSES.map(status => <label key={status} className={`filter-check-row ${draft.paymentStatuses.includes(status) ? 'active' : ''}`}><span>{status}</span><input checked={draft.paymentStatuses.includes(status)} onChange={() => toggle('paymentStatuses', status)} type="checkbox" className="filter-check-input" /></label>)}</div></section>
             <section className="filter-section">
-              <p className="filter-title">ช่วงวันที่</p>
-              <select value={draft.dateField} onChange={e => setDraft({ ...draft, dateField: e.target.value })} className="filter-input mb-3">{DATE_FIELDS.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}</select>
-              <div className="grid grid-cols-2 gap-3"><input value={draft.dateFrom} onChange={e => setDraft({ ...draft, dateFrom: e.target.value })} className="filter-input" type="date" /><input value={draft.dateTo} onChange={e => setDraft({ ...draft, dateTo: e.target.value })} className="filter-input" type="date" /></div>
+              <AdvancedDateFilter draft={draft} setDraft={setDraft} />
             </section>
             <section className="filter-section"><p className="filter-title">ช่วงยอดหนี้คงเหลือ</p><div className="grid grid-cols-2 gap-3"><input value={draft.outstandingMin} onChange={e => setDraft({ ...draft, outstandingMin: e.target.value })} className="filter-input" type="number" min="0" step="10000" placeholder="ต่ำสุด" /><input value={draft.outstandingMax} onChange={e => setDraft({ ...draft, outstandingMax: e.target.value })} className="filter-input" type="number" min="0" step="10000" placeholder="สูงสุด" /></div></section>
           </div>
@@ -980,6 +998,225 @@ function FilterDrawer({ draft, setDraft, onApply, onReset, onClose }: {
       </aside>
     </>
   );
+}
+
+function AdvancedDateFilter({ draft, setDraft }: { draft: Filters; setDraft: (filters: Filters) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const selectedField = DATE_FIELDS.find(field => field.value === draft.dateField) || DATE_FIELDS[0];
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const closeMenu = (event: MouseEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
+  }, [menuOpen]);
+
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="filter-title mb-0 whitespace-nowrap">ช่วงวันที่</p>
+        <div ref={dropdownRef} className="filter-select-wrap">
+          <button type="button" onClick={() => setMenuOpen(open => !open)} className="filter-select-trigger" aria-haspopup="listbox" aria-expanded={menuOpen}>
+            <span>{selectedField.shortLabel}</span>
+            <span className="material-symbols-outlined text-[17px] text-slate-400">expand_more</span>
+          </button>
+          {menuOpen && (
+            <div className="filter-select-menu" role="listbox" aria-label="เลือกประเภทวันที่">
+              {DATE_FIELDS.map(field => {
+                const active = field.value === selectedField.value;
+                return (
+                  <button
+                    key={field.value}
+                    type="button"
+                    onClick={() => {
+                      setDraft({ ...draft, dateField: field.value });
+                      setMenuOpen(false);
+                    }}
+                    className={`filter-select-option ${active ? 'active' : ''}`}
+                    role="option"
+                    aria-selected={active}
+                  >
+                    <span>{field.label}</span>
+                    {active && <span className="material-symbols-outlined text-[16px]">check</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      <ThemedDateRange
+        dateFrom={draft.dateFrom}
+        dateTo={draft.dateTo}
+        onChange={(field, value) => setDraft({ ...draft, [field]: value })}
+      />
+    </>
+  );
+}
+
+type DateRangeField = 'dateFrom' | 'dateTo';
+
+function ThemedDateRange({ dateFrom, dateTo, onChange }: {
+  dateFrom: string;
+  dateTo: string;
+  onChange: (field: DateRangeField, value: string) => void;
+}) {
+  const initialDate = calendarDateFromIso(dateFrom || dateTo) || todayDateOnly();
+  const [openField, setOpenField] = useState<DateRangeField | ''>('');
+  const [year, setYear] = useState(initialDate.getFullYear());
+  const [month, setMonth] = useState(initialDate.getMonth());
+  const [monthView, setMonthView] = useState(false);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
+  const popupRef = useRef<HTMLDivElement>(null);
+  const dateFromRef = useRef<HTMLButtonElement>(null);
+  const dateToRef = useRef<HTMLButtonElement>(null);
+  const selectedValue = openField === 'dateTo' ? dateTo : dateFrom;
+  const today = todayDateOnly();
+
+  const positionPopup = useCallback((field: DateRangeField) => {
+    const anchor = field === 'dateTo' ? dateToRef.current : dateFromRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const popupWidth = 288;
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    let left = rect.left;
+    if (left + popupWidth > window.innerWidth - 8) left = window.innerWidth - popupWidth - 8;
+    if (left < 8) left = 8;
+    const nextStyle: CSSProperties = {
+      left,
+      width: popupWidth,
+      maxHeight: Math.max(180, spaceBelow >= 340 ? spaceBelow : spaceAbove >= 340 ? spaceAbove : window.innerHeight - 16),
+    };
+    if (spaceBelow >= 340) nextStyle.top = rect.bottom + 6;
+    else if (spaceAbove >= 340) nextStyle.bottom = window.innerHeight - rect.top + 6;
+    else nextStyle.top = 8;
+    setPopupStyle(nextStyle);
+  }, []);
+
+  const openCalendar = (field: DateRangeField) => {
+    const currentValue = calendarDateFromIso(field === 'dateTo' ? dateTo : dateFrom) || todayDateOnly();
+    setYear(currentValue.getFullYear());
+    setMonth(currentValue.getMonth());
+    setMonthView(false);
+    setOpenField(field);
+    window.requestAnimationFrame(() => positionPopup(field));
+  };
+
+  useEffect(() => {
+    if (!openField) return undefined;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (popupRef.current?.contains(target) || dateFromRef.current?.contains(target) || dateToRef.current?.contains(target)) return;
+      setOpenField('');
+    };
+    const reposition = () => positionPopup(openField);
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [openField, positionPopup]);
+
+  const selectDay = (value: string) => {
+    if (!openField) return;
+    onChange(openField, value);
+    setOpenField('');
+  };
+
+  const navMonth = (delta: number) => {
+    const nextMonth = month + delta;
+    if (nextMonth > 11) {
+      setMonth(0);
+      setYear(current => current + 1);
+    } else if (nextMonth < 0) {
+      setMonth(11);
+      setYear(current => current - 1);
+    } else {
+      setMonth(nextMonth);
+    }
+  };
+
+  const calendarPopup = openField && (
+    <div ref={popupRef} style={popupStyle} className="dp-popup">
+      <div className="dp-header">
+        <button type="button" onClick={() => navMonth(-1)} className="dp-nav-btn" aria-label="เดือนก่อนหน้า"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
+        <button type="button" onClick={() => setMonthView(view => !view)} className="dp-month-year">{FILTER_DP_MONTHS[month]} {year + 543}</button>
+        <button type="button" onClick={() => navMonth(1)} className="dp-nav-btn" aria-label="เดือนถัดไป"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
+      </div>
+      {monthView ? (
+        <>
+          <div className="dp-year-header">
+            <button type="button" onClick={() => setYear(current => current - 1)} className="dp-nav-btn" aria-label="ปีก่อนหน้า"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
+            <span className="text-sm font-bold text-slate-700">พ.ศ. {year + 543}</span>
+            <button type="button" onClick={() => setYear(current => current + 1)} className="dp-nav-btn" aria-label="ปีถัดไป"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
+          </div>
+          <div className="dp-my-grid">
+            {FILTER_DP_SHORT_MONTHS.map((shortMonth, index) => (
+              <button key={shortMonth} type="button" onClick={() => { setMonth(index); setMonthView(false); }} className={`dp-my-item ${index === month ? 'active' : ''}`}>{shortMonth}</button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="dp-weekdays">{FILTER_DP_WEEKDAYS.map(day => <span key={day} className="dp-weekday">{day}</span>)}</div>
+          <div className="dp-days">
+            {calendarCells(year, month).map(cell => {
+              const isoValue = dateToIso(cell.date);
+              const active = cell.currentMonth && isoValue === selectedValue;
+              const isToday = cell.currentMonth && cell.date.getTime() === today.getTime();
+              const className = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''}`;
+              return cell.currentMonth
+                ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={className}>{cell.date.getDate()}</button>
+                : <span key={isoValue} className={className}>{cell.date.getDate()}</span>;
+            })}
+          </div>
+        </>
+      )}
+      <div className="dp-footer">
+        <button type="button" onClick={() => { if (openField) onChange(openField, ''); setOpenField(''); }} className="dp-btn-clear">ล้างค่า</button>
+        <button type="button" onClick={() => selectDay(dateToIso(today))} className="dp-btn-today">วันนี้</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <button ref={dateFromRef} type="button" onClick={() => openCalendar('dateFrom')} className={`filter-date-display relative ${openField === 'dateFrom' ? 'open' : ''}`}>
+          <span className={dateFrom ? 'text-slate-700' : 'text-slate-400'}>{dateFrom ? fmtDate(dateFrom) : 'เริ่มต้น'}</span>
+          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+        </button>
+        <button ref={dateToRef} type="button" onClick={() => openCalendar('dateTo')} className={`filter-date-display relative ${openField === 'dateTo' ? 'open' : ''}`}>
+          <span className={dateTo ? 'text-slate-700' : 'text-slate-400'}>{dateTo ? fmtDate(dateTo) : 'สิ้นสุด'}</span>
+          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>
+        </button>
+      </div>
+      {calendarPopup ? createPortal(calendarPopup, document.body) : null}
+    </>
+  );
+}
+
+function calendarCells(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const cells: { date: Date; currentMonth: boolean }[] = [];
+  for (let index = 0; index < first.getDay(); index += 1) {
+    cells.push({ date: new Date(year, month, index - first.getDay() + 1), currentMonth: false });
+  }
+  for (let day = 1; day <= last.getDate(); day += 1) {
+    cells.push({ date: new Date(year, month, day), currentMonth: true });
+  }
+  while (cells.length < 42) {
+    cells.push({ date: new Date(year, month + 1, cells.length - first.getDay() - last.getDate() + 1), currentMonth: false });
+  }
+  return cells;
 }
 
 function WaitModal() {

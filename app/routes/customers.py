@@ -466,7 +466,7 @@ def list_customers():
     sort_by     = request.args.get('sort_by', '').strip()
     sort_dir    = request.args.get('sort_dir', 'desc').strip().lower()
     offset      = (page - 1) * per_page
-    allowed_date_fields = {'due', 'nextDue', 'filingDate', 'judgmentDate', 'lastPaymentDate'}
+    allowed_date_fields = {'due', 'nextDue', 'filingDate', 'judgmentDate', 'enforcementJudgmentDate', 'lastPaymentDate'}
     if date_field not in allowed_date_fields:
         date_field = 'due'
 
@@ -506,6 +506,7 @@ def list_customers():
         'nextDue': 'ui_next_due_date',
         'filingDate': 'filing_date',
         'judgmentDate': 'judgment_date',
+        'enforcementJudgmentDate': 'enforcement_judgment_date',
     }
     if (date_from or date_to) and date_field in sql_date_columns:
         date_column = sql_date_columns[date_field]

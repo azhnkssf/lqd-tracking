@@ -132,6 +132,37 @@
       .filter-check-row.active { @apply border-blue-200 bg-blue-50/70 text-slate-800; }
       .filter-check-input { @apply rounded border-slate-300 text-primary focus:ring-primary/20; }
       .filter-input { @apply w-full rounded-xl border-blue-100 bg-white text-xs font-medium text-slate-600 focus:ring-primary/10 focus:border-primary; }
+      .filter-date-display { @apply h-11 w-full rounded-xl border border-blue-100 bg-white px-4 pr-10 text-left text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
+      .filter-date-display.open { @apply border-primary bg-white ring-4 ring-primary/10; }
+      .filter-select-wrap { @apply relative w-[136px] flex-shrink-0; }
+      .filter-select-trigger { @apply h-9 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
+      .filter-select-menu { @apply absolute right-0 top-[calc(100%+6px)] z-[90] w-[210px] rounded-2xl border border-blue-100 bg-white p-1.5 shadow-xl shadow-slate-900/10; }
+      .filter-select-option { @apply flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-500 transition-all hover:bg-blue-50 hover:text-primary; }
+      .filter-select-option.active { @apply bg-indigo-50 text-primary; }
+      .dp-popup { display:block;position:fixed;z-index:99999;background:#fff;border:1px solid #e2e8f0;border-radius:1rem;box-shadow:0 20px 40px rgba(15,23,42,0.12);width:288px;padding:1rem;font-family:'Kanit',sans-serif;overflow-y:auto; }
+      .dp-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem; }
+      .dp-nav-btn { width:32px;height:32px;border-radius:0.5rem;border:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;transition:all 0.15s; }
+      .dp-nav-btn:hover { background:#2D3282;color:#fff;border-color:#2D3282; }
+      .dp-month-year { font-size:0.95rem;font-weight:700;color:#1e293b;cursor:pointer;padding:4px 10px;border-radius:0.5rem;transition:background 0.15s; }
+      .dp-month-year:hover { background:#f1f5f9; }
+      .dp-weekdays { display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px; }
+      .dp-weekday { text-align:center;font-size:0.7rem;font-weight:700;color:#94a3b8;padding:4px 0;text-transform:uppercase;letter-spacing:0.05em; }
+      .dp-days { display:grid;grid-template-columns:repeat(7,30px);grid-auto-rows:30px;justify-content:space-between;gap:2px;min-height:190px; }
+      .dp-day { width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:0.45rem;font-size:0.78rem;cursor:pointer;color:#1e293b;transition:all 0.15s;font-weight:400; }
+      .dp-day:hover:not(.dp-day-selected) { background:#EEF2FF;color:#2D3282;font-weight:600; }
+      .dp-day-other { color:#cbd5e1;cursor:default; }
+      .dp-day-today { font-weight:700;color:#2D3282;border:1.5px solid #2D3282; }
+      .dp-day-selected { background:#2D3282!important;color:#fff!important;font-weight:700; }
+      .dp-footer { display:flex;justify-content:flex-end;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #f1f5f9;gap:0.5rem; }
+      .dp-btn-clear { font-size:0.75rem;font-weight:600;color:#94a3b8;background:none;border:none;cursor:pointer;padding:4px 10px;border-radius:0.5rem;font-family:'Kanit',sans-serif; }
+      .dp-btn-clear:hover { color:#ef4444; }
+      .dp-btn-today { font-size:0.75rem;font-weight:600;color:#2D3282;background:#EEF2FF;border:none;cursor:pointer;padding:4px 12px;border-radius:0.5rem;font-family:'Kanit',sans-serif; }
+      .dp-btn-today:hover { background:#2D3282;color:#fff; }
+      .dp-my-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 0; }
+      .dp-my-item { text-align:center;padding:8px 4px;border-radius:0.5rem;font-size:0.8rem;font-weight:500;cursor:pointer;color:#1e293b;transition:all 0.15s; }
+      .dp-my-item:hover { background:#EEF2FF;color:#2D3282;font-weight:700; }
+      .dp-my-item.active { background:#2D3282;color:#fff;font-weight:700; }
+      .dp-year-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem; }
       .drawer-backdrop { @apply fixed inset-0 z-[110] bg-slate-900/20 backdrop-blur-[2px] opacity-0 transition-opacity duration-200 ease-out; }
       .drawer-backdrop.open { @apply opacity-100; }
       .drawer-panel { @apply fixed right-0 top-0 bottom-0 z-[120] w-full max-w-md bg-white border-l border-blue-100 shadow-2xl shadow-slate-900/10 translate-x-full transition-transform duration-300 ease-out will-change-transform; }
@@ -166,5 +197,297 @@
     {% else %}
     <script type="module" src="{{ url_for('static', filename=vite_asset('src/main.tsx')) }}"></script>
     {% endif %}
+    <script>
+      (() => {
+        const dateFields = [
+          { value: 'due', shortLabel: 'งวดแรก', label: 'วันครบกำหนดงวดแรก' },
+          { value: 'nextDue', shortLabel: 'ถัดไป', label: 'วันครบกำหนดถัดไป' },
+          { value: 'filingDate', shortLabel: 'ยื่นฟ้อง', label: 'วันที่ยื่นฟ้อง' },
+          { value: 'judgmentDate', shortLabel: 'พิพากษา', label: 'วันที่พิพากษา' },
+          { value: 'enforcementJudgmentDate', shortLabel: 'หมายบังคับ', label: 'วันที่ของหมายบังคับคดี' },
+          { value: 'lastPaymentDate', shortLabel: 'ชำระล่าสุด', label: 'วันที่ชำระล่าสุด' }
+        ];
+        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const shortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const weekdays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+        let popup = null;
+        let popupAnchor = null;
+        let activeMenu = null;
+
+        function isoDate(date) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        function parseIso(value) {
+          if (!value) return null;
+          const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+          return year && month && day ? new Date(year, month - 1, day) : null;
+        }
+
+        function displayDate(value, placeholder) {
+          const date = parseIso(value);
+          return date ? `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}` : placeholder;
+        }
+
+        function setNativeValue(control, value) {
+          const proto = control.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          if (setter) setter.call(control, value);
+          else control.value = value;
+          control.dispatchEvent(new Event('input', { bubbles: true }));
+          control.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function ensureEnforcementOption(select) {
+          if (select.querySelector('option[value="enforcementJudgmentDate"]')) return;
+          const option = document.createElement('option');
+          option.value = 'enforcementJudgmentDate';
+          option.textContent = 'วันที่ของหมายบังคับคดี';
+          select.appendChild(option);
+        }
+
+        function fieldMeta(value) {
+          return dateFields.find(field => field.value === value) || dateFields[0];
+        }
+
+        function closeMenu() {
+          activeMenu?.remove();
+          activeMenu = null;
+        }
+
+        function makeFieldDropdown(select) {
+          ensureEnforcementOption(select);
+          if (select.dataset.themedFilterSelect) return;
+          select.dataset.themedFilterSelect = '1';
+          select.style.display = 'none';
+
+          const wrap = document.createElement('div');
+          wrap.className = 'filter-select-wrap';
+          const trigger = document.createElement('button');
+          trigger.type = 'button';
+          trigger.className = 'filter-select-trigger';
+          trigger.setAttribute('aria-haspopup', 'listbox');
+          trigger.setAttribute('aria-expanded', 'false');
+          wrap.appendChild(trigger);
+          select.parentNode.insertBefore(wrap, select);
+
+          const syncLabel = () => {
+            const field = fieldMeta(select.value);
+            trigger.innerHTML = `<span>${field.shortLabel}</span><span class="material-symbols-outlined text-[17px] text-slate-400">expand_more</span>`;
+          };
+
+          trigger.addEventListener('click', event => {
+            event.stopPropagation();
+            if (activeMenu && activeMenu.parentNode === wrap) {
+              closeMenu();
+              trigger.setAttribute('aria-expanded', 'false');
+              return;
+            }
+            closeMenu();
+            activeMenu = document.createElement('div');
+            activeMenu.className = 'filter-select-menu';
+            activeMenu.setAttribute('role', 'listbox');
+            activeMenu.setAttribute('aria-label', 'เลือกประเภทวันที่');
+            dateFields.forEach(field => {
+              const option = document.createElement('button');
+              const active = field.value === select.value;
+              option.type = 'button';
+              option.className = `filter-select-option${active ? ' active' : ''}`;
+              option.setAttribute('role', 'option');
+              option.setAttribute('aria-selected', String(active));
+              option.innerHTML = `<span>${field.label}</span>${active ? '<span class="material-symbols-outlined text-[16px]">check</span>' : ''}`;
+              option.addEventListener('click', () => {
+                ensureEnforcementOption(select);
+                setNativeValue(select, field.value);
+                syncLabel();
+                closeMenu();
+                trigger.setAttribute('aria-expanded', 'false');
+              });
+              activeMenu.appendChild(option);
+            });
+            wrap.appendChild(activeMenu);
+            trigger.setAttribute('aria-expanded', 'true');
+          });
+
+          select.addEventListener('change', syncLabel);
+          syncLabel();
+        }
+
+        function clearPopup() {
+          popup?.remove();
+          popup = null;
+          popupAnchor?.classList.remove('open');
+          popupAnchor = null;
+        }
+
+        function positionPopup(anchor) {
+          if (!popup) return;
+          const rect = anchor.getBoundingClientRect();
+          const width = 288;
+          const below = window.innerHeight - rect.bottom - 8;
+          const above = rect.top - 8;
+          let left = Math.min(rect.left, window.innerWidth - width - 8);
+          left = Math.max(8, left);
+          popup.style.left = `${left}px`;
+          popup.style.width = `${width}px`;
+          popup.style.top = '';
+          popup.style.bottom = '';
+          if (below >= 340) {
+            popup.style.top = `${rect.bottom + 6}px`;
+            popup.style.maxHeight = `${below}px`;
+          } else if (above >= 340) {
+            popup.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+            popup.style.maxHeight = `${above}px`;
+          } else {
+            popup.style.top = '8px';
+            popup.style.maxHeight = `${window.innerHeight - 16}px`;
+          }
+        }
+
+        function makeDateButton(input, placeholder) {
+          if (input.dataset.themedFilterDate) return;
+          input.dataset.themedFilterDate = '1';
+          input.style.display = 'none';
+
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'filter-date-display relative';
+          input.parentNode.insertBefore(button, input);
+
+          const syncText = () => {
+            button.innerHTML = `<span class="${input.value ? 'text-slate-700' : 'text-slate-400'}">${displayDate(input.value, placeholder)}</span><span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 pointer-events-none">calendar_today</span>`;
+          };
+          const syncLater = () => window.requestAnimationFrame(syncText);
+          button.addEventListener('click', event => {
+            event.stopPropagation();
+            openCalendar(input, button, syncText);
+          });
+          input.addEventListener('input', syncLater);
+          input.addEventListener('change', syncLater);
+          syncText();
+        }
+
+        function calendarCells(year, month) {
+          const first = new Date(year, month, 1);
+          const last = new Date(year, month + 1, 0);
+          const cells = [];
+          for (let index = 0; index < first.getDay(); index += 1) cells.push({ date: new Date(year, month, index - first.getDay() + 1), current: false });
+          for (let day = 1; day <= last.getDate(); day += 1) cells.push({ date: new Date(year, month, day), current: true });
+          while (cells.length < 42) cells.push({ date: new Date(year, month + 1, cells.length - first.getDay() - last.getDate() + 1), current: false });
+          return cells;
+        }
+
+        function openCalendar(input, anchor, syncText) {
+          clearPopup();
+          popupAnchor = anchor;
+          popupAnchor.classList.add('open');
+          const selected = parseIso(input.value);
+          const today = new Date();
+          const state = {
+            year: (selected || today).getFullYear(),
+            month: (selected || today).getMonth(),
+            monthView: false
+          };
+
+          popup = document.createElement('div');
+          popup.className = 'dp-popup';
+          popup.addEventListener('click', event => event.stopPropagation());
+          document.body.appendChild(popup);
+
+          const pick = value => {
+            setNativeValue(input, value);
+            syncText();
+            clearPopup();
+          };
+
+          const navMonth = delta => {
+            state.month += delta;
+            if (state.month > 11) { state.month = 0; state.year += 1; }
+            if (state.month < 0) { state.month = 11; state.year -= 1; }
+            render();
+          };
+
+          const render = () => {
+            popup.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'dp-header';
+            header.innerHTML = `<button type="button" class="dp-nav-btn" data-nav="-1" aria-label="เดือนก่อนหน้า"><span class="material-symbols-outlined text-[18px]">chevron_left</span></button><button type="button" class="dp-month-year">${months[state.month]} ${state.year + 543}</button><button type="button" class="dp-nav-btn" data-nav="1" aria-label="เดือนถัดไป"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>`;
+            header.querySelector('[data-nav="-1"]').addEventListener('click', () => navMonth(-1));
+            header.querySelector('[data-nav="1"]').addEventListener('click', () => navMonth(1));
+            header.querySelector('.dp-month-year').addEventListener('click', () => { state.monthView = !state.monthView; render(); });
+            popup.appendChild(header);
+
+            if (state.monthView) {
+              const yearHeader = document.createElement('div');
+              yearHeader.className = 'dp-year-header';
+              yearHeader.innerHTML = `<button type="button" class="dp-nav-btn" data-year="-1" aria-label="ปีก่อนหน้า"><span class="material-symbols-outlined text-[18px]">chevron_left</span></button><span class="text-sm font-bold text-slate-700">พ.ศ. ${state.year + 543}</span><button type="button" class="dp-nav-btn" data-year="1" aria-label="ปีถัดไป"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>`;
+              yearHeader.querySelector('[data-year="-1"]').addEventListener('click', () => { state.year -= 1; render(); });
+              yearHeader.querySelector('[data-year="1"]').addEventListener('click', () => { state.year += 1; render(); });
+              popup.appendChild(yearHeader);
+              const grid = document.createElement('div');
+              grid.className = 'dp-my-grid';
+              shortMonths.forEach((label, index) => {
+                const monthButton = document.createElement('button');
+                monthButton.type = 'button';
+                monthButton.className = `dp-my-item${index === state.month ? ' active' : ''}`;
+                monthButton.textContent = label;
+                monthButton.addEventListener('click', () => { state.month = index; state.monthView = false; render(); });
+                grid.appendChild(monthButton);
+              });
+              popup.appendChild(grid);
+            } else {
+              const week = document.createElement('div');
+              week.className = 'dp-weekdays';
+              week.innerHTML = weekdays.map(day => `<span class="dp-weekday">${day}</span>`).join('');
+              popup.appendChild(week);
+              const days = document.createElement('div');
+              days.className = 'dp-days';
+              const todayIso = isoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+              calendarCells(state.year, state.month).forEach(cell => {
+                const value = isoDate(cell.date);
+                const day = document.createElement(cell.current ? 'button' : 'span');
+                if (cell.current) {
+                  day.type = 'button';
+                  day.addEventListener('click', () => pick(value));
+                }
+                day.className = `dp-day${cell.current ? '' : ' dp-day-other'}${value === input.value && cell.current ? ' dp-day-selected' : ''}${value === todayIso && cell.current && value !== input.value ? ' dp-day-today' : ''}`;
+                day.textContent = String(cell.date.getDate());
+                days.appendChild(day);
+              });
+              popup.appendChild(days);
+            }
+
+            const footer = document.createElement('div');
+            footer.className = 'dp-footer';
+            footer.innerHTML = '<button type="button" class="dp-btn-clear">ล้างค่า</button><button type="button" class="dp-btn-today">วันนี้</button>';
+            footer.querySelector('.dp-btn-clear').addEventListener('click', () => pick(''));
+            footer.querySelector('.dp-btn-today').addEventListener('click', () => pick(isoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()))));
+            popup.appendChild(footer);
+            positionPopup(anchor);
+          };
+          render();
+        }
+
+        function decorateAdvancedFilter() {
+          document.querySelectorAll('.drawer-panel .filter-section select.filter-input').forEach(select => {
+            makeFieldDropdown(select);
+            const grid = select.parentElement.querySelector('.grid.grid-cols-2');
+            const inputs = grid?.querySelectorAll('input[type="date"]');
+            if (!inputs || inputs.length < 2) return;
+            makeDateButton(inputs[0], 'เริ่มต้น');
+            makeDateButton(inputs[1], 'สิ้นสุด');
+          });
+        }
+
+        document.addEventListener('click', () => {
+          closeMenu();
+          clearPopup();
+        });
+        window.addEventListener('resize', () => popup && popupAnchor && positionPopup(popupAnchor));
+        window.addEventListener('scroll', () => popup && popupAnchor && positionPopup(popupAnchor), true);
+        new MutationObserver(decorateAdvancedFilter).observe(document.body, { childList: true, subtree: true });
+        decorateAdvancedFilter();
+      })();
+    </script>
   </body>
 </html>
