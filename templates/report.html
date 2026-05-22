@@ -839,19 +839,46 @@ tailwind.config = {
         };
 
         if (tab === '30') {
-            renderHeader(['เลขที่บัญชี','วันที่ยื่นฟ้อง','ทุนทรัพย์ (฿)','วันที่ผิดนัดชำระก่อนฟ้อง','ยอดหนี้คำพิพากษา','วันที่พิพากษา','ยอดหนี้ผิดนัด','DPD','Remark']);
+            renderHeader([
+                'เลขที่บัญชี',
+                'วันที่ส่งฟ้องศาล',
+                'ยอดเงินส่งฟ้อง (เงินต้น+ดอกเบี้ย)',
+                'ยอดเงินที่ศาลตัดสิน',
+                'วันที่ศาลตัดสิน',
+                'วันที่กลับมาผิดนัดชำระ',
+                'จำนวนวันผิดนัดชำระ',
+                'ค่างวดคงเหลือ',
+                'หมายเหตุ',
+                'หมายเหตุ 2',
+                'หมายเหตุ 3',
+                'หมายเหตุ Litigation'
+            ]);
             const rows = reportData.report_30;
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="9" class="py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`; return; }
+            if (!rows.length) {
+                body.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-300">ไม่มีข้อมูล Report 30</td></tr>`;
+                return;
+            }
+
+            const val = (r, ...keys) => {
+                for (const key of keys) {
+                    if (r[key] !== null && r[key] !== undefined && r[key] !== '') return r[key];
+                }
+                return '';
+            };
+
             body.innerHTML = rows.map(r => `<tr>
-                <td><span class="font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span></td>
-                <td class="text-slate-400">${fmtDate(r.filing_date)}</td>
-                <td class="text-right font-semibold text-slate-700">${fmt(r.principal_sued)}</td>
-                <td class="text-slate-400">${fmtDate(r.pre_filing_default_date)}</td>
-                <td class="text-right font-semibold text-slate-700">${fmt(r.judgment_debt)}</td>
-                <td class="text-slate-400">${fmtDate(r.judgment_date)}</td>
-                <td class="text-right font-semibold text-slate-700">${fmt(r.default_amount)}</td>
-                <td class="text-center">${Number(r.dpd ?? r.dpd_months ?? 0) > 0 ? `<span class="px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 font-bold">${fmt(r.dpd ?? r.dpd_months)}</span>` : '0'}</td>
-                <td class="text-amber-700 whitespace-normal min-w-[200px]">${r.remark || '-'}</td>
+                <td><span class="font-bold text-primary tracking-wide">${fmtAccNo(val(r, 'report30_account_no', 'account_no'))}</span></td>
+                <td class="text-slate-400">${fmtDate(val(r, 'report30_filing_date', 'filing_date'))}</td>
+                <td class="text-right font-semibold text-slate-700">${fmt(val(r, 'report30_filing_amount', 'principal_sued'))}</td>
+                <td class="text-right font-semibold text-slate-700">${val(r, 'report30_judgment_debt', 'judgment_debt') !== '' ? fmt(val(r, 'report30_judgment_debt', 'judgment_debt')) : '-'}</td>
+                <td class="text-slate-400">${fmtDate(val(r, 'report30_judgment_date', 'judgment_date'))}</td>
+                <td class="text-slate-400">${fmtDate(val(r, 'report30_first_default_date'))}</td>
+                <td class="text-center">${val(r, 'report30_dpd_days') !== '' ? `<span class="px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 font-bold">${fmt(val(r, 'report30_dpd_days'))}</span>` : '-'}</td>
+                <td class="text-right font-semibold text-slate-700">${val(r, 'report30_remaining_debt', 'remaining_debt') !== '' ? fmt(val(r, 'report30_remaining_debt', 'remaining_debt')) : '-'}</td>
+                <td>${safeHtml(val(r, 'report30_note')) || '-'}</td>
+                <td>${safeHtml(val(r, 'report30_note_2')) || '-'}</td>
+                <td>${safeHtml(val(r, 'report30_note_3')) || '-'}</td>
+                <td class="text-amber-700 whitespace-normal min-w-[220px]">${safeHtml(val(r, 'report30_litigation_remark', 'remark') || '-')}</td>
                 </tr>`).join('');
 
         } else if (tab === '31') {

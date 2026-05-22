@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from dateutil.relativedelta import relativedelta
@@ -32,6 +33,21 @@ CASE_STATUS_REPORT_MAP = {
 }
 
 RETROACTIVE_ENFORCEMENT_REASON_CODE = 'RETROACTIVE_ENFORCEMENT_REPORT_FIX'
+
+REPORT30_HEADERS = [
+    'เลขที่บัญชี',
+    'วันที่ส่งฟ้องศาล',
+    'ยอดเงินส่งฟ้อง (เงินต้น+ดอกเบี้ย)',
+    'ยอดเงินที่ศาลตัดสิน',
+    'วันที่ศาลตัดสิน',
+    'วันที่กลับมาผิดนัดชำระ',
+    'จำนวนวันผิดนัดชำระ',
+    'ค่างวดคงเหลือ',
+    'หมายเหตุ',
+    'หมายเหตุ 2',
+    'หมายเหตุ 3',
+    'หมายเหตุ Litigation',
+]
 
 
 def _get_report_group(cus, snap):
@@ -759,7 +775,7 @@ def process_registry_file(ws, db, report_date_str):
                     'message'     : 'ยังไม่มีข้อมูลใน Customer DB กรุณากรอกข้อมูล',
                 })
             else:
-                report_30.append({
+                report_30.append(_apply_report30_new_fields({
                     'account_no'      : account_no,
                     'status_label'    : f'{file_status} (ไม่มีใน DB)',
                     'case_status'     : f'{file_status} (ไม่มีใน DB)',
@@ -774,7 +790,12 @@ def process_registry_file(ws, db, report_date_str):
                     'dpd_months'      : None,
                     'remaining_debt'  : None,
                     'remark'          : '',
-                })
+                },
+                    filing_date=filing_date,
+                    filing_amount=principal_sued,
+                    judgment_debt=judgment_debt,
+                    judgment_date=judgment_date,
+                ))
             continue
 
         # ============================================================
@@ -811,7 +832,8 @@ def process_registry_file(ws, db, report_date_str):
                 principal_sued,
                 cus,
                 snap,
-                report_date_str
+                report_date_str,
+                payments=payments
             ))
 
         elif group == '31':
@@ -940,7 +962,185 @@ def _calc_remaining_debt(cus, snap):
     ))
 
 
-def _build_report30_row_from_db(account_no, status, filing_date, principal_sued, cus, snap=None, report_date_str=None):
+def _end_of_month(d):
+    if not d:
+        return None
+    return date(d.year, d.month, monthrange(d.year, d.month)[1])
+
+
+def _is_end_of_month(d):
+    return bool(d and d.day == monthrange(d.year, d.month)[1])
+
+
+def _report30_grace_end(due_date):
+    """
+    Report 30 grace policy:
+    - due date กลางเดือน: grace ถึงสิ้นเดือนเดียวกัน
+    - due date สิ้นเดือน: grace ถึงสิ้นเดือนถัดไป
+    """
+    if not due_date:
+        return None
+
+    if _is_end_of_month(due_date):
+        return _end_of_month(due_date + relativedelta(months=1))
+
+    return _end_of_month(due_date)
+
+
+def _safe_iso_date(val):
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    try:
+        return date.fromisoformat(str(val).strip().split('T')[0].split(' ')[0])
+    except Exception:
+        return None
+
+
+def _calculate_report30_default_context(cus, payments, report_date_str):
+    """
+    ใช้เฉพาะ Report 30 ใหม่
+
+    first_default_due_date:
+    - วันที่ due จริงของงวดแรกที่ผิดนัดหลังพ้น grace
+    - เป็นค่าที่ต้องคงที่ ไม่เปลี่ยนตาม oldest_due ปัจจุบัน
+
+    current_dpd_days:
+    - DPD ปัจจุบันของยอดค้าง ณ วัน report
+    - ล้างได้เมื่อจ่ายครบ และนับใหม่เมื่อกลับมาค้างใหม่
+    """
+    report_date = _parse_report_date(report_date_str)
+    if not report_date or payments is None:
+        return {
+            'first_default_due_date': None,
+            'current_due_for_dpd': None,
+            'current_dpd_days': None,
+        }
+
+    try:
+        daily_rows = generate_full_daily_schedule(cus, payments or [], end_date=report_date)
+    except Exception:
+        return {
+            'first_default_due_date': None,
+            'current_due_for_dpd': None,
+            'current_dpd_days': None,
+        }
+
+    if not daily_rows:
+        return {
+            'first_default_due_date': None,
+            'current_due_for_dpd': None,
+            'current_dpd_days': None,
+        }
+
+    first_default_due = None
+    target_row = None
+
+    for row in daily_rows:
+        row_date = _safe_iso_date(row.get('date'))
+        if not row_date or row_date > report_date:
+            continue
+
+        target_row = row
+
+        if first_default_due:
+            continue
+
+        oldest_due = _safe_iso_date(row.get('oldest_due'))
+        outstanding = _num(row.get('outstanding'), 0)
+        grace_end = _report30_grace_end(oldest_due)
+
+        if oldest_due and grace_end and row_date >= grace_end and outstanding > 0:
+            first_default_due = oldest_due
+
+    if not target_row:
+        target_row = daily_rows[-1]
+
+    current_due = _safe_iso_date(target_row.get('oldest_due'))
+    current_outstanding = _num(target_row.get('outstanding'), 0)
+    current_grace_end = _report30_grace_end(current_due)
+    current_dpd_days = None
+
+    if current_due and current_grace_end and report_date >= current_grace_end and current_outstanding > 0:
+        current_dpd_days = max(0, (report_date - current_due).days)
+
+    return {
+        'first_default_due_date': first_default_due.isoformat() if first_default_due else None,
+        'current_due_for_dpd': current_due.isoformat() if current_due else None,
+        'current_dpd_days': current_dpd_days,
+    }
+
+
+def _apply_report30_new_fields(
+    row,
+    filing_date='',
+    filing_amount='',
+    judgment_debt='',
+    judgment_date='',
+    first_default_date='',
+    dpd_days='',
+    remaining_debt='',
+    note='',
+    note_2='',
+    note_3='',
+    litigation_remark='',
+):
+    """
+    เพิ่ม key ใหม่สำหรับ Report 30 New Format
+    โดยยังเก็บ key เดิมของ row ไว้เพื่อ backward compatibility
+    """
+    row.update({
+        'report30_account_no': row.get('account_no'),
+        'report30_filing_date': filing_date or '',
+        'report30_filing_amount': filing_amount if filing_amount is not None else '',
+        'report30_judgment_debt': judgment_debt if judgment_debt is not None else '',
+        'report30_judgment_date': judgment_date or '',
+        'report30_first_default_date': first_default_date or '',
+        'report30_dpd_days': dpd_days if dpd_days is not None else '',
+        'report30_remaining_debt': remaining_debt if remaining_debt is not None else '',
+        'report30_note': note or '',
+        'report30_note_2': note_2 or '',
+        'report30_note_3': note_3 or '',
+        'report30_litigation_remark': litigation_remark or '',
+    })
+    return row
+
+
+def _first_present(row, *keys):
+    for key in keys:
+        val = row.get(key)
+        if val is not None and val != '':
+            return val
+    return ''
+
+
+def build_report30_export_values(row, fmt_acc, fmt_date_excel, fmt_num):
+    """
+    สร้าง row สำหรับ Excel ตาม Header ใหม่ของ Report 30
+    ใช้ได้ทั้ง export เดี่ยวและ export-all
+    """
+    judgment_debt = _first_present(row, 'report30_judgment_debt', 'judgment_debt')
+    remaining_debt = _first_present(row, 'report30_remaining_debt', 'remaining_debt')
+    filing_amount = _first_present(row, 'report30_filing_amount', 'principal_sued')
+
+    return [
+        fmt_acc(_first_present(row, 'report30_account_no', 'account_no')),
+        fmt_date_excel(_first_present(row, 'report30_filing_date', 'filing_date')),
+        fmt_num(filing_amount, 2) if filing_amount != '' else '',
+        fmt_num(judgment_debt, 2) if judgment_debt != '' else '',
+        fmt_date_excel(_first_present(row, 'report30_judgment_date', 'judgment_date')),
+        fmt_date_excel(_first_present(row, 'report30_first_default_date')),
+        _first_present(row, 'report30_dpd_days'),
+        fmt_num(remaining_debt, 2) if remaining_debt != '' else '',
+        _first_present(row, 'report30_note'),
+        _first_present(row, 'report30_note_2'),
+        _first_present(row, 'report30_note_3'),
+        _first_present(row, 'report30_litigation_remark', 'remark'),
+    ]
+
+
+def _build_report30_row_from_db(account_no, status, filing_date, principal_sued, cus, snap=None, report_date_str=None, payments=None):
     case_status = (status or cus.get('case_status') or '').strip()
 
     base = {
@@ -955,19 +1155,27 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         'default_amount'           : None,
         'default_date'             : None,
         'dpd'                      : None,
-        'dpd_months'               : None,  # กันโค้ดเก่าบางจุดที่ยังเรียก dpd_months
+        'dpd_months'               : None,
         'remaining_debt'           : None,
         'remark'                   : '',
         'enforcement_order_no'     : cus.get('enforcement_order_no'),
         'enforcement_judgment_date': cus.get('enforcement_judgment_date'),
     }
 
+    filing_value = filing_date or cus.get('filing_date')
+    filing_amount = _num(_get_principal_sued(cus, principal_sued))
+
     if case_status == 'ยื่นฟ้อง':
-        return base
+        return _apply_report30_new_fields(
+            base,
+            filing_date=filing_value,
+            filing_amount=filing_amount,
+            note='คดีแพ่ง',
+            note_2='ฟ้องแล้ว',
+            note_3='1.1',
+        )
 
     if case_status == 'พิพากษาฝ่ายเดียว':
-        # ยังไม่ผิดนัดรายเดือนในเดือนของ due เอง
-        # เช่น due 04/03 แล้วขอ report 31/03 → default_date/default_amount ต้องว่าง
         is_monthly_default = bool(
             snap
             and snap.get('default_date')
@@ -989,7 +1197,17 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             ),
             'remaining_debt' : _calc_remaining_debt(cus, snap),
         })
-        return base
+        return _apply_report30_new_fields(
+            base,
+            filing_date=filing_value,
+            filing_amount=filing_amount,
+            judgment_debt=_num(cus.get('total_debt')),
+            judgment_date=cus.get('judgment_date'),
+            remaining_debt=_calc_remaining_debt(cus, snap),
+            note='คดีแพ่ง',
+            note_2='พิพากษาฝ่ายเดียว',
+            note_3='1.5',
+        )
 
     if case_status == 'บังคับคดี':
         enforcement_from_status = _get_enforcement_from_status(cus)
@@ -1008,9 +1226,52 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             'remaining_debt' : _calc_remaining_debt(cus, snap),
             'remark'         : _build_enforcement_remark(cus, snap, report_date_str),
         })
-        return base
+        if enforcement_from_status == 'พิพากษาฝ่ายเดียว':
+            return _apply_report30_new_fields(
+                base,
+                filing_date=filing_value,
+                filing_amount=filing_amount,
+                judgment_debt=_num(cus.get('total_debt')),
+                judgment_date=cus.get('judgment_date'),
+                remaining_debt=_calc_remaining_debt(cus, snap),
+                note='คดีแพ่ง',
+                note_2='พิพากษาฝ่ายเดียว',
+                note_3='1.5',
+            )
 
-    return base
+        if enforcement_from_status == 'พิพากษาตามยอม' or _is_consent_enforcement_case(cus):
+            default_context = _calculate_report30_default_context(cus, payments, report_date_str)
+            return _apply_report30_new_fields(
+                base,
+                filing_date='',
+                filing_amount=filing_amount,
+                first_default_date=default_context.get('first_default_due_date'),
+                dpd_days=default_context.get('current_dpd_days'),
+                remaining_debt=_calc_remaining_debt(cus, snap),
+                note='คดีแพ่ง',
+                note_2='พิพากษาตามยอม',
+                note_3='1.8',
+                litigation_remark=base.get('remark') or '',
+            )
+
+        return _apply_report30_new_fields(
+            base,
+            filing_date=filing_value,
+            filing_amount=filing_amount,
+            judgment_debt=_num(cus.get('total_debt')),
+            judgment_date=cus.get('judgment_date'),
+            remaining_debt=_calc_remaining_debt(cus, snap),
+            note='คดีแพ่ง',
+            note_2='บังคับคดี',
+            note_3='',
+            litigation_remark=base.get('remark') or '',
+        )
+
+    return _apply_report30_new_fields(
+        base,
+        filing_date=filing_value,
+        filing_amount=filing_amount,
+    )
 
 
 def _build_report31_row(account_no, cus, snap, report_date_str):

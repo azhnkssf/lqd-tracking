@@ -81,19 +81,11 @@ def validate_judgment_timeline(filing_date, judgment_type, judgment_date, first_
             f'(วันที่ยื่นฟ้องในระบบ: {filing_date}, วันที่พิพากษาในไฟล์: {judgment_date})'
         )
 
-    if judgment_date and first_due_date:
-        if judgment_type == 'พิพากษาฝ่ายเดียว':
-            if first_due_date < judgment_date:
-                raise ValueError(
-                    'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
-                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
-                )
-        else:
-            if first_due_date <= judgment_date:
-                raise ValueError(
-                    'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา '
-                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
-                )
+    if judgment_date and first_due_date and first_due_date < judgment_date:
+        raise ValueError(
+            'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
+            f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+        )
 
 
 def normalize_black_case_no(value):

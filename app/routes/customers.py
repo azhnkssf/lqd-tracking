@@ -163,19 +163,11 @@ def _validate_judgment_timeline(filing_date, judgment_type, judgment_date, first
             f'(วันที่ยื่นฟ้องในระบบ: {filing_date}, วันที่พิพากษาในไฟล์: {judgment_date})'
         )
 
-    if judgment_date and first_due_date:
-        if judgment_type == 'พิพากษาฝ่ายเดียว':
-            if first_due_date < judgment_date:
-                raise ValueError(
-                    'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
-                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
-                )
-        else:
-            if first_due_date <= judgment_date:
-                raise ValueError(
-                    'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา '
-                    f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
-                )
+    if judgment_date and first_due_date and first_due_date < judgment_date:
+        raise ValueError(
+            'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา '
+            f'(วันที่พิพากษา: {judgment_date}, วันครบกำหนดงวดแรก: {first_due_date})'
+        )
 
 
 def _normalize_black_case_no(value):
@@ -1127,17 +1119,9 @@ def update_judgment(account_no):
     if filing_date and judgment_date and judgment_date <= filing_date:
         return jsonify({'error': 'วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง'}), 400
 
-    # วันครบกำหนดงวดแรก
-    # - พิพากษาตามยอม: ต้องมากกว่าวันที่พิพากษา
-    # - พิพากษาฝ่ายเดียว: อนุญาตให้เป็นวันเดียวกับวันที่พิพากษาได้ แต่ห้ามน้อยกว่า
-    judgment_type = data.get('judgment_type')
-    if judgment_date and first_due_date:
-        if judgment_type == 'พิพากษาฝ่ายเดียว':
-            if first_due_date < judgment_date:
-                return jsonify({'error': 'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา'}), 400
-        else:
-            if first_due_date <= judgment_date:
-                return jsonify({'error': 'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา'}), 400
+    # วันครบกำหนดงวดแรกเป็นวันเดียวกับวันพิพากษาได้ทั้งสองประเภท
+    if judgment_date and first_due_date and first_due_date < judgment_date:
+        return jsonify({'error': 'วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา'}), 400
 
     int_rate     = float(data.get('interest_rate', 0) or 0)
     default_rate = float(data.get('default_interest_rate', 0) or 0)

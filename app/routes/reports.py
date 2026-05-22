@@ -18,6 +18,8 @@ from app.services.report_service import (
     _future_effective_reason,
     _build_not_generated_row,
     build_retroactive_enforcement_alert,
+    REPORT30_HEADERS,
+    build_report30_export_values,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -115,20 +117,7 @@ def export_report(report_type):
 
     if report_type == '30':
         ws.title = 'Report Status 30'
-        headers = [
-            'เลขที่สัญญา',
-            'วันที่ฟ้อง',
-            'ทุนทรัพย์ที่ฟ้อง',
-            'วันที่ผิดนัดชำระก่อนฟ้อง',
-            'ยอดหนี้ตามคำพิพากษา',
-            'วันที่พิพากษา',
-            'ยอดหนี้วันผิดนัดชำระ',
-            'วันผิดนัดชำระ',
-            'DPD',
-            'ยอดหนี้คงเหลือ',
-            'สถานะ',
-            'Remark',
-        ]
+        headers = REPORT30_HEADERS
         ws.append(headers)
         for cell in ws[1]:
             cell.fill = header_fill
@@ -139,28 +128,14 @@ def export_report(report_type):
             return trunc_money(v, default=0)
 
         for r in rows:
-            ws.append([
-                fmt_acc(r.get('account_no')),
-                fmt_date_excel(r.get('filing_date')),
-                fmt_num_30(r.get('principal_sued'), 2),
-                fmt_date_excel(r.get('pre_filing_default_date')),
-                fmt_num_30(r.get('judgment_debt'), 2) if r.get('judgment_debt') is not None else '',
-                fmt_date_excel(r.get('judgment_date')),
-                fmt_num_30(r.get('default_amount'), 2) if r.get('default_amount') is not None else '',
-                fmt_date_excel(r.get('default_date')),
-                r.get('dpd') if r.get('dpd') is not None else '',
-                fmt_num_30(r.get('remaining_debt'), 2) if r.get('remaining_debt') is not None else '',
-                r.get('status_label') or r.get('case_status') or '',
-                r.get('remark') or '',
-            ])
+            ws.append(build_report30_export_values(r, fmt_acc, fmt_date_excel, fmt_num_30))
             for cell in ws[ws.max_row]:
                 cell.fill = fill_30
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0'
-            row[4].number_format = '#,##0'
-            row[6].number_format = '#,##0'
-            row[9].number_format = '#,##0'
+            row[2].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
+            row[3].number_format = '#,##0'  # ยอดเงินที่ศาลตัดสิน
+            row[7].number_format = '#,##0'  # ค่างวดคงเหลือ
 
     elif report_type == '31':
         ws.title = 'Report Status 31'
@@ -295,44 +270,17 @@ def export_all_reports():
 
     if report_30:
         ws = wb.create_sheet('Report 30')
-        ws.append([
-            'เลขที่สัญญา',
-            'วันที่ฟ้อง',
-            'ทุนทรัพย์ที่ฟ้อง',
-            'วันที่ผิดนัดชำระก่อนฟ้อง',
-            'ยอดหนี้ตามคำพิพากษา',
-            'วันที่พิพากษา',
-            'ยอดหนี้วันผิดนัดชำระ',
-            'วันผิดนัดชำระ',
-            'DPD',
-            'ยอดหนี้คงเหลือ',
-            'สถานะ',
-            'Remark',
-        ])
+        ws.append(REPORT30_HEADERS)
         style_header(ws)
 
         for r in report_30:
-            ws.append([
-                fmt_acc(r.get('account_no')),
-                fmt_date_excel(r.get('filing_date')),
-                fmt_num(r.get('principal_sued'), 2),
-                fmt_date_excel(r.get('pre_filing_default_date')),
-                fmt_num(r.get('judgment_debt'), 2) if r.get('judgment_debt') is not None else '',
-                fmt_date_excel(r.get('judgment_date')),
-                fmt_num(r.get('default_amount'), 2) if r.get('default_amount') is not None else '',
-                fmt_date_excel(r.get('default_date')),
-                r.get('dpd') if r.get('dpd') is not None else '',
-                fmt_num(r.get('remaining_debt'), 2) if r.get('remaining_debt') is not None else '',
-                r.get('status_label') or r.get('case_status') or '',
-                r.get('remark') or '',
-            ])
+            ws.append(build_report30_export_values(r, fmt_acc, fmt_date_excel, fmt_num))
             paint_row(ws, fill_30)
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0'
-            row[4].number_format = '#,##0'
-            row[6].number_format = '#,##0'
-            row[9].number_format = '#,##0'
+            row[2].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
+            row[3].number_format = '#,##0'  # ยอดเงินที่ศาลตัดสิน
+            row[7].number_format = '#,##0'  # ค่างวดคงเหลือ
 
         autofit(ws)
 
@@ -580,7 +528,8 @@ def generate_report_db():
                     cus.get('filing_capital'),
                     cus,
                     None,
-                    report_date
+                    report_date,
+                    payments=[]
                 ))
             else:
                 not_generated.append(_build_not_generated_row(
@@ -612,7 +561,8 @@ def generate_report_db():
                     cus.get('filing_capital'),
                     cus,
                     snap,
-                    report_date
+                    report_date,
+                    payments=payments
                 ))
             else:
                 not_generated.append(_build_not_generated_row(
@@ -633,7 +583,8 @@ def generate_report_db():
                     cus.get('filing_capital'),
                     cus,
                     report30_snap,
-                    report_date
+                    report_date,
+                    payments=payments
                 ))
             else:
                 not_generated.append(_build_not_generated_row(
@@ -666,7 +617,8 @@ def generate_report_db():
                 cus.get('filing_capital'),
                 cus,
                 snap,
-                report_date
+                report_date,
+                payments=payments
             ))
 
         elif group == '31' and '31' in status_types:

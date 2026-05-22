@@ -2255,9 +2255,8 @@
             const data = await res.json();
 
             // สำคัญ: ต้อง set currentCus ก่อน set วันที่/เรียก applyJudgmentTypeInputRules
-            // เพราะเคส "พิพากษาฝ่ายเดียว" อนุญาตให้ first_due_date = judgment_date ได้
-            // ถ้ายังไม่ set currentCus, getActiveJudgmentType() จะมองไม่ออกว่าเป็นฝ่ายเดียว
-            // แล้ว updateDateConstraints() จะตั้ง min first_due_date เป็น judgment_date + 1
+            // วันครบกำหนดงวดแรกเป็นวันเดียวกับวันพิพากษาได้ทั้งสองประเภท
+            // ต้อง set currentCus ก่อน apply rule เพื่อไม่ให้ constraint ระหว่างโหลดล้างวันที่ API ส่งมา
             // ส่งผลให้วันที่ครบกำหนดงวดแรกที่ API ส่งมาโดน clear ทิ้งตอนเปิดหน้าใหม่
             currentCus = data;
 
@@ -2598,13 +2597,6 @@
         'installment-3'
     ]);
 
-    function addDaysIso(dateStr, days) {
-        if (!dateStr) return '';
-        const d = new Date(dateStr + 'T00:00:00');
-        d.setDate(d.getDate() + days);
-        return dpDateStr(d);
-    }
-
     function normalizeRequiredZeroFields() {
         ZERO_REQUIRED_MONEY_FIELD_IDS.forEach(id => {
             const el = document.getElementById(id);
@@ -2695,14 +2687,11 @@
 
         const judgmentDate = dpGetValue('judgment-date');
         const firstDue = dpGetValue('first-due-date');
-        const isDefaultJudgment = getActiveJudgmentType() === 'พิพากษาฝ่ายเดียว';
         if (judgmentDate && firstDue) {
-            const invalidDate = isDefaultJudgment ? firstDue < judgmentDate : firstDue <= judgmentDate;
+            const invalidDate = firstDue < judgmentDate;
             if (invalidDate) {
                 firstDueDisplay?.classList.add('error');
-                const msg = isDefaultJudgment
-                    ? 'พิพากษาฝ่ายเดียว วันครบกำหนดงวดแรกสามารถเป็นวันเดียวกับวันที่พิพากษาได้ แต่ห้ามน้อยกว่าวันที่พิพากษา'
-                    : 'วันครบกำหนดงวดแรกต้องมากกว่าวันที่พิพากษา';
+                const msg = 'วันครบกำหนดงวดแรกสามารถเป็นวันเดียวกับวันที่พิพากษาได้ แต่ห้ามน้อยกว่าวันที่พิพากษา';
                 if (showErrorMessage) showBusinessError('วันที่ครบกำหนดไม่ถูกต้อง', msg);
                 return false;
             }
@@ -2715,15 +2704,10 @@
     function updateDateConstraints() {
         const filingVal   = dpGetValue('filing-date');
         const judgmentVal = dpGetValue('judgment-date');
-        const isDefaultJudgment = getActiveJudgmentType() === 'พิพากษาฝ่ายเดียว';
-
         if (filingVal) dpSetMin('judgment-date', filingVal);
 
         if (judgmentVal) {
-            // ตามยอม: first_due_date ต้องมากกว่าวันพิพากษา
-            // ฝ่ายเดียว: first_due_date เป็นวันเดียวกับวันพิพากษาได้
-            const minFirstDue = isDefaultJudgment ? judgmentVal : addDaysIso(judgmentVal, 1);
-            dpSetMin('first-due-date', minFirstDue);
+            dpSetMin('first-due-date', judgmentVal);
         }
     }
 
