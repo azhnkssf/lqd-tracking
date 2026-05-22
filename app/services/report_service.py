@@ -394,6 +394,115 @@ def _future_effective_reason(cus, report_date_str, payments=None):
     return code, text, effective_date.isoformat()
 
 
+def _get_enforcement_effective_date(cus):
+    """
+    วันที่ที่สถานะบังคับคดีมีผลจริงสำหรับ snapshot report
+    ใช้วันที่ของหมาย/วันที่ได้รับหมายเป็นหลัก ไม่ใช้วันที่บันทึกเข้าระบบ
+    """
+    if not cus:
+        return None
+
+    return (
+        _parse_report_date(cus.get('enforcement_judgment_date')) or
+        _parse_report_date(cus.get('enforcement_received_date')) or
+        _parse_report_date(cus.get('enforcement_date'))
+    )
+
+
+def _get_status_before_enforcement(cus):
+    """
+    หา status ก่อนเปลี่ยนเป็นบังคับคดี
+    Source priority:
+    1) case_status_logs: log ที่ to_status = 'บังคับคดี'
+    2) _report_file_status จาก master file ถ้าเป็นสถานะที่ถูกต้อง
+    3) judgment type/status fields ใน customer
+    4) fallback = 'ยื่นฟ้อง'
+    """
+    if not cus:
+        return 'ยื่นฟ้อง'
+
+    logs = cus.get('_case_status_logs') or []
+    for log in reversed(logs):
+        to_status = str(log.get('to_status') or '').strip()
+        from_status = str(log.get('from_status') or '').strip()
+        if to_status == 'บังคับคดี' and from_status:
+            if from_status in ('ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+                return from_status
+
+    file_status = str(cus.get('_report_file_status') or cus.get('file_status') or '').strip()
+    if file_status in ('ยื่นฟ้องแล้ว_คดีดำ', 'ยื่นฟ้อง'):
+        return 'ยื่นฟ้อง'
+    if file_status in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+        return file_status
+
+    candidates = [
+        cus.get('judgment_type'),
+        cus.get('judgment_kind'),
+        cus.get('judgment_result'),
+        cus.get('judgment_status'),
+        cus.get('case_judgment_type'),
+        cus.get('judgment_method'),
+        cus.get('judgment_category'),
+        cus.get('judgment_type_name'),
+        cus.get('previous_case_status'),
+        cus.get('prev_case_status'),
+        cus.get('case_status_before_enforcement'),
+        cus.get('before_enforcement_status'),
+        cus.get('original_case_status'),
+    ]
+    text = ' '.join(str(v or '') for v in candidates)
+
+    if 'ฝ่ายเดียว' in text:
+        return 'พิพากษาฝ่ายเดียว'
+    if 'ตามยอม' in text:
+        return 'พิพากษาตามยอม'
+
+    # ถ้ามี judgment_date แต่ไม่รู้ชนิดคำพิพากษา ให้ fallback ไปฝ่ายเดียว
+    # เพราะ report 30 ของระบบรองรับฝ่ายเดียวเป็นหลัก และปลอดภัยกว่าโยนทิ้ง
+    if cus.get('judgment_date'):
+        return 'พิพากษาฝ่ายเดียว'
+
+    return 'ยื่นฟ้อง'
+
+
+def _build_customer_as_of_report_date(cus, report_date_str):
+    """
+    คืน customer dict ที่มี case_status ถูกต้อง ณ report_date
+
+    สำคัญ:
+    - ถ้า current status = บังคับคดี แต่ enforcement date > report_date
+      ให้ rollback case_status ไปเป็นสถานะก่อนบังคับคดี
+    - ไม่แก้ DB
+    - ไม่ลบ enforcement fields เดิม เพราะอาจยังใช้แสดง remark/diagnostic ใน flow อื่น
+    """
+    if not cus:
+        return cus
+
+    report_date = _parse_report_date(report_date_str)
+    if not report_date:
+        return cus
+
+    current_status = str(cus.get('case_status') or 'ยื่นฟ้อง').strip()
+    if current_status != 'บังคับคดี':
+        return cus
+
+    enforcement_effective_date = _get_enforcement_effective_date(cus)
+    if not enforcement_effective_date or enforcement_effective_date <= report_date:
+        return cus
+
+    previous_status = _get_status_before_enforcement(cus)
+
+    cus_as_of = dict(cus)
+    cus_as_of['case_status'] = previous_status
+    cus_as_of['_latest_case_status'] = current_status
+    cus_as_of['_snapshot_rolled_back_from_status'] = current_status
+    cus_as_of['_snapshot_rolled_back_to_status'] = previous_status
+    cus_as_of['_snapshot_rollback_reason'] = 'ENFORCEMENT_AFTER_REPORT_DATE'
+    cus_as_of['_snapshot_enforcement_effective_date'] = enforcement_effective_date.isoformat()
+
+    return cus_as_of
+
+
 def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, effective_date=None, payments=None):
     return {
         'account_no'     : cus.get('account_no'),
@@ -755,13 +864,23 @@ def process_registry_file(ws, db, report_date_str):
             ).fetchall()
             effective_payments = [dict(p) for p in effective_payments]
 
-        if cus and _is_customer_effective_after_report(cus, report_date_str, effective_payments):
-            reason = _future_effective_reason(cus, report_date_str, effective_payments)
+        # Build customer snapshot as of report_date before applying future-effective blocking.
+        # Important case:
+        # current DB status may already be 'บังคับคดี', but enforcement date may be after report_date.
+        # In that situation the report must use the previous valid status as of report_date,
+        # not move the row to Not Generated.
+        cus_for_report = _build_customer_as_of_report_date(cus, report_date_str) if cus else None
+
+        if cus_for_report and _is_customer_effective_after_report(cus_for_report, report_date_str, effective_payments):
+            reason = _future_effective_reason(cus_for_report, report_date_str, effective_payments)
             if reason:
                 not_generated.append(_build_not_generated_row(
-                    cus, reason[0], reason[1], report_date_str, reason[2], effective_payments
+                    cus_for_report, reason[0], reason[1], report_date_str, reason[2], effective_payments
                 ))
             continue
+
+        if cus_for_report:
+            cus = cus_for_report
 
         # ============================================================
         # ไม่มีใน DB
