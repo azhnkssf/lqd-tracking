@@ -52,9 +52,15 @@ def build_reconcile_summary(db_total, report_30, report_31, report_11, alerts, m
     not_generated_total = len(not_generated)
     missing_total = len(missing_db)
     retroactive_total = len(retroactive_alerts or [])
+    report_30_status_counts = {}
+
+    for row in report_30:
+        case_status = row.get('case_status') or row.get('status_label') or '-'
+        report_30_status_counts[case_status] = report_30_status_counts.get(case_status, 0) + 1
 
     return {
         'report_30'          : len(report_30),
+        'report_30_status_counts': report_30_status_counts,
         'report_31'          : len(report_31),
         'report_11'          : len(report_11),
         'alerts'             : len(alerts),

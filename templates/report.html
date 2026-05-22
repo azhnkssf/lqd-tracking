@@ -310,7 +310,7 @@ tailwind.config = {
                             <div class="min-w-0">
                                 <p class="summary-label">Report 30</p>
                                 <p id="sum-30" class="summary-number text-red-600 metric-value">0</p>
-                                <p class="summary-caption">จำนวนข้อมูล รายงานสถานะ 30</p>
+                                <p id="sum-30-breakdown" class="summary-caption">จำนวนข้อมูล รายงานสถานะ 30</p>
                             </div>
                         </div>
 
@@ -746,6 +746,12 @@ tailwind.config = {
         document.getElementById('sum-30').textContent      = data.summary.report_30;
         document.getElementById('sum-31').textContent      = data.summary.report_31;
         document.getElementById('sum-11').textContent      = data.summary.report_11 || 0;
+        const report30StatusCounts = data.summary.report_30_status_counts || {};
+        const report30Breakdown = Object.entries(report30StatusCounts)
+            .filter(([, count]) => Number(count) > 0)
+            .map(([status, count]) => `${status} ${fmt(count)}`)
+            .join(' | ');
+        document.getElementById('sum-30-breakdown').textContent = report30Breakdown || 'จำนวนข้อมูล รายงานสถานะ 30';
 
         // Reconcile Stats
         document.getElementById('sum-db-total').textContent = data.summary.db_total ?? 0;
