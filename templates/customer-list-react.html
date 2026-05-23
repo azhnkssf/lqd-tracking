@@ -99,9 +99,9 @@
       .tooltip-ellipsis { display: block; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .customer-name-tooltip { width: 100%; }
       .customer-name-tooltip .tooltip-ellipsis { color: #1e293b; font-size: 13px; font-weight: 700; line-height: 1.35; }
-      .amount-sub-tooltip { width: 100%; max-width: 100%; }
+      .amount-sub-tooltip { display: block; width: 100%; max-width: 100%; }
       .amount-sub-tooltip .tooltip-ellipsis { display: flex; justify-content: flex-end; gap: 0.25rem; width: 100%; max-width: 100%; min-width: 0; }
-      .amount-sub-tooltip .amount-sub-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .amount-sub-tooltip .amount-sub-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .amount-sub-tooltip .amount-sub-value { flex-shrink: 0; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
       .cell-tooltip { position: absolute; left: 0; bottom: calc(100% + 0.45rem); z-index: 130; max-width: 340px; min-width: max-content; padding: 0.45rem 0.65rem; border: 1px solid rgba(191, 219, 254, 0.95); border-radius: 0.85rem; background: rgba(255, 255, 255, 0.98); color: #1e293b; font-size: 12px; font-weight: 700; line-height: 1.35; box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14); white-space: normal; word-break: break-word; text-align: left; opacity: 0; pointer-events: none; transform: translateY(4px) scale(0.98); transform-origin: left bottom; transition: opacity 140ms ease, transform 140ms ease; }
       .cell-tooltip::after { content: ""; position: absolute; left: 1rem; top: 100%; width: 0.55rem; height: 0.55rem; background: rgba(255, 255, 255, 0.98); border-right: 1px solid rgba(191, 219, 254, 0.95); border-bottom: 1px solid rgba(191, 219, 254, 0.95); transform: translateY(-50%) rotate(45deg); }

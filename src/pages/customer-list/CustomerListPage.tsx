@@ -858,38 +858,55 @@ function OverflowTooltip({
   children,
   tooltip,
   className = '',
+  measureSelector = '',
 }: {
   children: ReactNode;
   tooltip: string;
   className?: string;
+  measureSelector?: string;
 }) {
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
 
+  const getMeasureElement = useCallback(() => {
+    const root = textRef.current;
+    if (!root) return null;
+    if (!measureSelector) return root;
+    return root.querySelector<HTMLElement>(measureSelector) || root;
+  }, [measureSelector]);
+
   const checkOverflow = useCallback(() => {
-    const el = textRef.current;
+    const el = getMeasureElement();
     if (!el) return;
-    setIsOverflowing(el.scrollWidth > el.clientWidth + 1);
-  }, []);
+
+    const hasHorizontalOverflow = el.scrollWidth > el.clientWidth + 1;
+    const hasVerticalOverflow = el.scrollHeight > el.clientHeight + 1;
+
+    setIsOverflowing(hasHorizontalOverflow || hasVerticalOverflow);
+  }, [getMeasureElement]);
 
   useEffect(() => {
     checkOverflow();
 
-    const el = textRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') {
+    const root = textRef.current;
+    const measureEl = getMeasureElement();
+
+    if ((!root && !measureEl) || typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', checkOverflow);
       return () => window.removeEventListener('resize', checkOverflow);
     }
 
     const observer = new ResizeObserver(checkOverflow);
-    observer.observe(el);
+    if (root) observer.observe(root);
+    if (measureEl && measureEl !== root) observer.observe(measureEl);
+
     window.addEventListener('resize', checkOverflow);
 
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', checkOverflow);
     };
-  }, [checkOverflow, children, tooltip]);
+  }, [checkOverflow, getMeasureElement, children, tooltip]);
 
   return (
     <span className={`cell-tooltip-wrap ${className}`}>
@@ -983,7 +1000,7 @@ function CustomerTable(props: {
                     <div className="amount-cell">
                       <p className="amount-main text-[13px] font-extrabold text-slate-800">{fmtMoney(debtAmount, true)}</p>
                       <div className="amount-sub">
-                        <OverflowTooltip tooltip={baselineTooltip} className="amount-sub-tooltip">
+                        <OverflowTooltip tooltip={baselineTooltip} className="amount-sub-tooltip" measureSelector=".amount-sub-label">
                           <span className="amount-sub-label">{baselineLabel}</span>
                           <span className="amount-sub-value">{baselineAmount}</span>
                         </OverflowTooltip>
