@@ -1122,57 +1122,84 @@ def mark_retroactive_report_fix(account_no):
     if not alert:
         return jsonify({'error': 'บัญชีนี้ไม่มีรายการรายงานย้อนหลังที่ต้องยืนยัน'}), 400
 
-    if alert.get('marked'):
-        return jsonify({
-            'message': 'รายการนี้ถูกยืนยันแล้ว',
-            'retroactive_alert': alert,
-            'retroactive_alerts': alerts,
-        }), 200
-
     try:
-        db.execute('''
-            INSERT INTO report_retroactive_fix_marks
-            (account_no, affected_report_month, effective_date, reason_code,
-             source_report_month, marked_by, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+        existing_mark = db.execute('''
+            SELECT id
+            FROM report_retroactive_fix_marks
+            WHERE account_no = ?
+              AND affected_report_month = ?
+              AND reason_code = ?
+            LIMIT 1
         ''', (
             account_no,
             alert['affected_report_month'],
-            alert['effective_date'],
             reason_code,
-            alert.get('source_report_month'),
-            user['id'],
-            note,
-        ))
-        db.execute(
-            'INSERT INTO customer_edits (customer_id, account_no, edited_by, changes) VALUES (?, ?, ?, ?)',
-            (
-                row['id'],
-                account_no,
+        )).fetchone()
+
+        if existing_mark:
+            db.execute('''
+                UPDATE report_retroactive_fix_marks
+                SET effective_date = ?,
+                    source_report_month = ?,
+                    marked_by = ?,
+                    marked_at = CURRENT_TIMESTAMP,
+                    note = ?
+                WHERE id = ?
+            ''', (
+                alert['effective_date'],
+                alert.get('source_report_month'),
                 user['id'],
-                json.dumps({
-                    'retroactive_report_fix': {
-                        'label': 'การแก้รายงานย้อนหลัง',
-                        'from': 'รอยืนยัน',
-                        'to': f'ยืนยันแล้ว ({alert["affected_month_label"]})',
-                    },
-                    'retroactive_report_fix_reason': {
-                        'label': 'ประเภทการแก้ย้อนหลัง',
-                        'from': None,
-                        'to': reason_code,
-                    },
-                    'retroactive_report_effective_date': {
-                        'label': 'วันที่มีผล',
-                        'from': None,
-                        'to': alert['effective_date'],
-                    },
-                }, ensure_ascii=False),
+                note,
+                existing_mark['id'],
+            ))
+        else:
+            db.execute('''
+                INSERT INTO report_retroactive_fix_marks
+                (account_no, affected_report_month, effective_date, reason_code,
+                 source_report_month, marked_by, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                account_no,
+                alert['affected_report_month'],
+                alert['effective_date'],
+                reason_code,
+                alert.get('source_report_month'),
+                user['id'],
+                note,
+            ))
+
+        try:
+            db.execute(
+                'INSERT INTO customer_edits (customer_id, account_no, edited_by, changes) VALUES (?, ?, ?, ?)',
+                (
+                    row['id'],
+                    account_no,
+                    user['id'],
+                    json.dumps({
+                        'retroactive_report_fix': {
+                            'label': 'การแก้รายงานย้อนหลัง',
+                            'from': 'รอยืนยัน',
+                            'to': f'ยืนยันแล้ว ({alert["affected_month_label"]})',
+                        },
+                        'retroactive_report_fix_reason': {
+                            'label': 'ประเภทการแก้ย้อนหลัง',
+                            'from': None,
+                            'to': reason_code,
+                        },
+                        'retroactive_report_effective_date': {
+                            'label': 'วันที่มีผล',
+                            'from': None,
+                            'to': alert['effective_date'],
+                        },
+                    }, ensure_ascii=False),
+                )
             )
-        )
+        except Exception:
+            pass
         db.commit()
     except Exception:
         db.rollback()
-        return jsonify({'error': 'ไม่สามารถบันทึกการยืนยันได้ หรือรายการนี้ถูกยืนยันแล้ว'}), 409
+        return jsonify({'error': 'ไม่สามารถบันทึกการยืนยันได้'}), 409
 
     cus = _attach_case_status_logs(db, dict(row))
     updated_alerts = build_retroactive_alerts(cus, db=db, include_marked=True)

@@ -250,6 +250,111 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
         self.assertIsNone(alert)
 
+    def test_manual_judgment_date_edit_to_prior_month_creates_alert(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = os.path.join(temp_dir, 'manual-judgment-edit.db')
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            conn.executescript('''
+                CREATE TABLE customer_edits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER,
+                    account_no TEXT,
+                    edited_by INTEGER,
+                    edited_at TEXT,
+                    changes TEXT
+                );
+                CREATE TABLE report_retroactive_fix_marks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_no TEXT NOT NULL,
+                    affected_report_month TEXT NOT NULL,
+                    effective_date TEXT NOT NULL,
+                    reason_code TEXT NOT NULL,
+                    source_report_month TEXT,
+                    marked_by INTEGER NOT NULL,
+                    marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    note TEXT,
+                    UNIQUE(account_no, affected_report_month, reason_code)
+                );
+                CREATE TABLE users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    display_name TEXT,
+                    role TEXT
+                );
+            ''')
+            conn.execute("INSERT INTO users VALUES (1, 'admin', 'Admin', 'admin')")
+            conn.execute(
+                '''
+                INSERT INTO customer_edits
+                (customer_id, account_no, edited_by, edited_at, changes)
+                VALUES (?, ?, ?, ?, ?)
+                ''',
+                (
+                    1,
+                    'J-MANUAL',
+                    1,
+                    '2026-05-10 09:00:00',
+                    '{"judgment_date":{"label":"วันพิพากษา","from":"2026-05-15","to":"2026-04-20"}}',
+                ),
+            )
+
+            alert = build_retroactive_judgment_alert({
+                'account_no': 'J-MANUAL',
+                'case_status': 'พิพากษาตามยอม',
+                'filing_date': '2026-03-10',
+                'judgment_date': '2026-04-20',
+                '_case_status_logs': [],
+            }, db=conn)
+
+            self.assertIsNotNone(alert)
+            self.assertEqual(alert['reason_code'], RETROACTIVE_JUDGMENT_REASON_CODE)
+            self.assertEqual(alert['affected_report_month'], '2026-04')
+            self.assertEqual(alert['source_report_month'], '2026-05')
+            self.assertEqual(alert['recorded_date'], '2026-05-10')
+            conn.close()
+
+    def test_manual_judgment_date_edit_same_month_does_not_create_alert(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = os.path.join(temp_dir, 'same-month-judgment-edit.db')
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            conn.executescript('''
+                CREATE TABLE customer_edits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER,
+                    account_no TEXT,
+                    edited_by INTEGER,
+                    edited_at TEXT,
+                    changes TEXT
+                );
+            ''')
+            conn.execute(
+                '''
+                INSERT INTO customer_edits
+                (customer_id, account_no, edited_by, edited_at, changes)
+                VALUES (?, ?, ?, ?, ?)
+                ''',
+                (
+                    1,
+                    'J-SAME',
+                    1,
+                    '2026-05-10 09:00:00',
+                    '{"judgment_date":{"label":"วันพิพากษา","from":"2026-05-15","to":"2026-05-01"}}',
+                ),
+            )
+
+            alert = build_retroactive_judgment_alert({
+                'account_no': 'J-SAME',
+                'case_status': 'พิพากษาตามยอม',
+                'filing_date': '2026-03-10',
+                'judgment_date': '2026-05-01',
+                '_case_status_logs': [],
+            }, db=conn)
+
+            self.assertIsNone(alert)
+            conn.close()
+
     def test_judgment_after_report_rolls_back_to_filing(self):
         customer = {
             'case_status': 'พิพากษาฝ่ายเดียว',

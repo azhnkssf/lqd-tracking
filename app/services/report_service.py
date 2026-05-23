@@ -1,6 +1,7 @@
 from calendar import monthrange
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+import json
 from dateutil.relativedelta import relativedelta
 from app.services.closure_service import get_actual_closed_date
 from app.services.schedule_service import generate_full_daily_schedule, get_due_date
@@ -370,6 +371,44 @@ def _get_judgment_recorded_date(cus):
     return _parse_report_date(log.get('changed_at')) if log else None
 
 
+def _get_manual_judgment_edit_recorded_date(cus, db=None):
+    if not db or not cus or not cus.get('account_no'):
+        return None
+
+    effective_date = _parse_report_date(cus.get('judgment_date'))
+    if not effective_date:
+        return None
+
+    try:
+        rows = db.execute('''
+            SELECT edited_at, changes
+            FROM customer_edits
+            WHERE account_no = ?
+            ORDER BY edited_at DESC, id DESC
+        ''', (cus.get('account_no'),)).fetchall()
+    except Exception:
+        return None
+
+    for row in rows:
+        try:
+            changes = json.loads(row['changes'] or '{}')
+        except Exception:
+            continue
+        if not isinstance(changes, dict) or 'judgment_date' not in changes:
+            continue
+
+        change = changes.get('judgment_date')
+        if not isinstance(change, dict):
+            continue
+
+        new_value = _parse_report_date(change.get('to'))
+        recorded_date = _parse_report_date(row['edited_at'])
+        if new_value == effective_date and recorded_date:
+            return recorded_date
+
+    return None
+
+
 def _get_enforcement_recorded_date(cus):
     recorded_date = _parse_report_date(cus.get('enforcement_recorded_at'))
     if recorded_date:
@@ -469,10 +508,16 @@ def build_retroactive_judgment_alert(cus, db=None, report_date_str=None, include
     effective_date = _parse_report_date(cus.get('judgment_date'))
     recorded_date = _get_judgment_recorded_date(cus)
     if not effective_date or not recorded_date:
-        return None
+        manual_recorded_date = _get_manual_judgment_edit_recorded_date(cus, db=db)
+        if not effective_date or not manual_recorded_date:
+            return None
+        recorded_date = manual_recorded_date
 
     if not _is_before_month(effective_date, recorded_date):
-        return None
+        manual_recorded_date = _get_manual_judgment_edit_recorded_date(cus, db=db)
+        if not manual_recorded_date or not _is_before_month(effective_date, manual_recorded_date):
+            return None
+        recorded_date = manual_recorded_date
 
     affected_report_month = _month_key(effective_date)
     source_report_month = _month_key(recorded_date)
