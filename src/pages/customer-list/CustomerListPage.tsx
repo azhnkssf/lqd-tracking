@@ -84,6 +84,20 @@ type AddForm = {
 
 const CASE_STATUSES = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
 const PAYMENT_STATUSES = ['ค้างชำระ', 'ชำระปกติ', 'ยังไม่ถึงกำหนด', 'ไม่มีแผนชำระ', 'ชำระครบแล้ว'];
+const CASE_STATUS_ICONS: Record<string, string> = {
+  'ยื่นฟ้อง': 'gavel',
+  'พิพากษาตามยอม': 'handshake',
+  'พิพากษาฝ่ายเดียว': 'balance',
+  'บังคับคดี': 'assignment',
+  'ปิดบัญชี': 'lock',
+};
+const PAYMENT_STATUS_ICONS: Record<string, string> = {
+  'ค้างชำระ': 'warning',
+  'ชำระปกติ': 'paid',
+  'ยังไม่ถึงกำหนด': 'event_available',
+  'ไม่มีแผนชำระ': 'event_busy',
+  'ชำระครบแล้ว': 'verified',
+};
 const DATE_FIELDS = [
   { value: 'due', shortLabel: 'งวดแรก', label: 'วันครบกำหนดงวดแรก', description: 'ใช้วันที่งวดแรกของแผนชำระ', icon: 'event_available' },
   { value: 'nextDue', shortLabel: 'ถัดไป', label: 'วันครบกำหนดถัดไป', description: 'ใช้วันที่ต้องติดตามงวดถัดไป', icon: 'event_repeat' },
@@ -855,7 +869,15 @@ function CustomerTable(props: {
                   </td>
                   <td className="px-4 py-3"><div className="flex items-center gap-3 min-w-0"><div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex items-center justify-center text-primary text-[11px] font-extrabold shadow-sm flex-shrink-0">{getInitials(row.name)}</div><div className="min-w-0"><p className="text-[13px] font-bold text-slate-800 truncate">{row.name || '-'}</p></div></div></td>
                   <td className="px-3 py-3 text-center"><span className="text-sm font-semibold text-slate-500">{fmtDate(row.filing_date)}</span></td>
-                  <td className="px-3 py-3 text-right"><p className="text-sm font-extrabold text-slate-800">{fmtMoney(debtAmount, true)}</p><p className="text-[10px] text-slate-400 mt-0.5">{debtBaselineLabel(row)} {fmtMoney(debtBaselineAmount(row), true)}</p></td>
+                  <td className="px-3 py-3 text-right">
+                    <div className="amount-cell">
+                      <p className="amount-main text-[13px] font-extrabold text-slate-800">{fmtMoney(debtAmount, true)}</p>
+                      <p className="amount-sub">
+                        <span className="amount-sub-label">{debtBaselineLabel(row)}</span>
+                        <span className="amount-sub-value">{fmtMoney(debtBaselineAmount(row), true)}</span>
+                      </p>
+                    </div>
+                  </td>
                   <td className="px-3 py-3 text-center"><StatusBadge text={caseStatus} tone={caseTone(caseStatus)} /></td>
                   <td className="px-3 py-3 text-center"><StatusBadge text={payment} tone={paymentTone(payment)} /></td>
                   <td className="px-3 py-3 text-center">{row.can_record_enforcement ? <button type="button" onClick={() => goEnforcement(account)} title="ไปหน้ารายละเอียดเพื่อบันทึกหมายบังคับคดี"><StatusBadge text="พร้อมบันทึกหมาย" tone="amber" /></button> : row.has_enforcement_order || row.enforcement_order_no || row.enforcement_recorded_at ? <StatusBadge text="บันทึกแล้ว" tone="red" /> : <span className="text-[11px] font-semibold text-slate-300">-</span>}</td>
@@ -986,8 +1008,42 @@ function FilterDrawer({ draft, setDraft, onApply, onReset, onClose }: {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            <section className="filter-section"><p className="filter-title">สถานะคดี</p><div className="filter-check-grid">{CASE_STATUSES.map(status => <label key={status} className={`filter-check-row ${draft.caseStatuses.includes(status) ? 'active' : ''}`}><span>{status}</span><input checked={draft.caseStatuses.includes(status)} onChange={() => toggle('caseStatuses', status)} type="checkbox" className="filter-check-input" /></label>)}</div></section>
-            <section className="filter-section"><p className="filter-title">สถานะการชำระเงิน</p><div className="filter-check-grid">{PAYMENT_STATUSES.map(status => <label key={status} className={`filter-check-row ${draft.paymentStatuses.includes(status) ? 'active' : ''}`}><span>{status}</span><input checked={draft.paymentStatuses.includes(status)} onChange={() => toggle('paymentStatuses', status)} type="checkbox" className="filter-check-input" /></label>)}</div></section>
+            <section className="filter-section">
+              <p className="filter-title">สถานะคดี</p>
+              <div className="filter-check-grid">
+                {CASE_STATUSES.map(status => (
+                  <label key={status} className={`filter-check-row ${draft.caseStatuses.includes(status) ? 'active' : ''}`}>
+                    <span className="filter-check-content">
+                      <span className="filter-check-icon">
+                        <span className="material-symbols-outlined text-[19px]">{CASE_STATUS_ICONS[status] || 'label'}</span>
+                      </span>
+                      <span className="filter-check-text">
+                        <span className="filter-check-label">{status}</span>
+                      </span>
+                    </span>
+                    <input checked={draft.caseStatuses.includes(status)} onChange={() => toggle('caseStatuses', status)} type="checkbox" className="filter-check-input" />
+                  </label>
+                ))}
+              </div>
+            </section>
+            <section className="filter-section">
+              <p className="filter-title">สถานะการชำระเงิน</p>
+              <div className="filter-check-grid">
+                {PAYMENT_STATUSES.map(status => (
+                  <label key={status} className={`filter-check-row ${draft.paymentStatuses.includes(status) ? 'active' : ''}`}>
+                    <span className="filter-check-content">
+                      <span className="filter-check-icon">
+                        <span className="material-symbols-outlined text-[19px]">{PAYMENT_STATUS_ICONS[status] || 'payments'}</span>
+                      </span>
+                      <span className="filter-check-text">
+                        <span className="filter-check-label">{status}</span>
+                      </span>
+                    </span>
+                    <input checked={draft.paymentStatuses.includes(status)} onChange={() => toggle('paymentStatuses', status)} type="checkbox" className="filter-check-input" />
+                  </label>
+                ))}
+              </div>
+            </section>
             <section className="filter-section">
               <AdvancedDateFilter draft={draft} setDraft={setDraft} />
             </section>
