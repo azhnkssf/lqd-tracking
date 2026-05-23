@@ -52,6 +52,63 @@ REPORT30_HEADERS = [
     'หมายเหตุ Litigation',
 ]
 
+REPORT31_HEADERS = [
+    'PN segment identifier',
+    'Family Name1',
+    'First Name',
+    'Date of birth',
+    'Customer Type',
+    'ID segment identifier',
+    'ID Type',
+    'ID Number',
+    'PA Segment Identifier',
+    'Issue Country',
+    'Address 1',
+    'Address 2',
+    'Address 3',
+    'Subdistrict',
+    'District',
+    'Province',
+    'Country',
+    'Postal code',
+    'TL Segment Identifier',
+    'Current / New Member Code',
+    'Current / New Member Name',
+    'Current / New Account number',
+    'Account Type',
+    'Currency code',
+    'Date Account Opened',
+    'Date Of Last Payment',
+    'Amount Owed',
+    'Amount Past Due',
+    'Days Number Of Days Past Due',
+    'Default Date',
+    'Installment Frequency',
+    'Installment Amount',
+    'Installment Number of Payment',
+    'Account Status',
+    'Restructure Code',
+    'Loan Objective',
+    'Debt of Last Debt Restructuring',
+    'Percent Payment',
+    'Type Of Unit',
+    'Make of Goods',
+    'Model Number',
+    'Chassis Number',
+    'Maturity date',
+    'Branch code',
+    'Payment Terms',
+    'Title',
+    'Collateral Id',
+    'Old Loan Account Number',
+    'First Payment Date',
+    'Status',
+    'Reason Description',
+    'วันที่พิพากษา',
+    'ยอดหนี้พิพากษา',
+    'หมายเหตุ Litigation',
+]
+
 
 def _get_report_group(cus, snap):
     case          = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
@@ -724,7 +781,13 @@ def apply_correction_warning_remark(row, cus):
     if not row or not warning:
         return row
 
-    if 'report30_litigation_remark' in row or 'report30_note' in row:
+    if 'report31_litigation_remark' in row:
+        row['report31_litigation_remark'] = _append_text(
+            row.get('report31_litigation_remark') or row.get('remark'),
+            warning,
+        )[:100]
+        row['remark'] = row['report31_litigation_remark']
+    elif 'report30_litigation_remark' in row or 'report30_note' in row:
         row['report30_litigation_remark'] = _append_text(
             row.get('report30_litigation_remark') or row.get('remark'),
             warning,
@@ -1190,7 +1253,7 @@ def process_registry_file(ws, db, report_date_str):
 
         elif group == '31':
             report_31.append(_build_report31_row(
-                account_no, cus, snap, report_date_str
+                account_no, cus, snap, report_date_str, payments=payments
             ))
 
     db_accounts = db.execute(
@@ -1492,6 +1555,163 @@ def build_report30_export_values(row, fmt_acc, fmt_date_excel, fmt_num):
     ]
 
 
+def _report31_installment_amount_for_term(cus, term):
+    insts = [
+        _num(cus.get('installment_1'), 0),
+        _num(cus.get('installment_2'), 0),
+        _num(cus.get('installment_3'), 0),
+        _num(cus.get('installment_4'), 0),
+    ]
+    filled = [v for v in insts if v > 0]
+    if not filled:
+        return 0.0
+
+    if len(filled) == 1:
+        return filled[0]
+    if term == 1:
+        return filled[0]
+    if term == 2:
+        return filled[1] if len(filled) >= 2 else filled[0]
+    if term == 3:
+        return filled[2] if len(filled) >= 3 else filled[-1]
+    return filled[3] if len(filled) >= 4 else filled[-1]
+
+
+def _report31_due_date(term, first_due):
+    if _is_end_of_month(first_due):
+        return _end_of_month(first_due + relativedelta(months=term - 1))
+    return get_due_date(term, first_due)
+
+
+def _report31_installment_buckets(cus, cutoff_date):
+    first_due = _parse_report_date(cus.get('first_due_date'))
+    installment_count = int(_num(cus.get('installment_count'), 0) or 0)
+    if not first_due or installment_count <= 0 or not cutoff_date:
+        return []
+
+    buckets = []
+    for term in range(1, installment_count + 1):
+        due_date = _report31_due_date(term, first_due)
+        if due_date > cutoff_date:
+            break
+        amount = _report31_installment_amount_for_term(cus, term)
+        if amount <= 0:
+            continue
+        buckets.append({
+            'term': term,
+            'due_date': due_date,
+            'amount': _dec(amount),
+            'remaining': _dec(amount),
+        })
+    return buckets
+
+
+def _report31_allocate_payments(cus, payments, cutoff_date):
+    buckets = _report31_installment_buckets(cus, cutoff_date)
+    if not buckets:
+        return []
+
+    payment_total = Decimal('0')
+    for payment in payments or []:
+        payment_date = _parse_report_date(payment.get('payment_date'))
+        if not payment_date or payment_date > cutoff_date:
+            continue
+        amount = _dec(payment.get('amount'))
+        if amount > 0:
+            payment_total += amount
+
+    for bucket in buckets:
+        if payment_total <= 0:
+            break
+        if payment_total >= bucket['remaining']:
+            payment_total -= bucket['remaining']
+            bucket['remaining'] = Decimal('0')
+        else:
+            bucket['remaining'] -= payment_total
+            payment_total = Decimal('0')
+            break
+
+    return buckets
+
+
+def _report31_default_check_date(due_date):
+    if not due_date:
+        return None
+    if _is_end_of_month(due_date):
+        return _end_of_month(due_date + relativedelta(months=1))
+    return _end_of_month(due_date)
+
+
+def _calculate_report31_default_context(cus, payments, report_date_str):
+    """
+    Report 31-specific FIFO installment view.
+
+    This keeps Report 31 daily DPD/amount-past-due independent from
+    get_snapshot_at_date(), whose monthly behavior is shared by other reports.
+    """
+    report_date = _parse_report_date(report_date_str)
+    if not report_date:
+        return {
+            'amount_past_due': 0.0,
+            'dpd': 0,
+            'default_date': None,
+            'current_oldest_unpaid_due_date': None,
+            'first_default_due_date': None,
+        }
+
+    current_buckets = _report31_allocate_payments(cus, payments or [], report_date)
+    overdue_buckets = [
+        bucket for bucket in current_buckets
+        if bucket['due_date'] < report_date and bucket['remaining'] > 0
+    ]
+    amount_past_due = sum((bucket['remaining'] for bucket in overdue_buckets), Decimal('0'))
+    current_oldest_due = overdue_buckets[0]['due_date'] if overdue_buckets else None
+
+    first_default_due = None
+    all_report_buckets = _report31_installment_buckets(cus, report_date)
+    for bucket in all_report_buckets:
+        default_check_date = _report31_default_check_date(bucket['due_date'])
+        if not default_check_date or default_check_date > report_date:
+            continue
+
+        buckets_at_default_check = _report31_allocate_payments(cus, payments or [], default_check_date)
+        match = next(
+            (
+                candidate for candidate in buckets_at_default_check
+                if candidate['due_date'] == bucket['due_date']
+            ),
+            None,
+        )
+        if match and match['remaining'] > 0:
+            first_default_due = bucket['due_date']
+            break
+
+    return {
+        'amount_past_due': float(amount_past_due),
+        'dpd': (report_date - current_oldest_due).days if current_oldest_due else 0,
+        'default_date': first_default_due.isoformat() if first_default_due else None,
+        'current_oldest_unpaid_due_date': current_oldest_due.isoformat() if current_oldest_due else None,
+        'first_default_due_date': first_default_due.isoformat() if first_default_due else None,
+    }
+
+
+def build_report31_export_values(row, fmt_acc, fmt_date_excel, fmt_num):
+    values = [''] * len(REPORT31_HEADERS)
+    values[21] = fmt_acc(_first_present(row, 'account_no'))
+    values[26] = fmt_num(_first_present(row, 'amount_owed'), 0)
+    values[27] = fmt_num(_first_present(row, 'amount_past_due'), 0)
+    values[28] = int(_first_present(row, 'dpd') or 0)
+    values[29] = fmt_date_excel(_first_present(row, 'default_date'), default='19000101')
+    values[30] = str(_first_present(row, 'installment_frequency', 'frequency') or '0')
+    values[31] = fmt_num(_first_present(row, 'installment_amount'), 0)
+    values[32] = int(_first_present(row, 'installment_count') or 0)
+    values[34] = str(_first_present(row, 'restructure_code') or '02')
+    values[36] = fmt_date_excel(_first_present(row, 'debt_of_last_debt_restructuring', 'judgment_date'))
+    values[42] = fmt_date_excel(_first_present(row, 'maturity_date'))
+    values[-1] = str(_first_present(row, 'report31_litigation_remark', 'remark') or '')[:100]
+    return values
+
+
 def _build_report30_row_from_db(account_no, status, filing_date, principal_sued, cus, snap=None, report_date_str=None, payments=None):
     case_status = (status or cus.get('case_status') or '').strip()
 
@@ -1626,19 +1846,15 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
     )
 
 
-def _build_report31_row(account_no, cus, snap, report_date_str):
+def _build_report31_row(account_no, cus, snap, report_date_str, payments=None):
     """สร้าง row Report 31"""
     inst_amount = get_installment_for_month(cus, report_date_str)
     installment_count = int(_num(cus.get('installment_count'), 0) or 0)
-    frequency = '30' if installment_count > 1 else '00'
+    frequency = '3' if installment_count > 1 else '0'
     maturity_date = get_maturity_date(cus)
+    default_context = _calculate_report31_default_context(cus, payments or [], report_date_str)
 
-    diff_debt = (
-        float(cus.get('court_fee') or 0) +
-        float(cus.get('lawyer_fee') or 0) +
-        float(cus.get('total_debt') or 0) -
-        float(cus.get('principal') or 0)
-    )
+    diff_debt = _calc_diff_debt(cus)
 
     amount_owed = (
         _dec(snap.get('principal_bal_raw', snap.get('principal_bal', 0))) +
@@ -1646,25 +1862,22 @@ def _build_report31_row(account_no, cus, snap, report_date_str):
         _dec(diff_debt)
     )
 
-    # Grace Period รายเดือน:
-    # ถ้า due อยู่ในเดือนเดียวกับวันที่ขอ report และยังไม่ถึงวันที่ 1 ของเดือนถัดไป
-    # get_snapshot_at_date() จะยังไม่มี default_date และตั้ง dpd_months = 0
-    # ดังนั้น Amount Past Due ต้องเป็น 0.00 จนกว่าจะเกิด default รายเดือนจริง
-    is_monthly_default = bool(snap and snap.get('default_date'))
-    amount_past_due = snap.get('outstanding') if is_monthly_default else 0
-
     return {
-        'account_no'         : account_no,
-        'amount_owed'        : _round_money(amount_owed),
-        'amount_past_due'    : _round_money(amount_past_due),
-        'dpd'                : snap.get('dpd_months') if is_monthly_default else 0,
-        'default_date'       : snap.get('default_date') if is_monthly_default else '',
-        'installment_amount' : inst_amount,
-        'installment_count'  : installment_count,
-        'frequency'          : frequency,
-        'maturity_date'      : maturity_date,
-        'ncb_status'         : snap.get('ncb_months'),
-        'remark'             : '',
+        'account_no'                         : account_no,
+        'amount_owed'                        : float(amount_owed),
+        'amount_past_due'                    : default_context.get('amount_past_due', 0),
+        'dpd'                                : default_context.get('dpd', 0),
+        'default_date'                       : default_context.get('default_date') or '',
+        'installment_frequency'              : frequency,
+        'installment_amount'                 : inst_amount,
+        'installment_count'                  : installment_count,
+        'frequency'                          : frequency,
+        'restructure_code'                   : '02',
+        'debt_of_last_debt_restructuring'    : cus.get('judgment_date') or '',
+        'maturity_date'                      : maturity_date,
+        'ncb_status'                         : snap.get('ncb_months'),
+        'report31_litigation_remark'         : '',
+        'remark'                             : '',
     }
     
 def _build_report11_row(account_no, cus, payments=None):

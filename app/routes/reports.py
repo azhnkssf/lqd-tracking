@@ -24,7 +24,9 @@ from app.services.report_service import (
     build_correction_summary,
     build_retroactive_alerts,
     REPORT30_HEADERS,
+    REPORT31_HEADERS,
     build_report30_export_values,
+    build_report31_export_values,
 )
 
 bp = Blueprint('reports', __name__, url_prefix='/api/report')
@@ -150,12 +152,7 @@ def export_report(report_type):
 
     elif report_type == '31':
         ws.title = 'Report Status 31'
-        headers = [
-            'เลขที่บัญชี', 'Amount Owed', 'Amount Past Due',
-            'DPD (เดือน)', 'Default Date', 'Installment Amount',
-            'จำนวนงวด', 'Frequency', 'Maturity Date', 'Remark'
-        ]
-        ws.append(headers)
+        ws.append(REPORT31_HEADERS)
         for cell in ws[1]:
             cell.fill = header_fill
             cell.font = header_font
@@ -165,25 +162,16 @@ def export_report(report_type):
             return trunc_money(v, default=0)
 
         for r in rows:
-            ws.append([
-                fmt_acc(r.get('account_no')),
-                fmt_num(r.get('amount_owed'), 2),
-                fmt_num(r.get('amount_past_due'), 2),
-                int(r.get('dpd') or 0),
-                fmt_date_excel(r.get('default_date'), default='19000101'),
-                fmt_num(r.get('installment_amount'), 2),
-                int(r.get('installment_count') or 0),
-                str(r.get('frequency') or '00'),
-                fmt_date_excel(r.get('maturity_date')),
-                r.get('remark') or '',
-            ])
+            ws.append(build_report31_export_values(r, fmt_acc, fmt_date_excel, fmt_num))
             for cell in ws[ws.max_row]:
                 cell.fill = fill_31
                 
         for row in ws.iter_rows(min_row=2):
-            row[1].number_format = '#,##0'
-            row[2].number_format = '#,##0'
-            row[5].number_format = '#,##0'
+            row[26].number_format = '#,##0'  # AA Amount Owed
+            row[27].number_format = '#,##0'  # AB Amount Past Due
+            row[28].number_format = '0'      # AC DPD
+            row[31].number_format = '#,##0'  # AF Installment Amount
+            row[32].number_format = '0'      # AG Installment Number of Payment
 
     for col in ws.columns:
         max_len = max((len(str(cell.value or '')) for cell in col), default=10)
@@ -297,39 +285,19 @@ def export_all_reports():
 
     if report_31:
         ws = wb.create_sheet('Report 31')
-        ws.append([
-            'เลขที่บัญชี',
-            'Amount Owed',
-            'Amount Past Due',
-            'DPD (เดือน)',
-            'Default Date',
-            'Installment Amount',
-            'จำนวนงวด',
-            'Frequency',
-            'Maturity Date',
-            'Remark',
-        ])
+        ws.append(REPORT31_HEADERS)
         style_header(ws)
 
         for r in report_31:
-            ws.append([
-                fmt_acc(r.get('account_no')),
-                fmt_num(r.get('amount_owed'), 2),
-                fmt_num(r.get('amount_past_due'), 2),
-                int(r.get('dpd') or 0),
-                fmt_date_excel(r.get('default_date'), default='19000101'),
-                fmt_num(r.get('installment_amount'), 2),
-                int(r.get('installment_count') or 0),
-                str(r.get('frequency') or '00'),
-                fmt_date_excel(r.get('maturity_date')),
-                r.get('remark') or '',
-            ])
+            ws.append(build_report31_export_values(r, fmt_acc, fmt_date_excel, fmt_num))
             paint_row(ws, fill_31)
 
         for row in ws.iter_rows(min_row=2):
-            row[1].number_format = '#,##0'
-            row[2].number_format = '#,##0'
-            row[5].number_format = '#,##0'
+            row[26].number_format = '#,##0'  # AA Amount Owed
+            row[27].number_format = '#,##0'  # AB Amount Past Due
+            row[28].number_format = '0'      # AC DPD
+            row[31].number_format = '#,##0'  # AF Installment Amount
+            row[32].number_format = '0'      # AG Installment Number of Payment
 
         autofit(ws)
 
@@ -658,7 +626,7 @@ def _generate_report_db_from_data(data, user):
             report_30.append(row)
 
         elif group == '31' and '31' in status_types:
-            row = _build_report31_row(account_no, cus, snap, report_date)
+            row = _build_report31_row(account_no, cus, snap, report_date, payments=payments)
             if report_mode == REPORT_MODE_NORMAL:
                 row = apply_correction_warning_remark(row, cus)
             report_31.append(row)
