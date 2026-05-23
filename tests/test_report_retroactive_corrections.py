@@ -19,6 +19,8 @@ from app.services.report_service import (
     _build_report30_row_from_db,
     _future_effective_reason,
     apply_correction_warning_remark,
+    build_correction_summary,
+    build_retroactive_alerts,
     build_retroactive_enforcement_alert,
     build_retroactive_judgment_alert,
 )
@@ -502,6 +504,154 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertEqual(normal_customer['case_status'], 'พิพากษาตามยอม')
         self.assertEqual(corrected_customer['case_status'], 'บังคับคดี')
         self.assertIn('เดิม | มีหมายบังคับคดีย้อนหลัง', row['remark'])
+
+    def test_retroactive_enforcement_from_default_judgment_does_not_create_alert(self):
+        customer = {
+            'account_no': 'E-DEFAULT',
+            'case_status': 'บังคับคดี',
+            'filing_date': '2026-02-01',
+            'judgment_date': '2026-03-01',
+            'enforcement_judgment_date': '2026-03-20',
+            'enforcement_recorded_at': '2026-04-08',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาฝ่ายเดียว',
+                    'to_status': 'บังคับคดี',
+                    'changed_at': '2026-04-08',
+                },
+            ],
+        }
+
+        alert = build_retroactive_enforcement_alert(customer)
+        alerts = build_retroactive_alerts(customer)
+        summary = build_correction_summary(alerts, '2026-03-31')
+
+        self.assertIsNone(alert)
+        self.assertFalse(any(item.get('type') == 'enforcement' for item in alerts))
+        self.assertEqual(summary['pending_enforcement'], 0)
+
+    def test_corrected_route_excludes_retroactive_enforcement_from_default_judgment(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        db_path = os.path.join(temp_dir.name, 'default-enforcement-route.db')
+        conn = sqlite3.connect(db_path)
+        conn.executescript('''
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                role TEXT
+            );
+            CREATE TABLE customers (
+                id INTEGER PRIMARY KEY,
+                account_no TEXT UNIQUE NOT NULL,
+                name TEXT,
+                case_status TEXT,
+                filing_date TEXT,
+                filing_capital REAL DEFAULT 0,
+                judgment_date TEXT,
+                total_debt REAL DEFAULT 0,
+                principal REAL DEFAULT 0,
+                interest_rate REAL DEFAULT 0,
+                default_interest_rate REAL DEFAULT 0,
+                court_fee REAL DEFAULT 0,
+                lawyer_fee REAL DEFAULT 0,
+                installment_count INTEGER DEFAULT 0,
+                first_due_date TEXT,
+                installment_1 REAL DEFAULT 0,
+                installment_2 REAL DEFAULT 0,
+                installment_3 REAL DEFAULT 0,
+                installment_4 REAL DEFAULT 0,
+                enforcement_judgment_date TEXT,
+                enforcement_received_date TEXT,
+                enforcement_recorded_at TEXT,
+                is_deleted INTEGER DEFAULT 0
+            );
+            CREATE TABLE payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT,
+                payment_date TEXT,
+                amount REAL
+            );
+            CREATE TABLE case_status_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT,
+                from_status TEXT,
+                to_status TEXT,
+                changed_by INTEGER,
+                changed_at TEXT,
+                note TEXT
+            );
+            CREATE TABLE report_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                generated_by INTEGER,
+                report_date TEXT,
+                filename TEXT,
+                status_types TEXT,
+                count_30 INTEGER,
+                count_31 INTEGER,
+                count_33 INTEGER,
+                count_alerts INTEGER,
+                count_missing INTEGER,
+                count_skipped INTEGER,
+                count_db_total INTEGER,
+                count_generated_total INTEGER,
+                generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE report_retroactive_fix_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT NOT NULL,
+                affected_report_month TEXT NOT NULL,
+                effective_date TEXT NOT NULL,
+                reason_code TEXT NOT NULL,
+                source_report_month TEXT,
+                marked_by INTEGER NOT NULL,
+                marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                note TEXT,
+                UNIQUE(account_no, affected_report_month, reason_code)
+            );
+        ''')
+        conn.execute("INSERT INTO users VALUES (1, 'admin', 'Admin', 'admin')")
+        conn.execute('''
+            INSERT INTO customers
+            (id, account_no, name, case_status, filing_date, filing_capital,
+             judgment_date, total_debt, principal, interest_rate, default_interest_rate,
+             court_fee, lawyer_fee, installment_count, first_due_date, installment_1,
+             installment_2, installment_3, installment_4, enforcement_judgment_date,
+             enforcement_received_date, enforcement_recorded_at, is_deleted)
+            VALUES (1, 'E-DEFAULT', 'Default Enforcement', 'บังคับคดี',
+                    '2026-02-01', 100, '2026-03-01', 100, 100, 0, 0,
+                    0, 0, 1, '2026-03-31', 100, 0, 0, 0,
+                    '2026-03-20', NULL, '2026-04-08', 0)
+        ''')
+        conn.execute('''
+            INSERT INTO case_status_logs
+            (account_no, from_status, to_status, changed_by, changed_at, note)
+            VALUES ('E-DEFAULT', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 1, '2026-04-08', '')
+        ''')
+        conn.commit()
+        conn.close()
+
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            corrected = client.post('/api/report/generate-db', json={
+                'report_date': '2026-03-31',
+                'report_mode': 'corrected',
+                'corrected_scope': 'pending_only',
+            }).get_json()
+
+            generated_accounts = {
+                row.get('account_no') for row in corrected['report_30'] + corrected['report_31']
+            }
+            self.assertNotIn('E-DEFAULT', generated_accounts)
+            self.assertEqual(corrected['summary']['correction_summary']['pending_enforcement'], 0)
+            self.assertEqual(corrected['summary']['generated_total'], 0)
+        finally:
+            reports.get_current_user = original_get_current_user
 
     def test_export_all_does_not_add_retroactive_alert_sheet(self):
         app = create_app()

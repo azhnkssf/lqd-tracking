@@ -824,8 +824,8 @@ def refresh_customer_list_cache_all():
     user = get_current_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
-    if user['role'] != 'admin':
-        return jsonify({'error': 'เฉพาะ Admin เท่านั้น'}), 403
+    if user['role'] not in ('user', 'admin'):
+        return jsonify({'error': 'Forbidden'}), 403
 
     db = get_db()
     result = refresh_all_customer_list_cache(db=db)

@@ -449,6 +449,12 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
     if not _is_before_month(effective_date, recorded_date):
         return None
 
+    from_status = _get_status_before_enforcement(cus)
+    from_group = CASE_STATUS_REPORT_MAP.get(from_status)
+    to_group = CASE_STATUS_REPORT_MAP.get('บังคับคดี')
+    if from_group and to_group and from_group == to_group:
+        return None
+
     affected_report_month = _month_key(effective_date)
     source_report_month = _month_key(recorded_date)
     mark = _get_retroactive_mark(db, cus.get('account_no'), affected_report_month, RETROACTIVE_ENFORCEMENT_REASON_CODE)
@@ -467,8 +473,6 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
             f'แต่กำลังตรวจรายงานเดือน {source_label} '
             f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
         )
-
-    from_status = _get_status_before_enforcement(cus)
 
     return {
         'type'                  : 'enforcement',

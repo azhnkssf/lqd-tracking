@@ -709,7 +709,7 @@ export default function CustomerListPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => loadData(1)} className="btn-primary-modern"><span className="material-symbols-outlined text-base">search</span>ค้นหา</button>
                   <button onClick={clearSearchAndFilters} className="btn-secondary-modern"><span className="material-symbols-outlined text-base">restart_alt</span>ล้างค่า</button>
-                  {role === 'admin' && <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary-modern" title="รีเฟรชแคชและโหลดข้อมูลใหม่"><span className="material-symbols-outlined text-base">refresh</span>{refreshing ? 'กำลังรีเฟรช' : 'รีเฟรช'}</button>}
+                  {(role === 'admin' || role === 'user') && <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary-modern" title="รีเฟรชแคชและโหลดข้อมูลใหม่"><span className="material-symbols-outlined text-base">refresh</span>{refreshing ? 'กำลังรีเฟรช' : 'รีเฟรช'}</button>}
                   <div className="per-page-wrap" onClick={e => e.stopPropagation()}>
                     <button
                       type="button"
