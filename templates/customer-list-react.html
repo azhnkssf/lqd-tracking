@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Customer List | LQD Tracking Management System</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700;800;900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Sarabun:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <script>
       tailwind.config = {
         darkMode: "class",
@@ -19,21 +21,30 @@
               "on-surface": "#1E293B"
             },
             fontFamily: {
-              "headline": ["Kanit", "sans-serif"],
-              "body": ["Kanit", "sans-serif"]
+              "headline": ["Plus Jakarta Sans", "Sarabun", "sans-serif"],
+              "body": ["Plus Jakarta Sans", "Sarabun", "sans-serif"]
             }
           }
         }
       }
     </script>
     <style type="text/tailwindcss">
-      * { font-family: "Kanit", sans-serif; }
-      body { @apply bg-surface text-on-surface font-body; }
+      :root {
+        --font-main: "Plus Jakarta Sans", "Sarabun", sans-serif;
+      }
+      * {
+        font-family: var(--font-main);
+      }
+      body {
+        @apply bg-surface text-on-surface font-body;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
       .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
       .page-card { @apply bg-white rounded-[26px] border border-blue-100/80 shadow-xl shadow-indigo-100/40 overflow-hidden; }
       .btn-primary-modern { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:bg-primary-muted transition-all whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed; }
       .btn-secondary-modern { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white text-indigo-600 border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-50 transition-all shadow-sm whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed; }
-      .input-modern { @apply w-full pl-11 pr-3 py-2.5 bg-white border border-blue-100 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-semibold text-slate-600 shadow-sm outline-none; }
+      .input-modern { @apply w-full pl-11 pr-3 py-2.5 bg-white border border-blue-100 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-[13px] font-medium text-slate-600 shadow-sm outline-none; }
       .modal-shell { @apply relative flex w-full max-w-2xl max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-[24px] border border-blue-100 bg-white shadow-2xl shadow-slate-900/20; }
       .modal-header { @apply flex-shrink-0 px-5 md:px-6 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-indigo-50; }
       .modal-icon { @apply w-10 h-10 rounded-2xl bg-white border border-blue-100 text-primary flex items-center justify-center shadow-sm flex-shrink-0; }
@@ -60,13 +71,13 @@
       .table-shell { @apply overflow-x-hidden bg-white; }
       .mock-table { min-width: 0; width: 100%; table-layout: fixed; }
       .customer-list-page .mock-table { border-collapse: separate; border-spacing: 0; }
-      .mock-table thead tr { @apply bg-slate-50/90 border-b border-blue-100 uppercase tracking-widest text-indigo-400 font-bold text-[11px]; }
+      .mock-table thead tr { @apply bg-slate-50/90 border-b border-blue-100 uppercase text-indigo-400 font-bold text-[10.5px]; letter-spacing: 0.08em; }
       .mock-table thead th { @apply border-b border-blue-100; }
       .mock-table tbody { transition: opacity 160ms ease; }
       .mock-table tbody.is-loading { opacity: 0.62; }
       .mock-table tbody tr.main-row td { @apply border-b border-blue-50 transition-colors; }
       .mock-table tbody tr.main-row:hover td { @apply bg-blue-50/40; }
-      .mock-table th, .mock-table td { @apply whitespace-nowrap align-middle; }
+      .mock-table th, .mock-table td { @apply whitespace-nowrap align-middle; font-size: 12.5px; }
       .customer-list-page .mock-table th { padding: 0.85rem 0.6rem !important; }
       .customer-list-page .mock-table td { padding: 0.7rem 0.6rem !important; min-width: 0; overflow: hidden; }
       .account-pill { @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 text-primary text-xs font-bold border border-indigo-100 min-w-[104px] px-2 py-1.5 transition-all hover:bg-indigo-100 hover:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-primary/10; font-size: 11.5px; }
@@ -75,7 +86,7 @@
       .copy-toast.show { @apply flex items-center gap-2; }
       .status-badge { @apply inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-sm max-w-full overflow-hidden text-ellipsis whitespace-nowrap; }
       .action-icon-btn { @apply w-7 h-7 rounded-[0.7rem] border border-blue-100 bg-white text-indigo-400 hover:text-primary hover:bg-blue-50 hover:border-blue-200 transition-all inline-flex items-center justify-center; }
-      .kpi-panel { @apply relative overflow-hidden rounded-[24px] border border-blue-100/80 bg-white p-1 shadow-xl shadow-indigo-100/30; font-family: "Kanit", sans-serif; }
+      .kpi-panel { @apply relative overflow-hidden rounded-[24px] border border-blue-100/80 bg-white p-1 shadow-xl shadow-indigo-100/30; font-family: var(--font-main); }
       .kpi-panel::before {
         content: "";
         position: absolute;
@@ -134,12 +145,21 @@
       .filter-input { @apply w-full rounded-xl border-blue-100 bg-white text-xs font-medium text-slate-600 focus:ring-primary/10 focus:border-primary; }
       .filter-date-display { @apply h-11 w-full rounded-xl border border-blue-100 bg-white px-4 pr-10 text-left text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
       .filter-date-display.open { @apply border-primary bg-white ring-4 ring-primary/10; }
+      .filter-date-scope-grid { @apply grid grid-cols-1 gap-2; }
+      .filter-date-scope-option { @apply flex min-h-[64px] w-full items-center gap-3 rounded-xl border border-slate-100 bg-white px-3.5 py-3 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
+      .filter-date-scope-option.active { @apply border-indigo-200 bg-indigo-50/80 shadow-md shadow-indigo-100/60; }
+      .filter-date-scope-icon { @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-400; }
+      .filter-date-scope-option.active .filter-date-scope-icon { @apply border-primary/20 bg-white text-primary; }
+      .filter-date-scope-label { @apply block text-[12px] font-extrabold leading-snug text-slate-700; }
+      .filter-date-scope-desc { @apply mt-0.5 block text-[10px] font-semibold leading-snug text-slate-400; }
+      .filter-date-scope-check { @apply flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-transparent; }
+      .filter-date-scope-check.active { @apply border-primary bg-primary text-white; }
       .filter-select-wrap { @apply relative w-[136px] flex-shrink-0; }
       .filter-select-trigger { @apply h-9 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-4 focus:ring-primary/10; }
       .filter-select-menu { @apply absolute right-0 top-[calc(100%+6px)] z-[90] w-[210px] rounded-2xl border border-blue-100 bg-white p-1.5 shadow-xl shadow-slate-900/10; }
       .filter-select-option { @apply flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-500 transition-all hover:bg-blue-50 hover:text-primary; }
       .filter-select-option.active { @apply bg-indigo-50 text-primary; }
-      .dp-popup { display:block;position:fixed;z-index:99999;background:#fff;border:1px solid #e2e8f0;border-radius:1rem;box-shadow:0 20px 40px rgba(15,23,42,0.12);width:288px;padding:1rem;font-family:'Kanit',sans-serif;overflow-y:auto; }
+      .dp-popup { display:block;position:fixed;z-index:99999;background:#fff;border:1px solid #e2e8f0;border-radius:1rem;box-shadow:0 20px 40px rgba(15,23,42,0.12);width:288px;padding:1rem;font-family:var(--font-main);overflow-y:auto; }
       .dp-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem; }
       .dp-nav-btn { width:32px;height:32px;border-radius:0.5rem;border:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;transition:all 0.15s; }
       .dp-nav-btn:hover { background:#2D3282;color:#fff;border-color:#2D3282; }
@@ -154,9 +174,9 @@
       .dp-day-today { font-weight:700;color:#2D3282;border:1.5px solid #2D3282; }
       .dp-day-selected { background:#2D3282!important;color:#fff!important;font-weight:700; }
       .dp-footer { display:flex;justify-content:flex-end;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #f1f5f9;gap:0.5rem; }
-      .dp-btn-clear { font-size:0.75rem;font-weight:600;color:#94a3b8;background:none;border:none;cursor:pointer;padding:4px 10px;border-radius:0.5rem;font-family:'Kanit',sans-serif; }
+      .dp-btn-clear { font-size:0.75rem;font-weight:600;color:#94a3b8;background:none;border:none;cursor:pointer;padding:4px 10px;border-radius:0.5rem;font-family:var(--font-main); }
       .dp-btn-clear:hover { color:#ef4444; }
-      .dp-btn-today { font-size:0.75rem;font-weight:600;color:#2D3282;background:#EEF2FF;border:none;cursor:pointer;padding:4px 12px;border-radius:0.5rem;font-family:'Kanit',sans-serif; }
+      .dp-btn-today { font-size:0.75rem;font-weight:600;color:#2D3282;background:#EEF2FF;border:none;cursor:pointer;padding:4px 12px;border-radius:0.5rem;font-family:var(--font-main); }
       .dp-btn-today:hover { background:#2D3282;color:#fff; }
       .dp-my-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 0; }
       .dp-my-item { text-align:center;padding:8px 4px;border-radius:0.5rem;font-size:0.8rem;font-weight:500;cursor:pointer;color:#1e293b;transition:all 0.15s; }

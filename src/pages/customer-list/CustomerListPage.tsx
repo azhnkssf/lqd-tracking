@@ -85,12 +85,12 @@ type AddForm = {
 const CASE_STATUSES = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
 const PAYMENT_STATUSES = ['ค้างชำระ', 'ชำระปกติ', 'ยังไม่ถึงกำหนด', 'ไม่มีแผนชำระ', 'ชำระครบแล้ว'];
 const DATE_FIELDS = [
-  { value: 'due', shortLabel: 'งวดแรก', label: 'วันครบกำหนดงวดแรก' },
-  { value: 'nextDue', shortLabel: 'ถัดไป', label: 'วันครบกำหนดถัดไป' },
-  { value: 'filingDate', shortLabel: 'ยื่นฟ้อง', label: 'วันที่ยื่นฟ้อง' },
-  { value: 'judgmentDate', shortLabel: 'พิพากษา', label: 'วันที่พิพากษา' },
-  { value: 'enforcementJudgmentDate', shortLabel: 'หมายบังคับ', label: 'วันที่ของหมายบังคับคดี' },
-  { value: 'lastPaymentDate', shortLabel: 'ชำระล่าสุด', label: 'วันที่ชำระล่าสุด' },
+  { value: 'due', shortLabel: 'งวดแรก', label: 'วันครบกำหนดงวดแรก', description: 'ใช้วันที่งวดแรกของแผนชำระ', icon: 'event_available' },
+  { value: 'nextDue', shortLabel: 'ถัดไป', label: 'วันครบกำหนดถัดไป', description: 'ใช้วันที่ต้องติดตามงวดถัดไป', icon: 'event_repeat' },
+  { value: 'filingDate', shortLabel: 'ยื่นฟ้อง', label: 'วันที่ยื่นฟ้อง', description: 'ใช้วันที่ส่งฟ้องศาล', icon: 'gavel' },
+  { value: 'judgmentDate', shortLabel: 'พิพากษา', label: 'วันที่พิพากษา', description: 'ใช้วันที่มีคำพิพากษา', icon: 'balance' },
+  { value: 'enforcementJudgmentDate', shortLabel: 'หมายบังคับ', label: 'วันที่ของหมายบังคับคดี', description: 'ใช้วันที่หมายบังคับคดีมีผล', icon: 'contract' },
+  { value: 'lastPaymentDate', shortLabel: 'ชำระล่าสุด', label: 'วันที่ชำระล่าสุด', description: 'ใช้วันที่รับชำระล่าสุด', icon: 'payments' },
 ];
 const FILTER_DP_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const FILTER_DP_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -1001,51 +1001,45 @@ function FilterDrawer({ draft, setDraft, onApply, onReset, onClose }: {
 }
 
 function AdvancedDateFilter({ draft, setDraft }: { draft: Filters; setDraft: (filters: Filters) => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const selectedField = DATE_FIELDS.find(field => field.value === draft.dateField) || DATE_FIELDS[0];
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const closeMenu = (event: MouseEvent) => {
-      if (!dropdownRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', closeMenu);
-    return () => document.removeEventListener('mousedown', closeMenu);
-  }, [menuOpen]);
 
   return (
     <>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="filter-title mb-0 whitespace-nowrap">ช่วงวันที่</p>
-        <div ref={dropdownRef} className="filter-select-wrap">
-          <button type="button" onClick={() => setMenuOpen(open => !open)} className="filter-select-trigger" aria-haspopup="listbox" aria-expanded={menuOpen}>
-            <span>{selectedField.shortLabel}</span>
-            <span className="material-symbols-outlined text-[17px] text-slate-400">expand_more</span>
-          </button>
-          {menuOpen && (
-            <div className="filter-select-menu" role="listbox" aria-label="เลือกประเภทวันที่">
-              {DATE_FIELDS.map(field => {
-                const active = field.value === selectedField.value;
-                return (
-                  <button
-                    key={field.value}
-                    type="button"
-                    onClick={() => {
-                      setDraft({ ...draft, dateField: field.value });
-                      setMenuOpen(false);
-                    }}
-                    className={`filter-select-option ${active ? 'active' : ''}`}
-                    role="option"
-                    aria-selected={active}
-                  >
-                    <span>{field.label}</span>
-                    {active && <span className="material-symbols-outlined text-[16px]">check</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+      <div className="mb-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="filter-title mb-1">ช่วงวันที่</p>
+            <p className="text-[11px] font-semibold leading-relaxed text-slate-400">เลือกขอบเขตวันที่ที่จะใช้ค้นหา</p>
+          </div>
+          <span className="inline-flex min-h-8 items-center rounded-xl border border-indigo-100 bg-indigo-50 px-3 text-[11px] font-extrabold text-primary">
+            {selectedField.shortLabel}
+          </span>
+        </div>
+        <div className="filter-date-scope-grid" role="radiogroup" aria-label="เลือกประเภทวันที่">
+          {DATE_FIELDS.map(field => {
+            const active = field.value === selectedField.value;
+            return (
+              <button
+                key={field.value}
+                type="button"
+                onClick={() => setDraft({ ...draft, dateField: field.value })}
+                className={`filter-date-scope-option ${active ? 'active' : ''}`}
+                role="radio"
+                aria-checked={active}
+              >
+                <span className="filter-date-scope-icon">
+                  <span className="material-symbols-outlined text-[17px]">{field.icon}</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="filter-date-scope-label">{field.label}</span>
+                  <span className="filter-date-scope-desc">{field.description}</span>
+                </span>
+                <span className={`filter-date-scope-check ${active ? 'active' : ''}`}>
+                  <span className="material-symbols-outlined text-[15px]">check</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       <ThemedDateRange
