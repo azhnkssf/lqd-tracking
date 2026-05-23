@@ -165,7 +165,7 @@ def create_app():
         _, redirect_response = _guard_page()
         if redirect_response:
             return redirect_response
-        return render_template('customer-detail.html')
+        return render_template('customer-detail-react.html')
 
     @app.route('/customer-add')
     def customer_add_page():

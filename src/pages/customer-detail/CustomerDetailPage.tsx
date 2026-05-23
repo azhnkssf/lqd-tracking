@@ -3,6 +3,49 @@ import { useEffect } from 'react';
 const LEGACY_BODY_CLASS =
   'bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary';
 
+type ApiRecord = Record<string, unknown>;
+
+export interface PaymentRecord extends ApiRecord {
+  payment_date?: string | null;
+  amount?: number | string | null;
+  type?: string | null;
+}
+
+export interface StatusLog extends ApiRecord {
+  from_status?: string | null;
+  to_status?: string | null;
+  changed_at?: string | null;
+  changed_by?: string | null;
+}
+
+export interface EnforcementInfo extends ApiRecord {
+  enforcement_order_no?: string | null;
+  enforcement_order_date?: string | null;
+  enforcement_judgment_date?: string | null;
+}
+
+export interface CustomerDetail extends EnforcementInfo {
+  account_no?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  case_status?: string | null;
+  payment_status?: string | null;
+  payments?: PaymentRecord[];
+  status_logs?: StatusLog[];
+}
+
+export interface ApiResponse<T = ApiRecord> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface FormState extends ApiRecord {
+  judgment_type?: string;
+  judgment_date?: string;
+  first_due_date?: string;
+}
+
 function getTemplateElement(id: string): HTMLTemplateElement | null {
   const el = document.getElementById(id);
   return el instanceof HTMLTemplateElement ? el : null;
