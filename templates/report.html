@@ -1047,10 +1047,24 @@ tailwind.config = {
             const res = await fetch('/api/report/generate-db', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ report_date: reportDate, report_mode: 'corrected' })
+                body: JSON.stringify({
+                    report_date: reportDate,
+                    report_mode: 'corrected',
+                    corrected_scope: 'pending_only'
+                })
             });
             const corrected = await res.json();
             if (!res.ok) throw new Error(corrected.error || 'ไม่สามารถสร้างฉบับแก้ไขย้อนหลังได้');
+
+            const correctedTotal =
+                (corrected.report_30 || []).length +
+                (corrected.report_31 || []).length +
+                (corrected.report_11 || []).length +
+                (corrected.not_generated || []).length;
+            if (correctedTotal === 0) {
+                showToast('warning', 'ไม่พบรายการ', 'ไม่พบรายการที่ต้อง Export ฉบับแก้ไขย้อนหลัง');
+                return;
+            }
 
             const payload = {
                 report_date: corrected.report_date || reportDate,

@@ -484,15 +484,32 @@ def generate_report_db():
             include_marked=True,
         )
         retroactive_alerts.extend(customer_alerts)
+        report_month = str(report_date or '')[:7]
+        customer_alerts_for_report = [
+            alert for alert in customer_alerts
+            if str(alert.get('affected_report_month') or '') == report_month
+        ]
+        pending_customer_alerts_for_report = [
+            alert for alert in customer_alerts_for_report
+            if not alert.get('marked')
+        ]
+
+        if report_mode == REPORT_MODE_CORRECTED and not pending_customer_alerts_for_report:
+            continue
 
         # Use customer status as of report_date for report classification.
         # Example: current status is บังคับคดี, but enforcement date is after report_date.
         # Then rollback to previous status, e.g. พิพากษาฝ่ายเดียว / พิพากษาตามยอม.
+        alerts_for_snapshot = (
+            pending_customer_alerts_for_report
+            if report_mode == REPORT_MODE_CORRECTED
+            else customer_alerts
+        )
         cus = _build_customer_as_of_report_date(
             cus,
             report_date,
             report_mode=report_mode,
-            retroactive_alerts=customer_alerts,
+            retroactive_alerts=alerts_for_snapshot,
         )
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 

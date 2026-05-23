@@ -25,6 +25,158 @@ from app.services.report_service import (
 
 
 class ReportRetroactiveCorrectionTests(unittest.TestCase):
+    def _create_report_route_db(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = os.path.join(temp_dir.name, 'report-route.db')
+        conn = sqlite3.connect(db_path)
+        conn.executescript('''
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                role TEXT
+            );
+            CREATE TABLE customers (
+                id INTEGER PRIMARY KEY,
+                account_no TEXT UNIQUE NOT NULL,
+                name TEXT,
+                case_status TEXT,
+                filing_date TEXT,
+                filing_capital REAL DEFAULT 0,
+                judgment_date TEXT,
+                total_debt REAL DEFAULT 0,
+                principal REAL DEFAULT 0,
+                interest_rate REAL DEFAULT 0,
+                default_interest_rate REAL DEFAULT 0,
+                court_fee REAL DEFAULT 0,
+                lawyer_fee REAL DEFAULT 0,
+                installment_count INTEGER DEFAULT 0,
+                first_due_date TEXT,
+                installment_1 REAL DEFAULT 0,
+                installment_2 REAL DEFAULT 0,
+                installment_3 REAL DEFAULT 0,
+                installment_4 REAL DEFAULT 0,
+                enforcement_judgment_date TEXT,
+                enforcement_received_date TEXT,
+                enforcement_recorded_at TEXT,
+                is_deleted INTEGER DEFAULT 0
+            );
+            CREATE TABLE payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT,
+                payment_date TEXT,
+                amount REAL
+            );
+            CREATE TABLE case_status_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT,
+                from_status TEXT,
+                to_status TEXT,
+                changed_by INTEGER,
+                changed_at TEXT,
+                note TEXT
+            );
+            CREATE TABLE report_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                generated_by INTEGER,
+                report_date TEXT,
+                filename TEXT,
+                status_types TEXT,
+                count_30 INTEGER,
+                count_31 INTEGER,
+                count_33 INTEGER,
+                count_alerts INTEGER,
+                count_missing INTEGER,
+                count_skipped INTEGER,
+                count_db_total INTEGER,
+                count_generated_total INTEGER,
+                generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE report_retroactive_fix_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_no TEXT NOT NULL,
+                affected_report_month TEXT NOT NULL,
+                effective_date TEXT NOT NULL,
+                reason_code TEXT NOT NULL,
+                source_report_month TEXT,
+                marked_by INTEGER NOT NULL,
+                marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                note TEXT,
+                UNIQUE(account_no, affected_report_month, reason_code)
+            );
+        ''')
+        conn.execute("INSERT INTO users VALUES (1, 'admin', 'Admin', 'admin')")
+
+        rows = [
+            (1, 'NORMAL', 'Normal', 'ยื่นฟ้อง', '2026-04-01', 100, None, 0, 0, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
+            (2, 'J-PENDING', 'Judgment Pending', 'พิพากษาตามยอม', '2026-03-10', 100, '2026-04-15', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, None, None, None, 0),
+            (3, 'J-MARKED', 'Judgment Marked', 'พิพากษาฝ่ายเดียว', '2026-03-10', 100, '2026-04-10', 100, 100, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
+            (4, 'E-PENDING', 'Enforcement Pending', 'บังคับคดี', '2026-03-01', 100, '2026-04-01', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, '2026-04-20', None, '2026-05-08', 0),
+        ]
+        conn.executemany('''
+            INSERT INTO customers
+            (id, account_no, name, case_status, filing_date, filing_capital,
+             judgment_date, total_debt, principal, interest_rate, default_interest_rate, court_fee, lawyer_fee,
+             installment_count, first_due_date, installment_1, installment_2,
+             installment_3, installment_4, enforcement_judgment_date,
+             enforcement_received_date, enforcement_recorded_at, is_deleted)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ''', rows)
+        conn.executemany('''
+            INSERT INTO case_status_logs
+            (account_no, from_status, to_status, changed_by, changed_at, note)
+            VALUES (?, ?, ?, 1, ?, '')
+        ''', [
+            ('J-PENDING', 'ยื่นฟ้อง', 'พิพากษาตามยอม', '2026-05-08'),
+            ('J-MARKED', 'ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', '2026-05-08'),
+            ('E-PENDING', 'พิพากษาตามยอม', 'บังคับคดี', '2026-05-08'),
+        ])
+        conn.execute('''
+            INSERT INTO report_retroactive_fix_marks
+            (account_no, affected_report_month, effective_date, reason_code,
+             source_report_month, marked_by, note)
+            VALUES ('J-MARKED', '2026-04', '2026-04-10', ?, '2026-05', 1, 'done')
+        ''', (RETROACTIVE_JUDGMENT_REASON_CODE,))
+        conn.commit()
+        conn.close()
+        return temp_dir, db_path
+
+    def test_corrected_route_exports_pending_correction_accounts_only(self):
+        temp_dir, db_path = self._create_report_route_db()
+        self.addCleanup(temp_dir.cleanup)
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            normal = client.post('/api/report/generate-db', json={
+                'report_date': '2026-04-30',
+            }).get_json()
+            corrected = client.post('/api/report/generate-db', json={
+                'report_date': '2026-04-30',
+                'report_mode': 'corrected',
+                'corrected_scope': 'pending_only',
+            }).get_json()
+
+            normal_accounts = {
+                row.get('account_no') for row in normal['report_30'] + normal['report_31']
+            }
+            corrected_accounts = {
+                row.get('account_no') for row in corrected['report_30'] + corrected['report_31']
+            }
+
+            self.assertIn('NORMAL', normal_accounts)
+            self.assertIn('J-MARKED', normal_accounts)
+            self.assertEqual(corrected_accounts, {'J-PENDING', 'E-PENDING'})
+            self.assertEqual(len(corrected['report_31']), 1)
+            self.assertEqual(corrected['report_31'][0]['account_no'], 'J-PENDING')
+            self.assertEqual(len(corrected['report_30']), 1)
+            self.assertEqual(corrected['report_30'][0]['account_no'], 'E-PENDING')
+            self.assertEqual(corrected['summary']['generated_total'], 2)
+        finally:
+            reports.get_current_user = original_get_current_user
+
     def test_judgment_after_report_rolls_back_to_filing(self):
         customer = {
             'case_status': 'พิพากษาฝ่ายเดียว',
