@@ -33,6 +33,9 @@ CASE_STATUS_REPORT_MAP = {
 }
 
 RETROACTIVE_ENFORCEMENT_REASON_CODE = 'RETROACTIVE_ENFORCEMENT_REPORT_FIX'
+RETROACTIVE_JUDGMENT_REASON_CODE = 'RETROACTIVE_JUDGMENT_REPORT_FIX'
+REPORT_MODE_NORMAL = 'normal'
+REPORT_MODE_CORRECTED = 'corrected'
 
 REPORT30_HEADERS = [
     'เลขที่บัญชี',
@@ -283,6 +286,48 @@ def _get_retroactive_mark(db, account_no, affected_report_month, reason_code=RET
         return None
 
 
+def _get_status_log_transition(cus, from_status=None, to_statuses=None):
+    logs = cus.get('_case_status_logs') or []
+    to_statuses = set(to_statuses or [])
+    for log in reversed(logs):
+        log_from = str(log.get('from_status') or '').strip()
+        log_to = str(log.get('to_status') or '').strip()
+        if from_status is not None and log_from != from_status:
+            continue
+        if to_statuses and log_to not in to_statuses:
+            continue
+        return log
+    return None
+
+
+def _get_judgment_recorded_date(cus):
+    recorded_date = _parse_report_date(cus.get('judgment_recorded_at'))
+    if recorded_date:
+        return recorded_date
+
+    log = _get_status_log_transition(
+        cus,
+        from_status='ยื่นฟ้อง',
+        to_statuses=('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'),
+    )
+    return _parse_report_date(log.get('changed_at')) if log else None
+
+
+def _get_enforcement_recorded_date(cus):
+    recorded_date = _parse_report_date(cus.get('enforcement_recorded_at'))
+    if recorded_date:
+        return recorded_date
+
+    log = _get_status_log_transition(cus, to_statuses=('บังคับคดี',))
+    return _parse_report_date(log.get('changed_at')) if log else None
+
+
+def _is_alert_effective_for_report(alert, report_date_str):
+    report_month = _month_key(report_date_str)
+    affected_month = alert.get('affected_report_month') if alert else None
+    return bool(report_month and affected_month and report_month == affected_month)
+
+
 def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, include_marked=True):
     """
     ตรวจเคสบังคับคดีที่มาจากพิพากษาตามยอม และวันที่ของหมายอยู่เดือนก่อนหน้า
@@ -291,30 +336,26 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
     if not cus:
         return None
 
-    if db and not cus.get('_has_consent_to_enforcement_log'):
+    if db and not cus.get('_case_status_logs'):
         cus = _attach_case_status_log_context(cus, db)
 
-    if not _is_consent_enforcement_case(cus):
+    if (cus.get('case_status') or '').strip() != 'บังคับคดี':
         return None
 
-    effective_date = (
-        _parse_report_date(cus.get('enforcement_judgment_date')) or
-        _parse_report_date(cus.get('enforcement_received_date')) or
-        _parse_report_date(cus.get('enforcement_date'))
-    )
+    effective_date = _get_enforcement_effective_date(cus)
     if not effective_date:
         return None
 
-    reference_date = _parse_report_date(report_date_str)
-    if not reference_date:
-        reference_date = _parse_report_date(cus.get('enforcement_recorded_at')) or date.today()
+    recorded_date = _get_enforcement_recorded_date(cus)
+    if not recorded_date:
+        return None
 
-    if not _is_before_month(effective_date, reference_date):
+    if not _is_before_month(effective_date, recorded_date):
         return None
 
     affected_report_month = _month_key(effective_date)
-    source_report_month = _month_key(reference_date)
-    mark = _get_retroactive_mark(db, cus.get('account_no'), affected_report_month)
+    source_report_month = _month_key(recorded_date)
+    mark = _get_retroactive_mark(db, cus.get('account_no'), affected_report_month, RETROACTIVE_ENFORCEMENT_REASON_CODE)
     if mark and not include_marked:
         return None
 
@@ -331,13 +372,18 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
             f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
         )
 
+    from_status = _get_status_before_enforcement(cus)
+
     return {
+        'type'                  : 'enforcement',
         'account_no'            : cus.get('account_no'),
         'name'                  : cus.get('name'),
         'case_status'           : cus.get('case_status'),
-        'from_status'           : 'พิพากษาตามยอม',
+        'from_status'           : from_status,
+        'to_status'             : 'บังคับคดี',
         'effective_date'        : effective_date.isoformat(),
         'enforcement_date'      : effective_date.isoformat(),
+        'recorded_date'         : recorded_date.isoformat(),
         'affected_report_month' : affected_report_month,
         'affected_month_label'  : affected_label,
         'source_report_month'   : source_report_month,
@@ -349,6 +395,102 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
         'marked_by'             : mark.get('marked_by') if mark else None,
         'marked_by_name'        : mark.get('marked_by_name') if mark else None,
         'note'                  : mark.get('note') if mark else None,
+    }
+
+
+def build_retroactive_judgment_alert(cus, db=None, report_date_str=None, include_marked=True):
+    if not cus:
+        return None
+
+    if db and not cus.get('_case_status_logs'):
+        cus = _attach_case_status_log_context(cus, db)
+
+    current_status = (cus.get('case_status') or '').strip()
+    if current_status not in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+        return None
+
+    effective_date = _parse_report_date(cus.get('judgment_date'))
+    recorded_date = _get_judgment_recorded_date(cus)
+    if not effective_date or not recorded_date:
+        return None
+
+    if not _is_before_month(effective_date, recorded_date):
+        return None
+
+    affected_report_month = _month_key(effective_date)
+    source_report_month = _month_key(recorded_date)
+    mark = _get_retroactive_mark(db, cus.get('account_no'), affected_report_month, RETROACTIVE_JUDGMENT_REASON_CODE)
+    if mark and not include_marked:
+        return None
+
+    affected_label = _month_label(affected_report_month)
+    source_label = _month_label(source_report_month)
+    message = (
+        f'วันที่พิพากษาอยู่ในเดือน {affected_label} '
+        f'แต่บันทึกเข้าระบบภายหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+    )
+    if source_label and source_label != affected_label:
+        message = (
+            f'วันที่พิพากษาอยู่ในเดือน {affected_label} '
+            f'แต่บันทึกเข้าระบบเดือน {source_label} '
+            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        )
+
+    return {
+        'type'                  : 'judgment',
+        'account_no'            : cus.get('account_no'),
+        'name'                  : cus.get('name'),
+        'case_status'           : cus.get('case_status'),
+        'from_status'           : 'ยื่นฟ้อง',
+        'to_status'             : current_status,
+        'effective_date'        : effective_date.isoformat(),
+        'judgment_date'         : effective_date.isoformat(),
+        'recorded_date'         : recorded_date.isoformat(),
+        'affected_report_month' : affected_report_month,
+        'affected_month_label'  : affected_label,
+        'source_report_month'   : source_report_month,
+        'source_month_label'    : source_label,
+        'reason_code'           : RETROACTIVE_JUDGMENT_REASON_CODE,
+        'reason'                : message,
+        'marked'                : bool(mark),
+        'marked_at'             : mark.get('marked_at') if mark else None,
+        'marked_by'             : mark.get('marked_by') if mark else None,
+        'marked_by_name'        : mark.get('marked_by_name') if mark else None,
+        'note'                  : mark.get('note') if mark else None,
+    }
+
+
+def build_retroactive_alerts(cus, db=None, report_date_str=None, include_marked=True):
+    alerts = []
+    judgment_alert = build_retroactive_judgment_alert(
+        cus, db=db, report_date_str=report_date_str, include_marked=include_marked
+    )
+    if judgment_alert:
+        alerts.append(judgment_alert)
+
+    enforcement_alert = build_retroactive_enforcement_alert(
+        cus, db=db, report_date_str=report_date_str, include_marked=include_marked
+    )
+    if enforcement_alert:
+        alerts.append(enforcement_alert)
+
+    return alerts
+
+
+def build_correction_summary(retroactive_alerts, report_date_str=None):
+    relevant_alerts = [
+        alert for alert in (retroactive_alerts or [])
+        if _is_alert_effective_for_report(alert, report_date_str)
+    ]
+    pending = [alert for alert in relevant_alerts if not alert.get('marked')]
+    return {
+        'has_pending_corrections': bool(pending),
+        'pending_total': len(pending),
+        'pending_judgment': sum(1 for alert in pending if alert.get('type') == 'judgment'),
+        'pending_enforcement': sum(1 for alert in pending if alert.get('type') == 'enforcement'),
+        'total': len(relevant_alerts),
+        'judgment_total': sum(1 for alert in relevant_alerts if alert.get('type') == 'judgment'),
+        'enforcement_total': sum(1 for alert in relevant_alerts if alert.get('type') == 'enforcement'),
     }
 
 
@@ -365,6 +507,14 @@ def _future_effective_reason(cus, report_date_str, payments=None):
         return None
 
     case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+    filing_date = _parse_report_date(cus.get('filing_date'))
+    if filing_date and filing_date > report_date:
+        return (
+            'FILING_DATE_AFTER_REPORT',
+            'วันที่ยื่นฟ้องอยู่หลังวันที่ Report',
+            filing_date.isoformat(),
+        )
+
     reason_map = {
         'ยื่นฟ้อง': (
             'FILING_DATE_AFTER_REPORT',
@@ -465,7 +615,7 @@ def _get_status_before_enforcement(cus):
     return 'ยื่นฟ้อง'
 
 
-def _build_customer_as_of_report_date(cus, report_date_str):
+def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_MODE_NORMAL, retroactive_alerts=None):
     """
     คืน customer dict ที่มี case_status ถูกต้อง ณ report_date
 
@@ -483,6 +633,48 @@ def _build_customer_as_of_report_date(cus, report_date_str):
         return cus
 
     current_status = str(cus.get('case_status') or 'ยื่นฟ้อง').strip()
+    filing_date = _parse_report_date(cus.get('filing_date'))
+    if filing_date and filing_date > report_date:
+        return cus
+
+    if report_mode != REPORT_MODE_CORRECTED:
+        for alert in retroactive_alerts or []:
+            if alert.get('marked') or not _is_alert_effective_for_report(alert, report_date_str):
+                continue
+
+            if alert.get('type') == 'judgment' and current_status in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+                cus_as_of = dict(cus)
+                cus_as_of['case_status'] = 'ยื่นฟ้อง'
+                cus_as_of['_latest_case_status'] = current_status
+                cus_as_of['_pending_correction_alert'] = alert
+                cus_as_of['_snapshot_rolled_back_from_status'] = current_status
+                cus_as_of['_snapshot_rolled_back_to_status'] = 'ยื่นฟ้อง'
+                cus_as_of['_snapshot_rollback_reason'] = 'PENDING_RETROACTIVE_JUDGMENT_CORRECTION'
+                return cus_as_of
+
+            if alert.get('type') == 'enforcement' and current_status == 'บังคับคดี':
+                previous_status = alert.get('from_status') or _get_status_before_enforcement(cus)
+                cus_as_of = dict(cus)
+                cus_as_of['case_status'] = previous_status
+                cus_as_of['_latest_case_status'] = current_status
+                cus_as_of['_pending_correction_alert'] = alert
+                cus_as_of['_snapshot_rolled_back_from_status'] = current_status
+                cus_as_of['_snapshot_rolled_back_to_status'] = previous_status
+                cus_as_of['_snapshot_rollback_reason'] = 'PENDING_RETROACTIVE_ENFORCEMENT_CORRECTION'
+                return cus_as_of
+
+    if current_status in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+        judgment_date = _parse_report_date(cus.get('judgment_date'))
+        if judgment_date and judgment_date > report_date:
+            cus_as_of = dict(cus)
+            cus_as_of['case_status'] = 'ยื่นฟ้อง'
+            cus_as_of['_latest_case_status'] = current_status
+            cus_as_of['_snapshot_rolled_back_from_status'] = current_status
+            cus_as_of['_snapshot_rolled_back_to_status'] = 'ยื่นฟ้อง'
+            cus_as_of['_snapshot_rollback_reason'] = 'JUDGMENT_AFTER_REPORT_DATE'
+            cus_as_of['_snapshot_judgment_effective_date'] = judgment_date.isoformat()
+            return cus_as_of
+
     if current_status != 'บังคับคดี':
         return cus
 
@@ -501,6 +693,47 @@ def _build_customer_as_of_report_date(cus, report_date_str):
     cus_as_of['_snapshot_enforcement_effective_date'] = enforcement_effective_date.isoformat()
 
     return cus_as_of
+
+
+def _append_text(existing, text):
+    existing = str(existing or '').strip()
+    text = str(text or '').strip()
+    if not text:
+        return existing
+    if not existing:
+        return text
+    if text in existing:
+        return existing
+    return f'{existing} | {text}'
+
+
+def _correction_warning_text(alert):
+    if not alert:
+        return ''
+    affected_label = alert.get('affected_month_label') or _month_label(alert.get('affected_report_month'))
+    if alert.get('type') == 'judgment':
+        return f'มีคำพิพากษาย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+    if alert.get('type') == 'enforcement':
+        return f'มีหมายบังคับคดีย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+    return ''
+
+
+def apply_correction_warning_remark(row, cus):
+    alert = (cus or {}).get('_pending_correction_alert')
+    warning = _correction_warning_text(alert)
+    if not row or not warning:
+        return row
+
+    if 'report30_litigation_remark' in row or 'report30_note' in row:
+        row['report30_litigation_remark'] = _append_text(
+            row.get('report30_litigation_remark') or row.get('remark'),
+            warning,
+        )
+        row['remark'] = row['report30_litigation_remark']
+    elif 'remark' in row:
+        row['remark'] = _append_text(row.get('remark'), warning)
+
+    return row
 
 
 def _build_not_generated_row(cus, reason_code, reason_text, report_date_str, effective_date=None, payments=None):

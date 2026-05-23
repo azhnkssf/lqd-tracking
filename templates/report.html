@@ -385,14 +385,37 @@ tailwind.config = {
                         <h3 class="font-bold text-slate-800 tracking-tight">ตรวจสอบและ Export ข้อมูล</h3>
                     </div>
 
-                    <button onclick="exportReport()" class="md:ml-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-100">
+                    <div class="md:ml-auto flex flex-col sm:flex-row gap-2">
+                    <button id="btn-export-corrected" onclick="exportCorrectedReport()" class="hidden inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm shadow-amber-100">
+                        <span class="material-symbols-outlined text-base">published_with_changes</span>
+                        Export ฉบับแก้ไขย้อนหลัง
+                    </button>
+                    <button onclick="exportReport()" class="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-100">
                         <span class="material-symbols-outlined text-base">download</span>
                         Export Excel (All)
                     </button>
+                    </div>
                 </div>
 
                 <!-- Tabs & Table Area -->
                 <div class="p-6 space-y-6">
+                    <div id="correction-warning-panel" class="hidden rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+                        <div class="flex flex-col md:flex-row md:items-center gap-3">
+                            <div class="flex items-start gap-3 flex-1">
+                                <span class="material-symbols-outlined text-amber-600">warning</span>
+                                <div>
+                                    <p class="font-bold">พบรายการที่ต้องตรวจสอบรายงานย้อนหลัง</p>
+                                    <p id="correction-warning-detail" class="mt-1 text-amber-800"></p>
+                                    <p class="mt-1 text-amber-700">ระบบพบข้อมูลทางคดีที่มีผลในเดือนรายงานนี้ แต่ถูกบันทึกเข้าระบบภายหลัง กรุณาตรวจสอบและ Export ฉบับแก้ไขย้อนหลัง</p>
+                                </div>
+                            </div>
+                            <button onclick="switchTab('retro')" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white border border-amber-200 text-amber-700 text-xs font-bold">
+                                <span class="material-symbols-outlined text-sm">list_alt</span>
+                                ดูรายการที่ต้องแก้
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Custom Tabs Pilled style -->
                     <div class="flex items-center gap-1 border border-indigo-50 bg-indigo-50/50 rounded-full p-1 w-full overflow-x-auto scrollbar-hide">
                         <button onclick="switchTab('30')" id="tab-30" class="tab-btn tab-inactive">
@@ -769,6 +792,7 @@ tailwind.config = {
         reconcileStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-current"></span>${matched ? 'Matched' : 'Unmatched'}`;
 
         document.getElementById('result-section').classList.remove('hidden');
+        updateCorrectionPanel(data);
         updateResultTabs(data);
 
         // Auto Switch Tab
@@ -829,6 +853,19 @@ tailwind.config = {
             const el = document.getElementById('tab-' + tab);
             if (el) el.classList.toggle('hidden', !shouldShow);
         });
+    }
+
+    function updateCorrectionPanel(data) {
+        const panel = document.getElementById('correction-warning-panel');
+        const detail = document.getElementById('correction-warning-detail');
+        const btn = document.getElementById('btn-export-corrected');
+        const summary = data.correction_summary || data.summary?.correction_summary || {};
+        const hasPending = !!summary.has_pending_corrections;
+        if (panel) panel.classList.toggle('hidden', !hasPending);
+        if (btn) btn.classList.toggle('hidden', !hasPending);
+        if (detail) {
+            detail.textContent = `คำพิพากษาข้ามเดือน: ${fmt(summary.pending_judgment || 0)} รายการ | บังคับคดีข้ามเดือน: ${fmt(summary.pending_enforcement || 0)} รายการ`;
+        }
     }
 
     // ปรับ TD Class ให้เป็น Class ว่าง เพราะใช้ Style จาก .creative-table td แล้ว
@@ -916,15 +953,16 @@ tailwind.config = {
                 </tr>`).join('');
 
         } else if (tab === 'retro') {
-            renderHeader(['เลขที่บัญชี','ชื่อลูกค้า','วันที่ของหมาย','เดือนที่ต้องตรวจสอบ','เดือนรายงาน','สถานะ','เหตุผล']);
+            renderHeader(['เลขที่บัญชี','ประเภท','วันที่มีผล','เดือนที่ต้องตรวจสอบ','สถานะเดิม','สถานะที่ควรเป็น','สถานะ','เหตุผล']);
             const rows = reportData.retroactive_alerts || [];
-            if (!rows.length) { body.innerHTML = `<tr><td colspan="7" class="py-10 text-center text-slate-300">ไม่มีรายการแจ้งเตือนย้อนหลัง</td></tr>`; return; }
+            if (!rows.length) { body.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-300">ไม่มีรายการแจ้งเตือนย้อนหลัง</td></tr>`; return; }
             body.innerHTML = rows.map(r => `<tr>
                 <td><span class="font-bold text-primary tracking-wide">${fmtAccNo(r.account_no)}</span></td>
-                <td>${safeHtml(r.name || '-')}</td>
-                <td class="text-slate-400">${fmtDate(r.effective_date || r.enforcement_date)}</td>
+                <td>${safeHtml(r.type === 'judgment' ? 'คำพิพากษา' : 'บังคับคดี')}</td>
+                <td class="text-slate-400">${fmtDate(r.effective_date || r.enforcement_date || r.judgment_date)}</td>
                 <td><span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">${safeHtml(r.affected_month_label || r.affected_report_month || '-')}</span></td>
-                <td class="text-slate-500">${safeHtml(r.source_month_label || r.source_report_month || '-')}</td>
+                <td class="text-slate-500">${safeHtml(r.from_status || '-')}</td>
+                <td class="text-slate-500">${safeHtml(r.to_status || r.case_status || '-')}</td>
                 <td>${r.marked ? '<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">แก้แล้ว</span>' : '<span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold">รอยืนยัน</span>'}</td>
                 <td class="text-amber-700 whitespace-normal min-w-[280px]">${safeHtml(r.reason || '-')}</td>
                 </tr>`).join('');
@@ -956,9 +994,9 @@ tailwind.config = {
                 report_31: reportData.report_31 || [],
                 report_11: reportData.report_11 || [],
                 alerts: reportData.alerts || [],
-                retroactive_alerts: reportData.retroactive_alerts || [],
                 missing_db: reportData.missing_db || [],
                 not_generated: reportData.not_generated || [],
+                report_mode: reportData.report_mode || 'normal',
             };
 
             const res = await fetch('/api/report/export-all', {
@@ -996,6 +1034,55 @@ tailwind.config = {
             URL.revokeObjectURL(url);
 
             showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว');
+        } catch (err) {
+            showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
+        }
+    }
+
+    async function exportCorrectedReport() {
+        const reportDate = reportData?.report_date || document.getElementById('report-date').value;
+        if (!reportDate) { showToast('warning', 'ยังไม่มีวันที่รายงาน', 'กรุณาเลือกวันที่ Report'); return; }
+        showProcessingModal('กำลังสร้างฉบับแก้ไขย้อนหลัง', 'ระบบกำลังประมวลผล corrected report และสร้างไฟล์ Excel');
+        try {
+            const res = await fetch('/api/report/generate-db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ report_date: reportDate, report_mode: 'corrected' })
+            });
+            const corrected = await res.json();
+            if (!res.ok) throw new Error(corrected.error || 'ไม่สามารถสร้างฉบับแก้ไขย้อนหลังได้');
+
+            const payload = {
+                report_date: corrected.report_date || reportDate,
+                report_mode: 'corrected',
+                report_30: corrected.report_30 || [],
+                report_31: corrected.report_31 || [],
+                report_11: corrected.report_11 || [],
+                alerts: corrected.alerts || [],
+                missing_db: corrected.missing_db || [],
+                not_generated: corrected.not_generated || [],
+            };
+            const exportRes = await fetch('/api/report/export-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!exportRes.ok) throw new Error('ไม่สามารถ Export ฉบับแก้ไขย้อนหลังได้');
+            const blob = await exportRes.blob();
+            const disposition = exportRes.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+            const filename = filenameMatch
+                ? decodeURIComponent(filenameMatch[1].replace(/"/g, ''))
+                : `Report_All_${reportDate}_Corrected.xlsx`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดฉบับแก้ไขย้อนหลังเรียบร้อยแล้ว');
         } catch (err) {
             showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
         }

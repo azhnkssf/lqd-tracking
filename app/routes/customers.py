@@ -10,7 +10,10 @@ from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
 from app.services.report_service import (
     RETROACTIVE_ENFORCEMENT_REASON_CODE,
+    RETROACTIVE_JUDGMENT_REASON_CODE,
+    build_retroactive_alerts,
     build_retroactive_enforcement_alert,
+    build_retroactive_judgment_alert,
     get_snapshot_at_date,
 )
 from app.services.customer_list_cache_service import (
@@ -980,6 +983,16 @@ def get_customer(account_no):
         db=db,
         include_marked=True,
     )
+    cus['retroactive_judgment_alert'] = build_retroactive_judgment_alert(
+        cus,
+        db=db,
+        include_marked=True,
+    )
+    cus['retroactive_alerts'] = build_retroactive_alerts(
+        cus,
+        db=db,
+        include_marked=True,
+    )
 
     payments = db.execute(
         'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
@@ -1069,6 +1082,112 @@ def mark_retroactive_enforcement_fix(account_no):
     return jsonify({
         'message': f'ยืนยันว่าแก้รายงานเดือน {alert["affected_month_label"]} แล้ว',
         'retroactive_enforcement_alert': updated_alert,
+    }), 200
+
+
+@bp.route('/<account_no>/retroactive-report-fix', methods=['POST'])
+def mark_retroactive_report_fix(account_no):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user['role'] != 'admin':
+        return jsonify({'error': 'เฉพาะ Admin เท่านั้นที่ยืนยันการแก้รายงานย้อนหลังได้'}), 403
+
+    data = request.get_json(silent=True) or {}
+    reason_code = str(data.get('reason_code') or '').strip()
+    affected_report_month = str(data.get('affected_report_month') or '').strip()
+    note = str(data.get('note') or '').strip() or 'แก้รายงานย้อนหลังแล้ว'
+    allowed_reason_codes = {
+        RETROACTIVE_ENFORCEMENT_REASON_CODE,
+        RETROACTIVE_JUDGMENT_REASON_CODE,
+    }
+    if reason_code not in allowed_reason_codes:
+        return jsonify({'error': 'reason_code ไม่ถูกต้อง'}), 400
+
+    db = get_db()
+    row = db.execute(
+        'SELECT * FROM customers WHERE account_no = ? AND is_deleted = 0',
+        (account_no,)
+    ).fetchone()
+    if not row:
+        return jsonify({'error': 'ไม่พบข้อมูล'}), 404
+
+    cus = _attach_case_status_logs(db, dict(row))
+    alerts = build_retroactive_alerts(cus, db=db, include_marked=True)
+    alert = next((
+        item for item in alerts
+        if item.get('reason_code') == reason_code
+        and (not affected_report_month or item.get('affected_report_month') == affected_report_month)
+    ), None)
+    if not alert:
+        return jsonify({'error': 'บัญชีนี้ไม่มีรายการรายงานย้อนหลังที่ต้องยืนยัน'}), 400
+
+    if alert.get('marked'):
+        return jsonify({
+            'message': 'รายการนี้ถูกยืนยันแล้ว',
+            'retroactive_alert': alert,
+            'retroactive_alerts': alerts,
+        }), 200
+
+    try:
+        db.execute('''
+            INSERT INTO report_retroactive_fix_marks
+            (account_no, affected_report_month, effective_date, reason_code,
+             source_report_month, marked_by, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            account_no,
+            alert['affected_report_month'],
+            alert['effective_date'],
+            reason_code,
+            alert.get('source_report_month'),
+            user['id'],
+            note,
+        ))
+        db.execute(
+            'INSERT INTO customer_edits (customer_id, account_no, edited_by, changes) VALUES (?, ?, ?, ?)',
+            (
+                row['id'],
+                account_no,
+                user['id'],
+                json.dumps({
+                    'retroactive_report_fix': {
+                        'label': 'การแก้รายงานย้อนหลัง',
+                        'from': 'รอยืนยัน',
+                        'to': f'ยืนยันแล้ว ({alert["affected_month_label"]})',
+                    },
+                    'retroactive_report_fix_reason': {
+                        'label': 'ประเภทการแก้ย้อนหลัง',
+                        'from': None,
+                        'to': reason_code,
+                    },
+                    'retroactive_report_effective_date': {
+                        'label': 'วันที่มีผล',
+                        'from': None,
+                        'to': alert['effective_date'],
+                    },
+                }, ensure_ascii=False),
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        return jsonify({'error': 'ไม่สามารถบันทึกการยืนยันได้ หรือรายการนี้ถูกยืนยันแล้ว'}), 409
+
+    cus = _attach_case_status_logs(db, dict(row))
+    updated_alerts = build_retroactive_alerts(cus, db=db, include_marked=True)
+    updated_alert = next((
+        item for item in updated_alerts
+        if item.get('reason_code') == reason_code
+        and item.get('affected_report_month') == alert['affected_report_month']
+    ), None)
+
+    return jsonify({
+        'message': f'ยืนยันว่าแก้รายงานเดือน {alert["affected_month_label"]} แล้ว',
+        'retroactive_alert': updated_alert,
+        'retroactive_alerts': updated_alerts,
+        'retroactive_enforcement_alert': next((item for item in updated_alerts if item.get('type') == 'enforcement'), None),
+        'retroactive_judgment_alert': next((item for item in updated_alerts if item.get('type') == 'judgment'), None),
     }), 200
 
 

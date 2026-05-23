@@ -1423,6 +1423,30 @@
                                 <textarea id="judgment-note" class="form-input-styled min-h-[92px] resize-none" maxlength="100" placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
                                 <p class="text-[10px] text-slate-400 mt-1"><span id="judgment-note-counter">0</span>/100 ตัวอักษร</p>
                             </div>
+                            <div id="retro-judgment-panel" class="sm:col-span-2 border border-amber-100 bg-amber-50/60 rounded-2xl px-4 py-3">
+                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="w-9 h-9 rounded-xl bg-white text-amber-600 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-[20px]" style='font-variation-settings:"FILL" 1'>gavel</span>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <p class="text-sm font-extrabold text-slate-800">คำพิพากษาข้ามเดือน</p>
+                                                <span id="retro-judgment-status-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">-</span>
+                                            </div>
+                                            <p id="retro-judgment-message" class="text-[12px] text-slate-500 mt-1">กำลังตรวจสอบสถานะรายงานย้อนหลัง...</p>
+                                            <p id="retro-judgment-meta" class="text-[11px] text-slate-400 mt-1">-</p>
+                                        </div>
+                                    </div>
+
+                                    <button id="retro-judgment-confirm-btn"
+                                        type="button"
+                                        onclick="confirmRetroJudgmentFix()"
+                                        class="w-full sm:w-[245px] px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 text-xs font-bold transition-all">
+                                        ยืนยันว่าแก้รายงานย้อนหลังแล้ว
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2376,6 +2400,7 @@
             applyJudgmentTypeInputRules(false);
             updateDateConstraints();
             validateBusinessRules(false);
+            renderRetroactiveJudgment(data);
             if (data.case_status) {
                 const logs = await loadStatusLogs()
                 renderProgressBar(data.case_status, logs)
@@ -4287,6 +4312,91 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         if (el('enf-info-judgment-date')) el('enf-info-judgment-date').textContent = fmt(cus.enforcement_judgment_date)
         if (el('enf-info-recorded'))      el('enf-info-recorded').textContent      = cus.enforcement_recorded_at ? fmtTs(cus.enforcement_recorded_at) : '-'
         renderRetroactiveEnforcement(cus)
+    }
+
+    function renderRetroactiveJudgment(cus) {
+        const alert = cus?.retroactive_judgment_alert
+        const badge = document.getElementById('retro-judgment-status-badge')
+        const message = document.getElementById('retro-judgment-message')
+        const meta = document.getElementById('retro-judgment-meta')
+        const btn = document.getElementById('retro-judgment-confirm-btn')
+        if (!badge || !message || !meta || !btn) return
+
+        badge.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border'
+        btn.disabled = true
+        btn.className = 'w-full sm:w-[245px] px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 text-xs font-bold transition-all'
+
+        if (!alert) {
+            badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-100')
+            badge.textContent = 'ไม่มีรายการย้อนหลัง'
+            message.textContent = 'ไม่มีรายการคำพิพากษาข้ามเดือนที่ต้องยืนยัน'
+            meta.textContent = '-'
+            btn.textContent = 'ไม่มีรายการที่ต้องยืนยัน'
+            return
+        }
+
+        const affected = alert.affected_month_label || alert.affected_report_month || '-'
+        if (alert.marked) {
+            badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-100')
+            badge.textContent = 'แก้แล้ว'
+            message.textContent = `ยืนยันแล้วว่าแก้รายงานเดือน ${affected} เรียบร้อย`
+            meta.textContent = `สถานะเดิม: ${alert.from_status || '-'} | สถานะที่ควรเป็น: ${alert.to_status || alert.case_status || '-'}`
+            btn.textContent = 'แก้รายงานแล้ว'
+            return
+        }
+
+        badge.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-100')
+        badge.textContent = 'รอยืนยัน'
+        message.textContent = alert.reason || `กรุณาตรวจสอบ/แก้รายงานเดือน ${affected}`
+        meta.textContent = `วันที่พิพากษา: ${fmtDate(alert.effective_date || alert.judgment_date)} | สถานะเดิม: ${alert.from_status || '-'} | สถานะที่ควรเป็น: ${alert.to_status || alert.case_status || '-'}`
+
+        if (isAdminRole()) {
+            btn.disabled = false
+            btn.className = 'w-full sm:w-[245px] px-4 py-2.5 rounded-xl border border-amber-200 bg-white text-amber-700 text-xs font-bold transition-all hover:bg-amber-50'
+            btn.textContent = `ยืนยันว่าแก้รายงาน ${affected} แล้ว`
+        } else {
+            btn.textContent = 'เฉพาะ Admin เท่านั้นที่ยืนยันได้'
+        }
+    }
+
+    async function confirmRetroJudgmentFix() {
+        const alert = currentCus?.retroactive_judgment_alert
+        if (!alert || alert.marked) return
+        if (!isAdminRole()) {
+            showAlert('warning', 'ไม่มีสิทธิ์ยืนยัน', 'เฉพาะ Admin เท่านั้นที่ยืนยันว่าแก้รายงานย้อนหลังแล้วได้')
+            return
+        }
+
+        const btn = document.getElementById('retro-judgment-confirm-btn')
+        if (btn) {
+            btn.disabled = true
+            btn.textContent = 'กำลังบันทึก...'
+        }
+        try {
+            const res = await fetch(`/api/customers/${accountNo}/retroactive-report-fix`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('token')}` },
+                body: JSON.stringify({
+                    reason_code: alert.reason_code,
+                    affected_report_month: alert.affected_report_month,
+                    note: 'แก้รายงานย้อนหลังแล้ว'
+                })
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                showAlert('error', 'ไม่สามารถยืนยันได้', data.error || 'เกิดข้อผิดพลาด')
+                return
+            }
+            showSuccessToast('บันทึกสำเร็จ', data.message || 'ยืนยันว่าแก้รายงานย้อนหลังแล้ว')
+            await loadCustomerData()
+            loadEditHistory()
+        } catch(e) {
+            showAlert('error', 'เชื่อมต่อไม่ได้', 'ไม่สามารถเชื่อมต่อ Server ได้')
+        } finally {
+            if (btn) {
+                btn.disabled = false
+            }
+        }
     }
 
     function setRetroToggleState(isOn, disabled, label, title = '') {

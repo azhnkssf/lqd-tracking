@@ -7,6 +7,8 @@ from flask import Blueprint, current_app, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.report_service import (
+    REPORT_MODE_CORRECTED,
+    REPORT_MODE_NORMAL,
     get_snapshot_at_date,
     get_report30_snapshot_at_date,
     _get_report_group,
@@ -18,7 +20,9 @@ from app.services.report_service import (
     _future_effective_reason,
     _build_not_generated_row,
     _build_customer_as_of_report_date,
-    build_retroactive_enforcement_alert,
+    apply_correction_warning_remark,
+    build_correction_summary,
+    build_retroactive_alerts,
     REPORT30_HEADERS,
     build_report30_export_values,
 )
@@ -207,11 +211,11 @@ def export_all_reports():
     report_31   = data.get('report_31', []) or []
     report_11   = data.get('report_11', []) or []
     alerts      = data.get('alerts', []) or []
-    retroactive_alerts = data.get('retroactive_alerts', []) or []
     missing_db  = data.get('missing_db', []) or []
     not_generated = data.get('not_generated', []) or []
+    report_mode = data.get('report_mode') or REPORT_MODE_NORMAL
 
-    if not any([report_30, report_31, report_11, alerts, retroactive_alerts, missing_db, not_generated]):
+    if not any([report_30, report_31, report_11, alerts, missing_db, not_generated]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
 
     def fmt_date_excel(val, default=''):
@@ -369,37 +373,6 @@ def export_all_reports():
 
         autofit(ws)
 
-    if retroactive_alerts:
-        ws = wb.create_sheet('Retroactive Alerts')
-        ws.append([
-            'เลขที่บัญชี',
-            'ชื่อลูกค้า',
-            'สถานะปัจจุบัน',
-            'วันที่ของหมายบังคับคดี',
-            'เดือนที่ต้องตรวจสอบ',
-            'เดือนรายงานที่พบ',
-            'Reason Code',
-            'เหตุผล',
-            'สถานะ',
-        ])
-        style_header(ws)
-
-        for r in retroactive_alerts:
-            ws.append([
-                fmt_acc(r.get('account_no')),
-                r.get('name') or '-',
-                r.get('case_status') or '-',
-                fmt_date_excel(r.get('effective_date') or r.get('enforcement_date')),
-                r.get('affected_month_label') or r.get('affected_report_month') or '-',
-                r.get('source_month_label') or r.get('source_report_month') or '-',
-                r.get('reason_code') or '-',
-                r.get('reason') or '-',
-                'แก้แล้ว' if r.get('marked') else 'รอยืนยัน',
-            ])
-            paint_row(ws, fill_alert)
-
-        autofit(ws)
-
     if missing_db:
         ws = wb.create_sheet('Missing DB')
         ws.append([
@@ -458,7 +431,8 @@ def export_all_reports():
     wb.save(buf)
     buf.seek(0)
 
-    filename = f'Report_All_{report_date}.xlsx'
+    suffix = '_Corrected' if report_mode == REPORT_MODE_CORRECTED else ''
+    filename = f'Report_All_{report_date}{suffix}.xlsx'
     return send_file(
         buf,
         as_attachment=True,
@@ -474,10 +448,13 @@ def generate_report_db():
 
     data         = request.get_json() or {}
     report_date  = data.get('report_date')
+    report_mode  = data.get('report_mode') or REPORT_MODE_NORMAL
     status_types = ['30', '31']
 
     if not report_date:
         return jsonify({'error': 'กรุณาระบุวันที่ขอ Report'}), 400
+    if report_mode not in (REPORT_MODE_NORMAL, REPORT_MODE_CORRECTED):
+        return jsonify({'error': 'report_mode ไม่ถูกต้อง'}), 400
 
     db = get_db()
 
@@ -500,19 +477,23 @@ def generate_report_db():
         # Keep latest DB customer only for retroactive alert diagnostics.
         latest_cus = cus
 
-        retroactive_alert = build_retroactive_enforcement_alert(
+        customer_alerts = build_retroactive_alerts(
             latest_cus,
             db=db,
             report_date_str=report_date,
-            include_marked=False,
+            include_marked=True,
         )
-        if retroactive_alert:
-            retroactive_alerts.append(retroactive_alert)
+        retroactive_alerts.extend(customer_alerts)
 
         # Use customer status as of report_date for report classification.
         # Example: current status is บังคับคดี, but enforcement date is after report_date.
         # Then rollback to previous status, e.g. พิพากษาฝ่ายเดียว / พิพากษาตามยอม.
-        cus = _build_customer_as_of_report_date(cus, report_date)
+        cus = _build_customer_as_of_report_date(
+            cus,
+            report_date,
+            report_mode=report_mode,
+            retroactive_alerts=customer_alerts,
+        )
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 
         payments = None
@@ -537,7 +518,7 @@ def generate_report_db():
 
         if case_status == 'ยื่นฟ้อง':
             if '30' in status_types:
-                report_30.append(_build_report30_row_from_db(
+                row = _build_report30_row_from_db(
                     account_no,
                     case_status,
                     cus.get('filing_date'),
@@ -546,7 +527,10 @@ def generate_report_db():
                     None,
                     report_date,
                     payments=[]
-                ))
+                )
+                if report_mode == REPORT_MODE_NORMAL:
+                    row = apply_correction_warning_remark(row, cus)
+                report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
                     cus,
@@ -570,7 +554,7 @@ def generate_report_db():
 
         if case_status == 'พิพากษาฝ่ายเดียว':
             if '30' in status_types:
-                report_30.append(_build_report30_row_from_db(
+                row = _build_report30_row_from_db(
                     account_no,
                     case_status,
                     cus.get('filing_date'),
@@ -579,7 +563,10 @@ def generate_report_db():
                     snap,
                     report_date,
                     payments=payments
-                ))
+                )
+                if report_mode == REPORT_MODE_NORMAL:
+                    row = apply_correction_warning_remark(row, cus)
+                report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
                     cus,
@@ -592,7 +579,7 @@ def generate_report_db():
         if case_status == 'บังคับคดี':
             if '30' in status_types:
                 report30_snap = get_report30_snapshot_at_date(cus, payments, report_date)
-                report_30.append(_build_report30_row_from_db(
+                row = _build_report30_row_from_db(
                     account_no,
                     case_status,
                     cus.get('filing_date'),
@@ -601,7 +588,10 @@ def generate_report_db():
                     report30_snap,
                     report_date,
                     payments=payments
-                ))
+                )
+                if report_mode == REPORT_MODE_NORMAL:
+                    row = apply_correction_warning_remark(row, cus)
+                report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
                     cus,
@@ -626,7 +616,7 @@ def generate_report_db():
             report_11.append(_build_report11_row(account_no, cus, payments))
 
         elif group == '30' and '30' in status_types:
-            report_30.append(_build_report30_row_from_db(
+            row = _build_report30_row_from_db(
                 account_no,
                 case_status,
                 cus.get('filing_date'),
@@ -635,10 +625,16 @@ def generate_report_db():
                 snap,
                 report_date,
                 payments=payments
-            ))
+            )
+            if report_mode == REPORT_MODE_NORMAL:
+                row = apply_correction_warning_remark(row, cus)
+            report_30.append(row)
 
         elif group == '31' and '31' in status_types:
-            report_31.append(_build_report31_row(account_no, cus, snap, report_date))
+            row = _build_report31_row(account_no, cus, snap, report_date)
+            if report_mode == REPORT_MODE_NORMAL:
+                row = apply_correction_warning_remark(row, cus)
+            report_31.append(row)
         elif group in ['30', '31']:
             not_generated.append(_build_not_generated_row(
                 cus,
@@ -646,6 +642,13 @@ def generate_report_db():
                 f'Report {group} ไม่ได้ถูกเลือกตอน Generate',
                 report_date,
             ))
+
+    report_month = str(report_date or '')[:7]
+    retroactive_alerts_for_report = [
+        alert for alert in retroactive_alerts
+        if str(alert.get('affected_report_month') or '') == report_month
+    ]
+    correction_summary = build_correction_summary(retroactive_alerts_for_report, report_date)
 
     summary = build_reconcile_summary(
         db_total,
@@ -655,8 +658,9 @@ def generate_report_db():
         [],
         [],
         not_generated,
-        retroactive_alerts,
+        retroactive_alerts_for_report,
     )
+    summary['correction_summary'] = correction_summary
 
     db.execute(
         """INSERT INTO report_logs
@@ -664,23 +668,33 @@ def generate_report_db():
             count_30, count_31, count_33, count_alerts, count_missing,
             count_skipped, count_db_total, count_generated_total)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (user['id'], report_date, '[DB Report]', ','.join(status_types),
-         len(report_30), len(report_31), len(report_11), len(retroactive_alerts), 0,
+        (user['id'], report_date, '[DB Corrected Report]' if report_mode == REPORT_MODE_CORRECTED else '[DB Report]', ','.join(status_types),
+         len(report_30), len(report_31), len(report_11), len(retroactive_alerts_for_report), 0,
          len(not_generated), db_total, summary['generated_total'])
     )
     db.commit()
 
     return jsonify({
         'report_date' : report_date,
+        'report_mode' : report_mode,
         'summary'     : summary,
+        'correction_summary': correction_summary,
         'report_30'   : report_30,
         'report_31'   : report_31,
         'report_11'   : report_11,
         'alerts'      : [],
-        'retroactive_alerts': retroactive_alerts,
+        'retroactive_alerts': retroactive_alerts_for_report,
         'missing_db'  : [],
         'not_generated': not_generated,
     }), 200
+
+
+@bp.route('/generate-corrected', methods=['POST'])
+def generate_corrected_report_db():
+    data = request.get_json() or {}
+    data['report_mode'] = REPORT_MODE_CORRECTED
+    request._cached_json = (data, data)
+    return generate_report_db()
 
 @bp.route('/history', methods=['GET'])
 def get_report_history():
