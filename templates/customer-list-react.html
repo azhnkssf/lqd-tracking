@@ -75,7 +75,7 @@
       .case-tab { @apply px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shadow-sm border; }
       .active-tab { @apply bg-primary text-white border-primary; }
       .inactive-tab { @apply bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-primary; }
-      .table-shell { @apply overflow-x-hidden bg-white; }
+      .table-shell { @apply bg-white; overflow-x: hidden; overflow-y: visible; }
       .mock-table { min-width: 0; width: 100%; table-layout: fixed; }
       .customer-list-page .mock-table { border-collapse: separate; border-spacing: 0; }
       .mock-table thead tr { @apply bg-slate-50/90 border-b border-blue-100 uppercase text-indigo-400 font-bold text-[10.5px]; letter-spacing: 0.08em; }
@@ -86,7 +86,7 @@
       .mock-table tbody tr.main-row:hover td { @apply bg-blue-50/40; }
       .mock-table th, .mock-table td { @apply whitespace-nowrap align-middle; font-size: 12.5px; }
       .customer-list-page .mock-table th { padding: 0.85rem 0.6rem !important; }
-      .customer-list-page .mock-table td { padding: 0.7rem 0.6rem !important; min-width: 0; overflow: hidden; }
+      .customer-list-page .mock-table td { padding: 0.7rem 0.6rem !important; min-width: 0; }
       .account-cell-wrap { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; max-width: 100%; min-width: 0; }
       .account-pill { @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 text-primary font-bold border border-indigo-100 transition-all hover:bg-indigo-100 hover:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-primary/10; min-width: 118px; padding: 0.42rem 0.62rem; font-size: 12px; line-height: 1.15; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
       .account-pill .copy-account-btn,
@@ -94,9 +94,21 @@
       .num-tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
       .amount-cell { display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 0; }
       .amount-main { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; line-height: 1.1; white-space: nowrap; }
-      .amount-sub { display: flex; justify-content: flex-end; gap: 0.25rem; width: 100%; max-width: 100%; margin-top: 0.25rem; font-size: 10.5px; line-height: 1.1; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .amount-sub-label { overflow: hidden; text-overflow: ellipsis; }
-      .amount-sub-value { flex-shrink: 0; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+      .amount-sub { display: flex; justify-content: flex-end; width: 100%; max-width: 100%; margin-top: 0.25rem; font-size: 10.5px; line-height: 1.1; color: #94a3b8; white-space: nowrap; }
+      .cell-tooltip-wrap { position: relative; display: inline-block; max-width: 100%; min-width: 0; vertical-align: middle; }
+      .tooltip-ellipsis { display: block; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .customer-name-tooltip { width: 100%; }
+      .customer-name-tooltip .tooltip-ellipsis { color: #1e293b; font-size: 13px; font-weight: 700; line-height: 1.35; }
+      .amount-sub-tooltip { width: 100%; max-width: 100%; }
+      .amount-sub-tooltip .tooltip-ellipsis { display: flex; justify-content: flex-end; gap: 0.25rem; width: 100%; max-width: 100%; min-width: 0; }
+      .amount-sub-tooltip .amount-sub-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .amount-sub-tooltip .amount-sub-value { flex-shrink: 0; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+      .cell-tooltip { position: absolute; left: 0; bottom: calc(100% + 0.45rem); z-index: 130; max-width: 340px; min-width: max-content; padding: 0.45rem 0.65rem; border: 1px solid rgba(191, 219, 254, 0.95); border-radius: 0.85rem; background: rgba(255, 255, 255, 0.98); color: #1e293b; font-size: 12px; font-weight: 700; line-height: 1.35; box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14); white-space: normal; word-break: break-word; text-align: left; opacity: 0; pointer-events: none; transform: translateY(4px) scale(0.98); transform-origin: left bottom; transition: opacity 140ms ease, transform 140ms ease; }
+      .cell-tooltip::after { content: ""; position: absolute; left: 1rem; top: 100%; width: 0.55rem; height: 0.55rem; background: rgba(255, 255, 255, 0.98); border-right: 1px solid rgba(191, 219, 254, 0.95); border-bottom: 1px solid rgba(191, 219, 254, 0.95); transform: translateY(-50%) rotate(45deg); }
+      .amount-sub-tooltip .cell-tooltip { left: auto; right: 0; transform-origin: right bottom; }
+      .amount-sub-tooltip .cell-tooltip::after { left: auto; right: 1rem; }
+      .cell-tooltip-wrap:hover .cell-tooltip,
+      .cell-tooltip-wrap:focus-within .cell-tooltip { opacity: 1; transform: translateY(0) scale(1); }
       .copy-toast { @apply fixed bottom-6 right-6 z-[120] hidden rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-xs font-bold text-emerald-700 shadow-xl shadow-slate-900/10; }
       .copy-toast.show { @apply flex items-center gap-2; }
       .status-badge { @apply inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-sm max-w-full overflow-hidden text-ellipsis whitespace-nowrap; }

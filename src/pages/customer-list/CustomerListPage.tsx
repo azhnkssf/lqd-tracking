@@ -854,6 +854,57 @@ function Sidebar({ role, activePage, onLogout }: { role: Role; activePage: strin
   );
 }
 
+function OverflowTooltip({
+  children,
+  tooltip,
+  className = '',
+}: {
+  children: ReactNode;
+  tooltip: string;
+  className?: string;
+}) {
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  const checkOverflow = useCallback(() => {
+    const el = textRef.current;
+    if (!el) return;
+    setIsOverflowing(el.scrollWidth > el.clientWidth + 1);
+  }, []);
+
+  useEffect(() => {
+    checkOverflow();
+
+    const el = textRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', checkOverflow);
+      return () => window.removeEventListener('resize', checkOverflow);
+    }
+
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    window.addEventListener('resize', checkOverflow);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [checkOverflow, children, tooltip]);
+
+  return (
+    <span className={`cell-tooltip-wrap ${className}`}>
+      <span ref={textRef} className="tooltip-ellipsis">
+        {children}
+      </span>
+      {isOverflowing && tooltip && (
+        <span className="cell-tooltip" role="tooltip">
+          {tooltip}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function CustomerTable(props: {
   rows: Customer[];
   role: Role;
@@ -905,6 +956,9 @@ function CustomerTable(props: {
             const caseStatus = caseStatusOf(row);
             const payment = paymentStatusOf(row);
             const debtAmount = debtDisplayAmount(row);
+            const baselineLabel = debtBaselineLabel(row);
+            const baselineAmount = fmtMoney(debtBaselineAmount(row), true);
+            const baselineTooltip = `${baselineLabel} ${baselineAmount}`;
             return (
               <>
                 <tr className="main-row" key={account}>
@@ -914,15 +968,26 @@ function CustomerTable(props: {
                       <button type="button" title="คัดลอกเลขที่บัญชี" onClick={() => onCopy(account)} className="copy-account-btn"><span className="material-symbols-outlined text-[12px]">content_copy</span></button>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><div className="flex items-center gap-3 min-w-0"><div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex items-center justify-center text-primary text-[11px] font-extrabold shadow-sm flex-shrink-0">{getInitials(row.name)}</div><div className="min-w-0"><p className="text-[13px] font-bold text-slate-800 truncate">{row.name || '-'}</p></div></div></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex items-center justify-center text-primary text-[11px] font-extrabold shadow-sm flex-shrink-0">{getInitials(row.name)}</div>
+                      <div className="min-w-0 w-full">
+                        <OverflowTooltip tooltip={row.name || ''} className="customer-name-tooltip">
+                          {row.name || '-'}
+                        </OverflowTooltip>
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-3 py-3 text-center"><span className="text-sm font-semibold text-slate-500">{fmtDate(row.filing_date)}</span></td>
                   <td className="px-3 py-3 text-right">
                     <div className="amount-cell">
                       <p className="amount-main text-[13px] font-extrabold text-slate-800">{fmtMoney(debtAmount, true)}</p>
-                      <p className="amount-sub">
-                        <span className="amount-sub-label">{debtBaselineLabel(row)}</span>
-                        <span className="amount-sub-value">{fmtMoney(debtBaselineAmount(row), true)}</span>
-                      </p>
+                      <div className="amount-sub">
+                        <OverflowTooltip tooltip={baselineTooltip} className="amount-sub-tooltip">
+                          <span className="amount-sub-label">{baselineLabel}</span>
+                          <span className="amount-sub-value">{baselineAmount}</span>
+                        </OverflowTooltip>
+                      </div>
                     </div>
                   </td>
                   <td className="px-3 py-3 text-center"><StatusBadge text={caseStatus} tone={caseTone(caseStatus)} /></td>
