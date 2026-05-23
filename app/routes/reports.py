@@ -446,15 +446,21 @@ def generate_report_db():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    data         = request.get_json() or {}
+    return _generate_report_db_from_data(request.get_json() or {}, user)
+
+
+def _generate_report_db_from_data(data, user):
     report_date  = data.get('report_date')
     report_mode  = data.get('report_mode') or REPORT_MODE_NORMAL
+    corrected_scope = data.get('corrected_scope') or 'pending_only'
     status_types = ['30', '31']
 
     if not report_date:
         return jsonify({'error': 'กรุณาระบุวันที่ขอ Report'}), 400
     if report_mode not in (REPORT_MODE_NORMAL, REPORT_MODE_CORRECTED):
         return jsonify({'error': 'report_mode ไม่ถูกต้อง'}), 400
+    if corrected_scope != 'pending_only':
+        return jsonify({'error': 'corrected_scope ไม่ถูกต้อง'}), 400
 
     db = get_db()
 
@@ -494,7 +500,11 @@ def generate_report_db():
             if not alert.get('marked')
         ]
 
-        if report_mode == REPORT_MODE_CORRECTED and not pending_customer_alerts_for_report:
+        if (
+            report_mode == REPORT_MODE_CORRECTED
+            and corrected_scope == 'pending_only'
+            and not pending_customer_alerts_for_report
+        ):
             continue
 
         # Use customer status as of report_date for report classification.
@@ -710,8 +720,13 @@ def generate_report_db():
 def generate_corrected_report_db():
     data = request.get_json() or {}
     data['report_mode'] = REPORT_MODE_CORRECTED
-    request._cached_json = (data, data)
-    return generate_report_db()
+    data.setdefault('corrected_scope', 'pending_only')
+
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    return _generate_report_db_from_data(data, user)
 
 @bp.route('/history', methods=['GET'])
 def get_report_history():

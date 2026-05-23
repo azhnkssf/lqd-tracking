@@ -388,7 +388,7 @@ tailwind.config = {
                     <div class="md:ml-auto flex flex-col sm:flex-row gap-2">
                     <button id="btn-export-corrected" onclick="exportCorrectedReport()" class="hidden inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm shadow-amber-100">
                         <span class="material-symbols-outlined text-base">published_with_changes</span>
-                        Export ฉบับแก้ไขย้อนหลัง
+                        Export เฉพาะรายการแก้ย้อนหลัง
                     </button>
                     <button onclick="exportReport()" class="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-100">
                         <span class="material-symbols-outlined text-base">download</span>
@@ -1096,7 +1096,9 @@ tailwind.config = {
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดฉบับแก้ไขย้อนหลังเรียบร้อยแล้ว');
+            const report30Count = (corrected.report_30 || []).length;
+            const report31Count = (corrected.report_31 || []).length;
+            showToast('success', 'Export สำเร็จ', `Report 30: ${report30Count} | Report 31: ${report31Count} | รวม: ${correctedTotal}`);
         } catch (err) {
             showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
         }

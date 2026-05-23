@@ -177,6 +177,79 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         finally:
             reports.get_current_user = original_get_current_user
 
+    def test_invalid_corrected_scope_returns_400(self):
+        temp_dir, db_path = self._create_report_route_db()
+        self.addCleanup(temp_dir.cleanup)
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            response = client.post('/api/report/generate-db', json={
+                'report_date': '2026-04-30',
+                'report_mode': 'corrected',
+                'corrected_scope': 'all_accounts',
+            })
+
+            self.assertEqual(response.status_code, 400)
+        finally:
+            reports.get_current_user = original_get_current_user
+
+    def test_corrected_route_with_no_pending_corrections_returns_zero_rows(self):
+        temp_dir, db_path = self._create_report_route_db()
+        self.addCleanup(temp_dir.cleanup)
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            response = client.post('/api/report/generate-db', json={
+                'report_date': '2026-06-30',
+                'report_mode': 'corrected',
+                'corrected_scope': 'pending_only',
+            })
+            payload = response.get_json()
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(payload['report_30'], [])
+            self.assertEqual(payload['report_31'], [])
+            self.assertEqual(payload['report_11'], [])
+            self.assertEqual(payload['not_generated'], [])
+            self.assertEqual(payload['summary']['generated_total'], 0)
+        finally:
+            reports.get_current_user = original_get_current_user
+
+    def test_marked_corrections_are_excluded_from_pending_total(self):
+        temp_dir, db_path = self._create_report_route_db()
+        self.addCleanup(temp_dir.cleanup)
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            payload = client.post('/api/report/generate-db', json={
+                'report_date': '2026-04-30',
+            }).get_json()
+
+            self.assertEqual(payload['correction_summary']['total'], 3)
+            self.assertEqual(payload['correction_summary']['pending_total'], 2)
+        finally:
+            reports.get_current_user = original_get_current_user
+
+    def test_missing_judgment_recorded_date_does_not_create_retroactive_alert(self):
+        alert = build_retroactive_judgment_alert({
+            'account_no': 'NO-LOG',
+            'case_status': 'พิพากษาฝ่ายเดียว',
+            'filing_date': '2026-03-10',
+            'judgment_date': '2026-04-15',
+            '_case_status_logs': [],
+        })
+
+        self.assertIsNone(alert)
+
     def test_judgment_after_report_rolls_back_to_filing(self):
         customer = {
             'case_status': 'พิพากษาฝ่ายเดียว',

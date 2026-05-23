@@ -330,8 +330,8 @@ def _is_alert_effective_for_report(alert, report_date_str):
 
 def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, include_marked=True):
     """
-    ตรวจเคสบังคับคดีที่มาจากพิพากษาตามยอม และวันที่ของหมายอยู่เดือนก่อนหน้า
-    เพื่อเตือนว่ารายงานเดือนเก่าอาจต้องถูกแก้จาก 31 เป็น 30
+    ตรวจเคสบังคับคดีที่วันที่หมายมีผลอยู่ก่อนเดือนที่บันทึกเข้าระบบ
+    เพื่อเตือนว่ารายงานเดือนเก่าอาจต้องถูกแก้ย้อนหลังตาม effective date จริง
     """
     if not cus:
         return None
