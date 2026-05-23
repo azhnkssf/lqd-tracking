@@ -882,9 +882,17 @@
         }
     }
 </style>
+
+{% if not vite_dev_server_url %}
+  {% for css_file in vite_css('src/main.tsx') %}
+  <link rel="stylesheet" href="{{ url_for('static', filename=css_file) }}" />
+  {% endfor %}
+{% endif %}
 </head>
 <body class="bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary">
+<div id="root" data-page="customer-detail"></div>
 
+<template id="customer-detail-legacy-markup">
 <!-- Shared Layout -->
 {% set active_page = "customer-list" %}
 {% include "partials/navbar.html" %}
@@ -2038,8 +2046,9 @@
         </div>
     </div>
 </div>
+</template>
 
-<script>
+<script type="text/plain" id="customer-detail-legacy-script">
     const role        = sessionStorage.getItem('role') || '';
     const displayName = sessionStorage.getItem('display_name') || '';
 
@@ -4640,5 +4649,12 @@ document.getElementById('first-due-date').addEventListener('change', () => { cal
         });
     }
 </script>
+
+{% if vite_dev_server_url %}
+<script type="module" src="{{ vite_dev_server_url }}/@vite/client"></script>
+<script type="module" src="{{ vite_dev_server_url }}/src/main.tsx"></script>
+{% else %}
+<script type="module" src="{{ url_for('static', filename=vite_asset('src/main.tsx')) }}"></script>
+{% endif %}
 </body>
 </html>
