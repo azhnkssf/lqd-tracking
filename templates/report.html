@@ -1098,7 +1098,13 @@ tailwind.config = {
             URL.revokeObjectURL(url);
             const report30Count = (corrected.report_30 || []).length;
             const report31Count = (corrected.report_31 || []).length;
-            showToast('success', 'Export สำเร็จ', `Report 30: ${report30Count} | Report 31: ${report31Count} | รวม: ${correctedTotal}`);
+            const report11Count = (corrected.report_11 || []).length;
+            const notGeneratedCount = (corrected.not_generated || []).length;
+            showToast(
+                'success',
+                'Export สำเร็จ',
+                `Report 30: ${report30Count} | Report 31: ${report31Count} | Status 11: ${report11Count} | Not Generated: ${notGeneratedCount} | รวม: ${correctedTotal}`
+            );
         } catch (err) {
             showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
         }
