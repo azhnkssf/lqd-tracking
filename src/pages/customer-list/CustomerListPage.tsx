@@ -328,6 +328,7 @@ export default function CustomerListPage() {
   const [draftFilters, setDraftFilters] = useState<Filters>(() => readFiltersFromUrl(initialParams));
   const [page, setPage] = useState(initialPageRef.current);
   const [perPage, setPerPage] = useState(() => safePerPage(initialParams.get('per_page')));
+  const [perPageMenuOpen, setPerPageMenuOpen] = useState(false);
   const [totalRows, setTotalRows] = useState(0);
   const [sortField, setSortField] = useState(initialParams.get('sort_by') || '');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(initialParams.get('sort_dir') === 'asc' ? 'asc' : 'desc');
@@ -419,6 +420,20 @@ export default function CustomerListPage() {
     // Search is intentionally excluded: the old page searches only after pressing Search/Enter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseFilter, filters, perPage, sortField, sortDir]);
+
+  useEffect(() => {
+    if (!perPageMenuOpen) return undefined;
+    const closeMenu = () => setPerPageMenuOpen(false);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPerPageMenuOpen(false);
+    };
+    window.addEventListener('click', closeMenu);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('click', closeMenu);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [perPageMenuOpen]);
 
   useEffect(() => {
     const warningDays = sessionStorage.getItem('password_warning_days');
@@ -695,11 +710,43 @@ export default function CustomerListPage() {
                   <button onClick={() => loadData(1)} className="btn-primary-modern"><span className="material-symbols-outlined text-base">search</span>ค้นหา</button>
                   <button onClick={clearSearchAndFilters} className="btn-secondary-modern"><span className="material-symbols-outlined text-base">restart_alt</span>ล้างค่า</button>
                   {role === 'admin' && <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary-modern" title="รีเฟรชแคชและโหลดข้อมูลใหม่"><span className="material-symbols-outlined text-base">refresh</span>{refreshing ? 'กำลังรีเฟรช' : 'รีเฟรช'}</button>}
-                  <select value={perPage} onChange={e => setPerPage(Number(e.target.value))} className="per-page-trigger">
-                    <option value={10}>10 รายการ</option>
-                    <option value={25}>25 รายการ</option>
-                    <option value={50}>50 รายการ</option>
-                  </select>
+                  <div className="per-page-wrap" onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className={`per-page-trigger ${perPageMenuOpen ? 'open' : ''}`}
+                      onClick={() => setPerPageMenuOpen(open => !open)}
+                      aria-haspopup="listbox"
+                      aria-expanded={perPageMenuOpen}
+                    >
+                      <span>{perPage} รายการ</span>
+                      <span className="material-symbols-outlined text-[18px] text-slate-400 transition-transform">
+                        {perPageMenuOpen ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+                    {perPageMenuOpen && (
+                      <div className="per-page-menu" role="listbox" aria-label="จำนวนรายการต่อหน้า">
+                        {[10, 25, 50].map(value => {
+                          const active = perPage === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              className={`per-page-option ${active ? 'active' : ''}`}
+                              onClick={() => {
+                                setPerPage(value);
+                                setPerPageMenuOpen(false);
+                              }}
+                            >
+                              <span>{value} รายการ</span>
+                              {active && <span className="material-symbols-outlined text-[16px]">check</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -833,8 +880,8 @@ function CustomerTable(props: {
     <div className="table-shell">
       <table className="mock-table text-left border-separate">
         <colgroup>
-          <col style={{ width: '12%' }} /><col style={{ width: '17%' }} /><col style={{ width: '10%' }} /><col style={{ width: '13%' }} />
-          <col style={{ width: '11%' }} /><col style={{ width: '12%' }} /><col style={{ width: '10%' }} /><col style={{ width: '15%' }} />
+          <col style={{ width: '13.5%' }} /><col style={{ width: '16%' }} /><col style={{ width: '10%' }} /><col style={{ width: '13%' }} />
+          <col style={{ width: '11%' }} /><col style={{ width: '11.5%' }} /><col style={{ width: '9.5%' }} /><col style={{ width: '15.5%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -861,8 +908,8 @@ function CustomerTable(props: {
             return (
               <>
                 <tr className="main-row" key={account}>
-                  <td className="px-4 py-3 text-center">
-                    <div className="inline-flex items-center justify-center gap-1 min-w-0 max-w-full">
+                  <td className="px-3.5 py-3 text-center">
+                    <div className="account-cell-wrap">
                       <span className="account-pill">{fmtAccNo(account)}</span>
                       <button type="button" title="คัดลอกเลขที่บัญชี" onClick={() => onCopy(account)} className="copy-account-btn"><span className="material-symbols-outlined text-[12px]">content_copy</span></button>
                     </div>
