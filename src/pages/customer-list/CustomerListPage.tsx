@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import ThemedDatePicker from '../../components/ui/ThemedDatePicker';
 
 type Role = 'user' | 'admin' | 'superadmin' | '';
 
@@ -189,6 +190,24 @@ function calendarDateFromIso(value?: string) {
   return year && month && day ? new Date(year, month - 1, day) : null;
 }
 
+function normalizeCourtCaseNo(value: string) {
+  const raw = String(value || '')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const match = raw.match(/^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/);
+  return match ? `${match[1]}${match[2]}/${match[3]}` : raw;
+}
+
+function isValidCourtCaseNo(value: string) {
+  return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(
+    String(value || '')
+      .replace(/\s*\/\s*/g, '/')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
 function fmtTimestamp(value?: string) {
   return value ? fmtDate(String(value).slice(0, 10)) : '-';
 }
@@ -250,12 +269,14 @@ function dpdDays(row: Customer) {
 
 function validateAddForm(form: AddForm) {
   const accountNo = form.account_no.trim();
+  const blackCaseNo = normalizeCourtCaseNo(form.black_case_no);
   const name = form.name.trim();
   const filingCapital = form.filing_capital.replace(/,/g, '').trim();
   const dpd = form.pre_filing_dpd_days.trim();
   const today = new Date().toISOString().slice(0, 10);
   if (!/^\d{12}$/.test(accountNo)) return 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก';
-  if (!form.black_case_no.trim()) return 'กรุณากรอกคดีหมายเลขดำที่';
+  if (!blackCaseNo) return 'กรุณากรอกคดีหมายเลขดำที่';
+  if (!isValidCourtCaseNo(blackCaseNo)) return 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567';
   if (!form.filing_date) return 'กรุณาเลือกวันที่ยื่นฟ้อง';
   if (!form.default_date) return 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
   if (form.filing_date > today) return 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต';
@@ -267,6 +288,50 @@ function validateAddForm(form: AddForm) {
   if (!/^\d+$/.test(dpd) || Number(dpd) <= 0) return 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มมากกว่า 0';
   if (form.filing_note.length > 100) return 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร';
   return '';
+}
+
+function addFormInlineErrors(form: AddForm, submitError = '') {
+  const accountNo = form.account_no.trim();
+  const blackCaseNo = normalizeCourtCaseNo(form.black_case_no);
+  const filingCapital = form.filing_capital.replace(/,/g, '').trim();
+  const name = form.name.trim();
+  const dpd = form.pre_filing_dpd_days.trim();
+  const today = new Date().toISOString().slice(0, 10);
+  const errors: Partial<Record<keyof AddForm, string>> = {};
+
+  if ((accountNo && !/^\d{12}$/.test(accountNo)) || submitError === 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก') {
+    errors.account_no = 'กรอกเลขบัญชีจำนวน 12 หลัก';
+  }
+  if ((blackCaseNo && !isValidCourtCaseNo(blackCaseNo)) || submitError === 'กรุณากรอกคดีหมายเลขดำที่' || submitError.startsWith('คดีหมายเลขดำที่')) {
+    errors.black_case_no = 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567';
+  }
+  if (submitError === 'กรุณาเลือกวันที่ยื่นฟ้อง') {
+    errors.filing_date = 'กรุณาเลือกวันที่ยื่นฟ้อง';
+  } else if (form.filing_date && form.filing_date > today) {
+    errors.filing_date = 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต';
+  }
+  if (submitError === 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง') {
+    errors.default_date = 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
+  } else if (form.default_date && form.default_date > today) {
+    errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต';
+  } else if (form.default_date && form.filing_date && form.default_date > form.filing_date) {
+    errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง';
+  }
+  if ((filingCapital && (!/^\d+(\.\d{1,2})?$/.test(filingCapital) || Number(filingCapital) <= 0)) || submitError.startsWith('ทุนทรัพย์ที่ฟ้อง')) {
+    errors.filing_capital = 'ต้องเป็นตัวเลขมากกว่า 0 และมีทศนิยมได้สูงสุด 2 ตำแหน่ง';
+  }
+  if (submitError === 'กรุณากรอกชื่อ-นามสกุล') {
+    errors.name = 'กรุณากรอกชื่อ-นามสกุล';
+  } else if (name && !/^[\u0E00-\u0E7Fa-zA-Z0-9\s.\-()]+$/.test(name)) {
+    errors.name = 'มีอักขระที่ไม่อนุญาต';
+  }
+  if ((dpd && (!/^\d+$/.test(dpd) || Number(dpd) <= 0)) || submitError.startsWith('DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน')) {
+    errors.pre_filing_dpd_days = 'ต้องเป็นจำนวนเต็มมากกว่า 0';
+  }
+  if (form.filing_note.length > 100 || submitError.startsWith('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม')) {
+    errors.filing_note = 'ต้องไม่เกิน 100 ตัวอักษร';
+  }
+  return errors;
 }
 
 function StatusBadge({ text, tone }: { text?: string; tone: 'red' | 'amber' | 'emerald' | 'blue' | 'slate' | 'indigo' }) {
@@ -358,6 +423,10 @@ export default function CustomerListPage() {
   const totalPages = Math.max(1, Math.ceil(totalRows / perPage));
   const pageFrom = totalRows === 0 ? 0 : (page - 1) * perPage + 1;
   const pageTo = Math.min(page * perPage, totalRows);
+
+  useEffect(() => {
+    if (addError) setAddError('');
+  }, [addForm]);
 
   const loadData = useCallback(async (nextPage = 1) => {
     if (!role) {
@@ -547,6 +616,7 @@ export default function CustomerListPage() {
     const msg = validateAddForm(addForm);
     setAddError(msg);
     if (!msg) {
+      setAddForm(form => ({ ...form, black_case_no: normalizeCourtCaseNo(form.black_case_no) }));
       setAddOpen(false);
       setReviewOpen(true);
     }
@@ -563,7 +633,7 @@ export default function CustomerListPage() {
         },
         body: JSON.stringify({
           account_no: addForm.account_no.trim(),
-          black_case_no: addForm.black_case_no.trim(),
+          black_case_no: normalizeCourtCaseNo(addForm.black_case_no),
           name: addForm.name.trim(),
           filing_date: addForm.filing_date,
           filing_capital: addForm.filing_capital.replace(/,/g, '').trim(),
@@ -1416,6 +1486,8 @@ function CheckerExportModal(props: { dateFrom: string; dateTo: string; setDateFr
 }
 
 function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: AddForm; setForm: (form: AddForm) => void; error: string; onSubmit: (e: FormEvent) => void; onClose: () => void }) {
+  const fieldErrors = addFormInlineErrors(form, error);
+
   return (
     <ModalShell onClose={onClose} large>
       {close => (
@@ -1425,14 +1497,14 @@ function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: A
           <form onSubmit={onSubmit} className="modal-body">
             <div className="flex items-center justify-between gap-3 mb-4"><p className="modal-section-title">ข้อมูลลูกหนี้</p><div className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-bold text-primary"><span className="material-symbols-outlined text-[15px]">edit_note</span>ข้อมูลจำเป็น</div></div>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <AddInput label="หมายเลขบัญชี *" value={form.account_no} onChange={v => setForm({ ...form, account_no: v.replace(/\D/g, '').slice(0, 12) })} icon="badge" placeholder="กรอกหมายเลขบัญชี 12 หลัก" helper="กรอกเลขบัญชีจำนวน 12 หลัก" maxLength={12} inputMode="numeric" inputClassName="pr-16" rightSlot={<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-300 pointer-events-none font-mono">{form.account_no.length}/12</span>} />
-              <AddInput label="คดีหมายเลขดำที่ *" value={form.black_case_no} onChange={v => setForm({ ...form, black_case_no: v })} icon="article" placeholder="กรอกคดีหมายเลขดำที่" helper="รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567" />
-              <AddInput label="วันที่ยื่นฟ้อง *" value={form.filing_date} onChange={v => setForm({ ...form, filing_date: v })} type="date" icon="calendar_today" placeholder="เลือกวันที่ยื่นฟ้อง" helper="เลือกวันที่ตามเอกสารยื่นฟ้อง" />
-              <AddInput label="วันที่ผิดนัดชำระก่อนฟ้อง *" value={form.default_date} onChange={v => setForm({ ...form, default_date: v })} type="date" icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" />
-              <AddInput label="ทุนทรัพย์ที่ฟ้อง *" value={form.filing_capital} onChange={v => setForm({ ...form, filing_capital: v })} icon="payments" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" helper="กรอกจำนวนเงินได้สูงสุด 2 ตำแหน่งทศนิยม" inputMode="decimal" />
-              <AddInput label="ชื่อ-นามสกุล *" value={form.name} onChange={v => setForm({ ...form, name: v })} icon="person" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" helper="ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)" />
-              <AddInput label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *" value={form.pre_filing_dpd_days} onChange={v => setForm({ ...form, pre_filing_dpd_days: v.replace(/\D/g, '') })} icon="pin" placeholder="กรอกจำนวนวัน" helper="กรอกจำนวนเต็มมากกว่า 0 เท่านั้น" inputMode="numeric" />
-              <div className="add-field md:col-span-6"><label className="add-label">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label><textarea value={form.filing_note} onChange={e => setForm({ ...form, filing_note: e.target.value.slice(0, 100) })} className="add-input add-note-input h-[58px] min-h-[58px] resize-none" placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" maxLength={100} /><p className="add-helper !mt-1 !min-h-0">{form.filing_note.length}/100 ตัวอักษร</p></div>
+              <AddInput label="หมายเลขบัญชี *" value={form.account_no} onChange={v => setForm({ ...form, account_no: v.replace(/\D/g, '').slice(0, 12) })} icon="badge" placeholder="กรอกหมายเลขบัญชี 12 หลัก" helper="กรอกเลขบัญชีจำนวน 12 หลัก" error={fieldErrors.account_no} maxLength={12} inputMode="numeric" inputClassName="pr-16" rightSlot={<span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none font-mono ${fieldErrors.account_no ? 'text-red-400' : 'text-slate-300'}`}>{form.account_no.length}/12</span>} />
+              <AddInput label="คดีหมายเลขดำที่ *" value={form.black_case_no} onChange={v => setForm({ ...form, black_case_no: v })} icon="article" placeholder="กรอกคดีหมายเลขดำที่" helper="รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567" error={fieldErrors.black_case_no} />
+              <AddDateInput label="วันที่ยื่นฟ้อง *" value={form.filing_date} onChange={v => setForm({ ...form, filing_date: v })} icon="calendar_today" placeholder="เลือกวันที่ยื่นฟ้อง" helper="เลือกวันที่ตามเอกสารยื่นฟ้อง" error={fieldErrors.filing_date} />
+              <AddDateInput label="วันที่ผิดนัดชำระก่อนฟ้อง *" value={form.default_date} onChange={v => setForm({ ...form, default_date: v })} icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" error={fieldErrors.default_date} />
+              <AddInput label="ทุนทรัพย์ที่ฟ้อง *" value={form.filing_capital} onChange={v => setForm({ ...form, filing_capital: v })} icon="payments" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" helper="กรอกจำนวนเงินได้สูงสุด 2 ตำแหน่งทศนิยม" error={fieldErrors.filing_capital} inputMode="decimal" />
+              <AddInput label="ชื่อ-นามสกุล *" value={form.name} onChange={v => setForm({ ...form, name: v })} icon="person" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" helper="ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)" error={fieldErrors.name} />
+              <AddInput label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *" value={form.pre_filing_dpd_days} onChange={v => setForm({ ...form, pre_filing_dpd_days: v.replace(/\D/g, '') })} icon="pin" placeholder="กรอกจำนวนวัน" helper="กรอกจำนวนเต็มมากกว่า 0 เท่านั้น" error={fieldErrors.pre_filing_dpd_days} inputMode="numeric" />
+              <div className="add-field md:col-span-6"><label className="add-label">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label><textarea value={form.filing_note} onChange={e => setForm({ ...form, filing_note: e.target.value.slice(0, 100) })} className={`add-input add-note-input h-[58px] min-h-[58px] resize-none ${fieldErrors.filing_note ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" maxLength={100} aria-invalid={fieldErrors.filing_note ? 'true' : undefined} /><p className={`add-helper !mt-1 !min-h-0 ${fieldErrors.filing_note ? '!text-red-500' : ''}`}>{fieldErrors.filing_note || `${form.filing_note.length}/100 ตัวอักษร`}</p></div>
             </div>
             <div className="modal-footer -mx-5 md:-mx-6 -mb-5 mt-5"><p className="text-[11px] text-slate-400 leading-relaxed">ฟิลด์ที่มีเครื่องหมาย * จำเป็นต้องกรอก</p><div className="flex items-center justify-end gap-2"><button type="button" onClick={close} className="btn-secondary-modern">ยกเลิก</button><button type="submit" className="btn-primary-modern"><span className="material-symbols-outlined text-base">fact_check</span>ตรวจสอบข้อมูล</button></div></div>
           </form>
@@ -1442,12 +1514,13 @@ function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: A
   );
 }
 
-function AddInput({ label, value, onChange, icon, helper, type = 'text', placeholder, inputMode, maxLength, inputClassName = '', fieldClassName, rightSlot }: {
+function AddInput({ label, value, onChange, icon, helper, error, type = 'text', placeholder, inputMode, maxLength, inputClassName = '', fieldClassName, rightSlot }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   icon: string;
   helper?: string;
+  error?: string;
   type?: string;
   placeholder?: string;
   inputMode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
@@ -1456,7 +1529,32 @@ function AddInput({ label, value, onChange, icon, helper, type = 'text', placeho
   fieldClassName?: string;
   rightSlot?: ReactNode;
 }) {
-  return <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}><label className="add-label">{label}</label><div className="relative"><span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 text-[18px] pointer-events-none">{icon}</span><input value={value} onChange={e => onChange(e.target.value)} className={`add-input ${inputClassName}`} type={type} placeholder={placeholder} inputMode={inputMode} maxLength={maxLength} autoComplete="off" />{rightSlot}</div>{helper && <p className="add-helper">{helper}</p>}</div>;
+  return <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}><label className="add-label">{label}</label><div className="relative"><span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-indigo-300'}`}>{icon}</span><input value={value} onChange={e => onChange(e.target.value)} className={`add-input ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''} ${inputClassName}`} type={type} placeholder={placeholder} inputMode={inputMode} maxLength={maxLength} autoComplete="off" aria-invalid={error ? 'true' : undefined} />{rightSlot}</div>{(error || helper) && <p className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}</div>;
+}
+
+function AddDateInput({ label, value, onChange, icon, helper, error, placeholder, fieldClassName }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  icon: string;
+  helper?: string;
+  error?: string;
+  placeholder?: string;
+  fieldClassName?: string;
+}) {
+  return (
+    <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}>
+      <label className="add-label">{label}</label>
+      <div className="relative">
+        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-indigo-300'}`}>{icon}</span>
+        <ThemedDatePicker value={value} onChange={onChange} placeholder={placeholder} className={`add-input text-left ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} openClassName={error ? 'border-red-400 bg-white ring-4 ring-red-100' : 'border-primary bg-white ring-4 ring-primary/10'}>
+          {(dateText, isPlaceholder) => <span className={error ? 'text-red-700' : isPlaceholder ? 'text-slate-400' : 'text-slate-700'}>{dateText}</span>}
+        </ThemedDatePicker>
+        <span className={`material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-slate-700'}`}>calendar_today</span>
+      </div>
+      {(error || helper) && <p className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}
+    </div>
+  );
 }
 
 function AddReviewModal({ form, saving, onBack, onSubmit }: { form: AddForm; saving: boolean; onBack: () => void; onSubmit: () => void }) {
