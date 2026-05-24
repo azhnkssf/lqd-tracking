@@ -270,7 +270,7 @@ function cleanRate(value: string) {
 
 function normalizeCaseNo(value: string) {
   const raw = value.trim().replace(/\s*\/\s*/g, "/").replace(/\s+/g, "");
-  const match = raw.match(/^([A-Za-zก-ฮ]{1,8})([A-Za-z]?\d{1,8})\/(25\d{2})$/);
+  const match = raw.match(/^([ก-ฮ]{1,8})([A-Za-z]?\d{1,8})\/(25\d{2})$/);
   return match ? `${match[1]}${match[2]}/${match[3]}` : "";
 }
 
@@ -374,6 +374,15 @@ function getPreviewRequiredFields(customer: CustomerDetailData | null) {
   return fields;
 }
 
+function getRequiredFieldError(
+  field: keyof CustomerDetailFormState,
+  form: CustomerDetailFormState,
+  customer: CustomerDetailData | null,
+) {
+  if (!getPreviewRequiredFields(customer).includes(field)) return "";
+  return String(form[field] || "").trim() ? "" : "จำเป็นต้องกรอก";
+}
+
 function validateBusinessRules(form: CustomerDetailFormState, customer: CustomerDetailData | null) {
   const errors: FieldErrors = {};
   if (form.redCaseNo && !isValidCaseNo(form.redCaseNo)) errors.redCaseNo = "รูปแบบ: ผบ1234/2567 หรือ ผบE1234/2568";
@@ -405,6 +414,53 @@ function validateFormForPreview(form: CustomerDetailFormState, customer: Custome
 
 function validateFormForSubmit(form: CustomerDetailFormState, customer: CustomerDetailData | null) {
   return validateFormForPreview(form, customer);
+}
+
+function getFieldError(
+  field: keyof CustomerDetailFormState,
+  form: CustomerDetailFormState,
+  customer: CustomerDetailData | null,
+) {
+  return getRequiredFieldError(field, form, customer) || validateBusinessRules(form, customer)[field] || "";
+}
+
+function getRelatedValidationFields(field: keyof CustomerDetailFormState) {
+  const groups: Partial<Record<keyof CustomerDetailFormState, Array<keyof CustomerDetailFormState>>> = {
+    filingDate: ["filingDate", "judgmentDate", "firstDueDate"],
+    judgmentDate: ["filingDate", "judgmentDate", "firstDueDate"],
+    firstDueDate: ["judgmentDate", "firstDueDate"],
+    filingCapital: ["filingCapital", "totalDebt"],
+    totalDebt: ["filingCapital", "totalDebt"],
+    redCaseNo: ["redCaseNo"],
+    judgmentType: ["judgmentType", "installmentCount", "installment1", "installment2", "installment3", "installment4", "firstDueDate"],
+    installmentCount: ["judgmentType", "installmentCount", "firstDueDate"],
+    installment1: ["judgmentType", "installment1"],
+    installment2: ["judgmentType", "installment2"],
+    installment3: ["judgmentType", "installment3"],
+    installment4: ["judgmentType", "installment4"],
+    interestRate: ["interestRate"],
+    defaultInterestRate: ["defaultInterestRate"],
+    judgmentNote: ["judgmentNote"],
+    courtFee: ["courtFee"],
+    lawyerFee: ["lawyerFee"],
+    principal: ["principal"],
+    lastDueDate: [],
+  };
+
+  return groups[field] || [field];
+}
+
+function validateInlineFields(
+  fields: Array<keyof CustomerDetailFormState>,
+  form: CustomerDetailFormState,
+  customer: CustomerDetailData | null,
+) {
+  const nextErrors: FieldErrors = {};
+  fields.forEach((field) => {
+    const message = getFieldError(field, form, customer);
+    if (message) nextErrors[field] = message;
+  });
+  return nextErrors;
 }
 
 function isPreviewFormReady(form: CustomerDetailFormState, customer: CustomerDetailData | null) {
@@ -597,12 +653,12 @@ function StatusProgressBar({ customer, logs }: { customer: CustomerDetailData | 
         {flow.map((status, index) => {
           const active = current === status;
           const done = visited.has(status);
+          const slotClass = index === 0 ? "pb-label-slot pb-label-slot-start" : index === flow.length - 1 ? "pb-label-slot pb-label-slot-end" : "pb-label-slot";
           return (
-            <div key={`label-${status}-${index}`} className="flex items-start flex-1 last:flex-none">
+            <div key={`label-${status}-${index}`} className={slotClass}>
               <div className="pb-label-col">
                 <span className={active ? "pb-label-active" : done ? "pb-label-done" : "pb-label-pending"}>{status}</span>
               </div>
-              {index < flow.length - 1 ? <div className="pb-label-spacer" /> : null}
             </div>
           );
         })}
@@ -832,11 +888,6 @@ function PaymentDetailsForm(props: {
                 <label className="form-label-styled flex items-center gap-2">วันครบกำหนดงวดสุดท้าย <span className="auto-badge-soft">AUTO</span></label>
                 <DateField id="last-due-date" value={calculateLastDueDate(form, activeJudgmentType)} onChange={() => undefined} placeholder="คำนวณอัตโนมัติ" disabled />
               </div>
-              <div>
-                <label className="form-label-styled">ดอกเบี้ยเมื่อผิดนัด <span className="text-red-500">*</span></label>
-                <input value={form.defaultInterestRate} onFocus={() => props.onFocusPlain("defaultInterestRate")} onChange={(e) => props.onChange("defaultInterestRate", cleanRate(e.target.value))} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
-                <FieldError message={fieldErrors.defaultInterestRate} />
-              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 field-grid-enhanced">
               {(["installment1", "installment2", "installment3", "installment4"] as const).map((field, index) => {
@@ -852,6 +903,11 @@ function PaymentDetailsForm(props: {
                   </div>
                 );
               })}
+            </div>
+            <div>
+              <label className="form-label-styled">ดอกเบี้ยเมื่อผิดนัด <span className="text-red-500">*</span></label>
+              <input value={form.defaultInterestRate} onFocus={() => props.onFocusPlain("defaultInterestRate")} onChange={(e) => props.onChange("defaultInterestRate", cleanRate(e.target.value))} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
+              <FieldError message={fieldErrors.defaultInterestRate} />
             </div>
             <div className="helper-panel">
               <div className="flex items-start gap-2">
@@ -1417,10 +1473,19 @@ export default function CustomerDetailPage() {
       if (field === "firstDueDate" || field === "installmentCount" || field === "judgmentType") {
         next.lastDueDate = calculateLastDueDate(next, next.judgmentType || customer?.case_status || "");
       }
+      const relatedFields = getRelatedValidationFields(field);
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      setFieldErrors((prevErrors) => {
+        const merged = { ...prevErrors };
+        relatedFields.forEach((relatedField) => {
+          if (nextInlineErrors[relatedField]) merged[relatedField] = nextInlineErrors[relatedField];
+          else delete merged[relatedField];
+        });
+        return merged;
+      });
       return next;
     });
     setPreviewDone(false);
-    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleSelectJudgmentType = (value: JudgmentType) => {
@@ -1433,20 +1498,55 @@ export default function CustomerDetailPage() {
         next.installment4 = "0.00";
       }
       next.lastDueDate = calculateLastDueDate(next, value || customer?.case_status || "");
+      const relatedFields = getRelatedValidationFields("judgmentType");
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      setFieldErrors((prevErrors) => {
+        const merged = { ...prevErrors };
+        relatedFields.forEach((field) => {
+          if (nextInlineErrors[field]) merged[field] = nextInlineErrors[field];
+          else delete merged[field];
+        });
+        return merged;
+      });
       return next;
     });
     setJudgmentTypeOpen(false);
     setPreviewDone(false);
-    setFieldErrors((prev) => ({ ...prev, judgmentType: "", installmentCount: "", installment2: "", installment3: "", installment4: "" }));
   };
 
   const handleMoneyBlur = (field: keyof CustomerDetailFormState) => {
     if (!moneyFields.has(field)) return;
-    setForm((prev) => ({ ...prev, [field]: formatMoney(prev[field]) }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: formatMoney(prev[field]) };
+      const relatedFields = getRelatedValidationFields(field);
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      setFieldErrors((prevErrors) => {
+        const merged = { ...prevErrors };
+        relatedFields.forEach((relatedField) => {
+          if (nextInlineErrors[relatedField]) merged[relatedField] = nextInlineErrors[relatedField];
+          else delete merged[relatedField];
+        });
+        return merged;
+      });
+      return next;
+    });
   };
 
   const handleRateBlur = (field: keyof CustomerDetailFormState) => {
-    setForm((prev) => ({ ...prev, [field]: formatRate(prev[field]) }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: formatRate(prev[field]) };
+      const relatedFields = getRelatedValidationFields(field);
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      setFieldErrors((prevErrors) => {
+        const merged = { ...prevErrors };
+        relatedFields.forEach((relatedField) => {
+          if (nextInlineErrors[relatedField]) merged[relatedField] = nextInlineErrors[relatedField];
+          else delete merged[relatedField];
+        });
+        return merged;
+      });
+      return next;
+    });
   };
 
   const handleFocusPlain = (field: keyof CustomerDetailFormState) => {

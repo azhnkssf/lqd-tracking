@@ -599,7 +599,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 /* Hero progress bar */
 .pb-track { display: flex; flex-direction: column; gap: 10px; }
 .pb-dots-row { display: flex; align-items: center; }
-.pb-labels-row { display: flex; align-items: flex-start; margin-top: 2px; }
+.pb-labels-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: flex-start; margin-top: 2px; column-gap: 0; }
 .pb-dot-done,
 .pb-dot-active,
 .pb-dot-pending {
@@ -656,8 +656,10 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 }
 .pb-line-fill-done { background: rgba(255, 255, 255, 0.70); width: 100%; }
 .pb-line-fill-none { width: 0%; }
-.pb-label-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-.pb-label-spacer { flex: 1; }
+.pb-label-slot { display: flex; justify-content: center; min-width: 0; }
+.pb-label-slot-start { justify-content: flex-start; }
+.pb-label-slot-end { justify-content: flex-end; }
+.pb-label-col { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .pb-label-active {
   font-size: 11px;
   font-weight: 700;
@@ -669,6 +671,9 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   padding: 2px 8px;
   border-radius: 9999px;
   box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.16);
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
 }
 .pb-label-done {
   font-size: 11px;
@@ -676,6 +681,9 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   color: rgba(255, 255, 255, 0.60);
   text-align: center;
   white-space: nowrap;
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
 }
 .pb-label-pending {
   font-size: 11px;
@@ -683,6 +691,9 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   color: rgba(255, 255, 255, 0.25);
   text-align: center;
   white-space: nowrap;
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
 }
 @keyframes pb-pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.2); }
