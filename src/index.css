@@ -51,6 +51,23 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   min-height: 100vh;
 }
 
+#root[data-page="customer-detail"] {
+  display: block;
+  align-items: initial;
+  justify-content: initial;
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  background: #f0f7ff;
+  background-image: none;
+  font-family: var(--font);
+}
+
+#root[data-page="customer-detail"] .customer-detail-page {
+  width: 100%;
+  min-height: 100vh;
+}
+
 /* ══════════════════════════════════════════════════════════════
    SHELL
 ══════════════════════════════════════════════════════════════ */

@@ -1,4 +1,8 @@
 import { useEffect } from 'react';
+import AppLayout from '../../components/layout/AppLayout';
+import CustomerDetailMarkup from './components/CustomerDetailMarkup';
+import { runLegacyAction } from './components/legacyActions';
+import customerDetailLegacyScript from './legacy/customerDetailLegacy.js?raw';
 
 const LEGACY_BODY_CLASS =
   'bg-surface text-on-surface min-h-screen font-body selection:bg-indigo-100 selection:text-primary';
@@ -24,6 +28,13 @@ export interface EnforcementInfo extends ApiRecord {
   enforcement_judgment_date?: string | null;
 }
 
+export interface ScheduleRow extends ApiRecord {
+  due_date?: string | null;
+  amount?: number | string | null;
+  principal?: number | string | null;
+  interest?: number | string | null;
+}
+
 export interface CustomerDetail extends EnforcementInfo {
   account_no?: string | null;
   first_name?: string | null;
@@ -40,53 +51,63 @@ export interface ApiResponse<T = ApiRecord> {
   message?: string;
 }
 
-export interface FormState extends ApiRecord {
+export interface JudgmentFormState extends ApiRecord {
   judgment_type?: string;
   judgment_date?: string;
   first_due_date?: string;
 }
 
-function getTemplateElement(id: string): HTMLTemplateElement | null {
-  const el = document.getElementById(id);
-  return el instanceof HTMLTemplateElement ? el : null;
+type ThaiDateUtils = {
+  monthsFull: string[];
+  monthsShort: string[];
+  shortMonth: (index: number | string) => string;
+  fullMonth: (index: number | string) => string;
+};
+
+function installThaiDateUtils() {
+  const target = window as Window & { LQDThaiDate?: ThaiDateUtils };
+
+  if (target.LQDThaiDate) return;
+
+  const monthsFull = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+  ];
+  const monthsShort = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+  ];
+
+  target.LQDThaiDate = {
+    monthsFull,
+    monthsShort,
+    shortMonth: index => monthsShort[Number(index)] || '',
+    fullMonth: index => monthsFull[Number(index)] || '',
+  };
 }
 
-function getTextScriptElement(id: string): HTMLScriptElement | null {
-  const el = document.getElementById(id);
-  return el instanceof HTMLScriptElement ? el : null;
+function installLegacyRuntime() {
+  installThaiDateUtils();
+
+  const runInGlobalScope = globalThis.eval as (source: string) => unknown;
+  runInGlobalScope(customerDetailLegacyScript);
 }
 
-function runInertScripts(container: HTMLElement) {
-  container.querySelectorAll('script').forEach(inertScript => {
-    const executableScript = document.createElement('script');
-
-    for (const { name, value } of Array.from(inertScript.attributes)) {
-      executableScript.setAttribute(name, value);
-    }
-
-    executableScript.text = inertScript.textContent || '';
-    inertScript.replaceWith(executableScript);
-  });
+function useCustomerDetailLegacyRuntime() {
+  useEffect(() => {
+    document.body.className = LEGACY_BODY_CLASS;
+    installLegacyRuntime();
+  }, []);
 }
 
 export default function CustomerDetailPage() {
-  useEffect(() => {
-    document.body.className = LEGACY_BODY_CLASS;
+  useCustomerDetailLegacyRuntime();
 
-    const mount = document.getElementById('customer-detail-legacy-root');
-    const template = getTemplateElement('customer-detail-legacy-markup');
-    const legacyScriptSource = getTextScriptElement('customer-detail-legacy-script');
-
-    if (!mount || !template || !legacyScriptSource) return;
-
-    mount.replaceChildren(template.content.cloneNode(true));
-    runInertScripts(mount);
-
-    const legacyScript = document.createElement('script');
-    legacyScript.dataset.customerDetailLegacyRuntime = 'true';
-    legacyScript.text = legacyScriptSource.textContent || '';
-    document.body.appendChild(legacyScript);
-  }, []);
-
-  return <div id="customer-detail-legacy-root" />;
+  return (
+    <AppLayout activePage="customer-list">
+      <div className="customer-detail-page min-h-screen bg-surface text-on-surface font-body">
+        <CustomerDetailMarkup runLegacyAction={runLegacyAction} />
+      </div>
+    </AppLayout>
+  );
 }
