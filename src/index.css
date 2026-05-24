@@ -534,10 +534,14 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 }
 .dp-day-disabled {
   color: #94a3b8;
-  background: #f8fafc;
-  opacity: 0.82 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 1 !important;
   cursor: not-allowed;
   pointer-events: none;
+}
+.dp-day-disabled.dp-day-other {
+  color: #cbd5e1;
 }
 .dp-footer {
   display: flex;
@@ -603,6 +607,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   position: relative;
   display: block;
   padding-top: 1px;
+  padding-bottom: 4px;
 }
 .pb-steps {
   position: relative;
@@ -616,7 +621,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   min-width: 0;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 11px;
 }
 .pb-step-dot-wrap {
   width: 24px;
@@ -649,7 +654,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 2px rgba(56, 232, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.18);
   animation: pb-pulse 2s ease-in-out infinite;
 }
 .pb-dot-active-inner {
@@ -716,8 +721,8 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   justify-content: center;
 }
 @keyframes pb-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.2); }
-  50% { box-shadow: 0 0 0 4px rgba(56, 232, 255, 0.24), 0 2px 8px rgba(0, 0, 0, 0.2); }
+  0%, 100% { box-shadow: 0 0 0 2px rgba(56, 232, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.18); }
+  50% { box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.20), 0 2px 8px rgba(0, 0, 0, 0.18); }
 }
 
 /* Confirm Review Modal v2 */

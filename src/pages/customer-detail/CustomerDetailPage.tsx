@@ -168,6 +168,8 @@ const moneyFields = new Set<keyof CustomerDetailFormState>([
   "installment4",
 ]);
 
+const numericInputError = "กรอกได้เฉพาะตัวเลขและจุดทศนิยม";
+
 function isAdminRole(role: UserRole) {
   return role === "admin";
 }
@@ -268,6 +270,14 @@ function cleanRate(value: string) {
   const cleaned = value.replace("%", "").replace(/[^\d.]/g, "");
   const [head, ...tail] = cleaned.split(".");
   return tail.length ? `${head}.${tail.join("").slice(0, 4)}` : head;
+}
+
+function hasInvalidDecimalChars(value: string) {
+  return /[^\d.,]/.test(value);
+}
+
+function hasInvalidRateChars(value: string) {
+  return /[^\d.%]/.test(value);
 }
 
 function normalizeCaseNo(value: string) {
@@ -392,7 +402,9 @@ function validateBusinessRules(form: CustomerDetailFormState, customer: Customer
   }
   if (parseRate(form.interestRate) > 24) errors.interestRate = "อัตราดอกเบี้ยต้องไม่เกิน 24%";
   if (parseRate(form.defaultInterestRate) > 24) errors.defaultInterestRate = "ดอกเบี้ยผิดนัดต้องไม่เกิน 24%";
-  if (form.filingDate && form.judgmentDate && customer?.case_status === "ยื่นฟ้อง" && form.judgmentDate <= form.filingDate) {
+  if (form.judgmentDate && form.judgmentDate > todayIso()) {
+    errors.judgmentDate = "วันที่พิพากษาต้องไม่เป็นวันที่ในอนาคต";
+  } else if (form.filingDate && form.judgmentDate && customer?.case_status === "ยื่นฟ้อง" && form.judgmentDate <= form.filingDate) {
     errors.judgmentDate = "วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง";
   } else if (form.filingDate && form.judgmentDate && form.judgmentDate < form.filingDate) {
     errors.judgmentDate = "วันที่พิพากษาต้องไม่น้อยกว่าวันที่ยื่นฟ้อง";
@@ -553,7 +565,7 @@ function DateField({
   id: string;
   value: string;
   onChange: (value: string) => void;
-  onBlur?: () => void;
+  onBlur?: (nextValue?: string) => void;
   placeholder: string;
   disabled?: boolean;
   minDate?: string;
@@ -568,7 +580,7 @@ function DateField({
           value={value}
           onChange={(nextValue) => {
             onChange(nextValue);
-            if (onBlur) window.requestAnimationFrame(onBlur);
+            if (onBlur) window.requestAnimationFrame(() => onBlur(nextValue));
           }}
           placeholder={placeholder}
           minDate={minDate}
@@ -776,7 +788,8 @@ function JudgmentDetailsForm(props: {
   onToggleJudgmentType: () => void;
   onSelectJudgmentType: (value: JudgmentType) => void;
   onChange: (field: keyof CustomerDetailFormState, value: string) => void;
-  onBlurField: (field: keyof CustomerDetailFormState) => void;
+  onBlurField: (field: keyof CustomerDetailFormState, valueOverride?: string) => void;
+  onInvalidInput: (field: keyof CustomerDetailFormState, cursorIndex?: number | null) => void;
   onMoneyBlur: (field: keyof CustomerDetailFormState) => void;
   onRateBlur: (field: keyof CustomerDetailFormState) => void;
   onFocusPlain: (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => void;
@@ -814,12 +827,12 @@ function JudgmentDetailsForm(props: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 field-grid-enhanced">
             <div>
               <label className="form-label-styled">วันที่ยื่นฟ้อง <span className="text-red-500">*</span></label>
-              <DateField id="filing-date" value={form.filingDate} onChange={(v) => props.onChange("filingDate", v)} onBlur={() => props.onBlurField("filingDate")} placeholder="เลือกวันที่ยื่นฟ้อง" disabled error={fieldErrors.filingDate} />
+              <DateField id="filing-date" value={form.filingDate} onChange={(v) => props.onChange("filingDate", v)} onBlur={(v) => props.onBlurField("filingDate", v)} placeholder="เลือกวันที่ยื่นฟ้อง" disabled error={fieldErrors.filingDate} />
               <FieldError message={fieldErrors.filingDate} />
             </div>
             <div>
               <label className="form-label-styled">วันที่พิพากษา <span className="text-red-500">*</span></label>
-              <DateField id="judgment-date" value={form.judgmentDate} onChange={(v) => props.onChange("judgmentDate", v)} onBlur={() => props.onBlurField("judgmentDate")} placeholder="เลือกวันที่พิพากษา" disabled={!canEdit} minDate={form.filingDate || undefined} error={fieldErrors.judgmentDate} />
+              <DateField id="judgment-date" value={form.judgmentDate} onChange={(v) => props.onChange("judgmentDate", v)} onBlur={(v) => props.onBlurField("judgmentDate", v)} placeholder="เลือกวันที่พิพากษา" disabled={!canEdit} minDate={form.filingDate || undefined} maxDate={todayIso()} error={fieldErrors.judgmentDate} />
               <FieldError message={fieldErrors.judgmentDate} />
             </div>
             <div>
@@ -837,7 +850,15 @@ function JudgmentDetailsForm(props: {
               <div key={field}>
                 <label className="form-label-styled">{label} {["totalDebt", "principal", "interestRate"].includes(field) ? <span className="text-red-500">*</span> : null}</label>
                 <div className="relative">
-                  <input value={form[field as keyof CustomerDetailFormState]} onFocus={(e) => props.onFocusPlain(field as keyof CustomerDetailFormState, e)} onChange={(e) => props.onChange(field as keyof CustomerDetailFormState, field.includes("Rate") ? cleanRate(e.target.value) : cleanDecimal(e.target.value))} onBlur={() => field.includes("Rate") ? props.onRateBlur(field as keyof CustomerDetailFormState) : props.onMoneyBlur(field as keyof CustomerDetailFormState)} readOnly={!canEdit} disabled={!canEdit} className={inputClass(field, `${prefix ? "text-right pr-4 pl-10" : "text-right"} ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder={field.includes("Rate") ? "0" : "0.00"} type="text" inputMode="decimal" autoComplete="off" />
+                  <input value={form[field as keyof CustomerDetailFormState]} onFocus={(e) => props.onFocusPlain(field as keyof CustomerDetailFormState, e)} onChange={(e) => {
+                    const formField = field as keyof CustomerDetailFormState;
+                    const rawValue = e.target.value;
+                    if (field.includes("Rate") ? hasInvalidRateChars(rawValue) : hasInvalidDecimalChars(rawValue)) {
+                      props.onInvalidInput(formField, e.currentTarget.selectionStart);
+                      return;
+                    }
+                    props.onChange(formField, field.includes("Rate") ? cleanRate(rawValue) : cleanDecimal(rawValue));
+                  }} onBlur={() => field.includes("Rate") ? props.onRateBlur(field as keyof CustomerDetailFormState) : props.onMoneyBlur(field as keyof CustomerDetailFormState)} readOnly={!canEdit} disabled={!canEdit} className={inputClass(field, `${prefix ? "text-right pr-4 pl-10" : "text-right"} ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder={field.includes("Rate") ? "0" : "0.00"} type="text" inputMode="decimal" autoComplete="off" />
                   {prefix ? <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">{prefix}</span> : null}
                 </div>
                 <FieldError message={fieldErrors[field]} />
@@ -875,7 +896,8 @@ function PaymentDetailsForm(props: {
   canEdit: boolean;
   activeJudgmentType: JudgmentType | CaseStatus;
   onChange: (field: keyof CustomerDetailFormState, value: string) => void;
-  onBlurField: (field: keyof CustomerDetailFormState) => void;
+  onBlurField: (field: keyof CustomerDetailFormState, valueOverride?: string) => void;
+  onInvalidInput: (field: keyof CustomerDetailFormState, cursorIndex?: number | null) => void;
   onMoneyBlur: (field: keyof CustomerDetailFormState) => void;
   onRateBlur: (field: keyof CustomerDetailFormState) => void;
   onFocusPlain: (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => void;
@@ -902,7 +924,7 @@ function PaymentDetailsForm(props: {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 field-grid-enhanced">
               <div>
                 <label className="form-label-styled">วันครบกำหนดงวดแรก <span className="text-red-500">*</span></label>
-                <DateField id="first-due-date" value={form.firstDueDate} onChange={(v) => props.onChange("firstDueDate", v)} onBlur={() => props.onBlurField("firstDueDate")} placeholder="เลือกวันครบกำหนดงวดแรก" disabled={!canEdit} minDate={form.judgmentDate || undefined} error={fieldErrors.firstDueDate} />
+                <DateField id="first-due-date" value={form.firstDueDate} onChange={(v) => props.onChange("firstDueDate", v)} onBlur={(v) => props.onBlurField("firstDueDate", v)} placeholder="เลือกวันครบกำหนดงวดแรก" disabled={!canEdit} minDate={form.judgmentDate || undefined} error={fieldErrors.firstDueDate} />
                 <FieldError message={fieldErrors.firstDueDate} />
               </div>
               <div>
@@ -917,7 +939,13 @@ function PaymentDetailsForm(props: {
                   <div key={field}>
                     <label className="form-label-styled">ค่างวดที่ {index + 1} {index === 0 ? <span className="text-red-500">*</span> : null}</label>
                     <div className="relative">
-                      <input value={form[field]} onFocus={(e) => props.onFocusPlain(field, e)} onChange={(e) => props.onChange(field, cleanDecimal(e.target.value))} onBlur={() => props.onMoneyBlur(field)} readOnly={locked} disabled={locked} className={inputClass(field, `text-right pr-4 pl-10 ${locked ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0.00" type="text" inputMode="decimal" autoComplete="off" />
+                      <input value={form[field]} onFocus={(e) => props.onFocusPlain(field, e)} onChange={(e) => {
+                        if (hasInvalidDecimalChars(e.target.value)) {
+                          props.onInvalidInput(field, e.currentTarget.selectionStart);
+                          return;
+                        }
+                        props.onChange(field, cleanDecimal(e.target.value));
+                      }} onBlur={() => props.onMoneyBlur(field)} readOnly={locked} disabled={locked} className={inputClass(field, `text-right pr-4 pl-10 ${locked ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0.00" type="text" inputMode="decimal" autoComplete="off" />
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
                     </div>
                     <FieldError message={fieldErrors[field]} />
@@ -927,7 +955,13 @@ function PaymentDetailsForm(props: {
             </div>
             <div>
               <label className="form-label-styled">ดอกเบี้ยเมื่อผิดนัด <span className="text-red-500">*</span></label>
-              <input value={form.defaultInterestRate} onFocus={(e) => props.onFocusPlain("defaultInterestRate", e)} onChange={(e) => props.onChange("defaultInterestRate", cleanRate(e.target.value))} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
+              <input value={form.defaultInterestRate} onFocus={(e) => props.onFocusPlain("defaultInterestRate", e)} onChange={(e) => {
+                if (hasInvalidRateChars(e.target.value)) {
+                  props.onInvalidInput("defaultInterestRate", e.currentTarget.selectionStart);
+                  return;
+                }
+                props.onChange("defaultInterestRate", cleanRate(e.target.value));
+              }} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
               <FieldError message={fieldErrors.defaultInterestRate} />
             </div>
             <div className="helper-panel">
@@ -1010,7 +1044,7 @@ function SchedulePreviewPanel({
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-[12px]">
                     {shownRows.map((row, index) => (
-                      <tr key={`${row.date || row.due_date || index}-${index}`} className="bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                      <tr key={`${row.date || row.due_date || index}-${index}`} className="bg-amber-50/40 hover:bg-amber-100/80 transition-colors">
                         <td className="py-2.5 px-4 whitespace-nowrap text-slate-700 font-semibold">{fmtDate(row.date || row.due_date as string)}</td>
                         <td className="py-2.5 px-4 text-center">{String(row.term ?? row.month ?? "-")}</td>
                         {["principal_bf", "payment", "interest_paid", "principal_paid", "other_paid", "principal_bal", "daily_interest", "acc_interest"].map((key) => (
@@ -1517,11 +1551,15 @@ export default function CustomerDetailPage() {
     setPreviewDone(false);
   };
 
-  const handleFieldBlur = (field: keyof CustomerDetailFormState) => {
+  const handleFieldBlur = (field: keyof CustomerDetailFormState, valueOverride?: string) => {
     const relatedFields = getRelatedValidationFields(field);
     const nextTouched = { ...touchedFields, [field]: true };
+    const nextForm = valueOverride === undefined ? form : { ...form, [field]: valueOverride };
+    if (valueOverride !== undefined && (field === "firstDueDate" || field === "installmentCount" || field === "judgmentType")) {
+      nextForm.lastDueDate = calculateLastDueDate(nextForm, nextForm.judgmentType || customer?.case_status || "");
+    }
     setTouchedFields(nextTouched);
-    const nextInlineErrors = validateInlineFields(relatedFields, form, customer, nextTouched);
+    const nextInlineErrors = validateInlineFields(relatedFields, nextForm, customer, nextTouched);
     setFieldErrors((prevErrors) => {
       const merged = { ...prevErrors };
       relatedFields.forEach((relatedField) => {
@@ -1529,6 +1567,16 @@ export default function CustomerDetailPage() {
         else delete merged[relatedField];
       });
       return merged;
+    });
+  };
+
+  const handleInvalidNumericInput = (field: keyof CustomerDetailFormState, cursorIndex?: number | null) => {
+    const activeInput = document.activeElement instanceof HTMLInputElement ? document.activeElement : null;
+    setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: numericInputError }));
+    window.requestAnimationFrame(() => {
+      if (!activeInput || cursorIndex == null) return;
+      const nextPos = Math.max(0, Math.min(activeInput.value.length, cursorIndex - 1));
+      activeInput.setSelectionRange(nextPos, nextPos);
     });
   };
 
@@ -1602,6 +1650,9 @@ export default function CustomerDetailPage() {
 
   const handleFocusPlain = (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
+    const start = input.selectionStart ?? input.value.length;
+    const rawBeforeCursor = input.value.slice(0, start);
+    const removedBeforeCursor = (rawBeforeCursor.match(/[,%]/g) || []).length;
     setForm((prev) => {
       const raw = String(prev[field] || "");
       const plain = raw.replace(/,/g, "").replace("%", "");
@@ -1609,7 +1660,10 @@ export default function CustomerDetailPage() {
       const numericValue = isRateField ? parseRate(raw) : parseMoney(raw);
       return { ...prev, [field]: numericValue === 0 ? "" : plain };
     });
-    window.requestAnimationFrame(() => input.select());
+    window.requestAnimationFrame(() => {
+      const nextPos = input.value ? Math.max(0, start - removedBeforeCursor) : 0;
+      input.setSelectionRange(nextPos, nextPos);
+    });
   };
 
   const handlePreview = () => {
@@ -1790,6 +1844,7 @@ export default function CustomerDetailPage() {
                   onSelectJudgmentType={handleSelectJudgmentType}
                   onChange={updateForm}
                   onBlurField={handleFieldBlur}
+                  onInvalidInput={handleInvalidNumericInput}
                   onMoneyBlur={handleMoneyBlur}
                   onRateBlur={handleRateBlur}
                   onFocusPlain={handleFocusPlain}
@@ -1802,6 +1857,7 @@ export default function CustomerDetailPage() {
                   activeJudgmentType={activeJudgmentType}
                   onChange={updateForm}
                   onBlurField={handleFieldBlur}
+                  onInvalidInput={handleInvalidNumericInput}
                   onMoneyBlur={handleMoneyBlur}
                   onRateBlur={handleRateBlur}
                   onFocusPlain={handleFocusPlain}
