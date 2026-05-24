@@ -6,9 +6,13 @@ const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.',
 const THAI_WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
 type ThemedDatePickerProps = {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  maxDate?: string;
+  ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
   className?: string;
   openClassName?: string;
   children?: (dateText: string, isPlaceholder: boolean) => ReactNode;
@@ -52,9 +56,13 @@ function calendarCells(year: number, month: number) {
 }
 
 export default function ThemedDatePicker({
+  id,
   value,
   onChange,
   placeholder = 'เลือกวันที่',
+  maxDate,
+  ariaInvalid,
+  ariaDescribedBy,
   className = 'filter-date-display relative',
   openClassName = 'open',
   children,
@@ -68,6 +76,7 @@ export default function ThemedDatePicker({
   const anchorRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const today = todayDateOnly();
+  const maxDateOnly = dateFromIso(maxDate);
 
   const positionPopup = useCallback(() => {
     const anchor = anchorRef.current;
@@ -117,6 +126,7 @@ export default function ThemedDatePicker({
   }, [open, positionPopup]);
 
   const selectDay = (nextValue: string) => {
+    if (maxDate && nextValue && nextValue > maxDate) return;
     onChange(nextValue);
     setOpen(false);
   };
@@ -163,9 +173,10 @@ export default function ThemedDatePicker({
               const isoValue = dateToIso(cell.date);
               const active = cell.currentMonth && isoValue === value;
               const isToday = cell.currentMonth && cell.date.getTime() === today.getTime();
-              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''}`;
+              const disabled = Boolean(cell.currentMonth && maxDate && isoValue > maxDate);
+              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''} ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`;
               return cell.currentMonth
-                ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={dayClassName}>{cell.date.getDate()}</button>
+                ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={dayClassName} disabled={disabled}>{cell.date.getDate()}</button>
                 : <span key={isoValue} className={dayClassName}>{cell.date.getDate()}</span>;
             })}
           </div>
@@ -173,14 +184,14 @@ export default function ThemedDatePicker({
       )}
       <div className="dp-footer">
         <button type="button" onClick={() => selectDay('')} className="dp-btn-clear">ล้างค่า</button>
-        <button type="button" onClick={() => selectDay(dateToIso(today))} className="dp-btn-today">วันนี้</button>
+        <button type="button" onClick={() => selectDay(dateToIso(maxDateOnly && maxDateOnly < today ? maxDateOnly : today))} className="dp-btn-today">{maxDateOnly && maxDateOnly < today ? 'วันที่สูงสุด' : 'วันนี้'}</button>
       </div>
     </div>
   );
 
   return (
     <>
-      <button ref={anchorRef} type="button" onClick={openCalendar} className={`${className} ${open ? openClassName : ''}`}>
+      <button id={id} ref={anchorRef} type="button" onClick={openCalendar} className={`${className} ${open ? openClassName : ''}`} aria-invalid={ariaInvalid ? 'true' : undefined} aria-describedby={ariaDescribedBy}>
         {children ? children(dateText, !value) : dateText}
       </button>
       {calendarPopup ? createPortal(calendarPopup, document.body) : null}

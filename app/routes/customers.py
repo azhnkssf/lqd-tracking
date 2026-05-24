@@ -909,8 +909,8 @@ def create_customer():
     pre_filing_dpd_days = _parse_positive_int(data.get('pre_filing_dpd_days'))
     if pre_filing_dpd_days is None:
         return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มเท่านั้น'}), 400
-    if pre_filing_dpd_days <= 0:
-        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องมากกว่า 0'}), 400
+    if pre_filing_dpd_days < 0:
+        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องไม่น้อยกว่า 0'}), 400
 
     if len(filing_note) > 100:
         return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400

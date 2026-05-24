@@ -83,6 +83,8 @@ type AddForm = {
   filing_note: string;
 };
 
+type AddFieldErrors = Partial<Record<keyof AddForm, string>>;
+
 const CASE_STATUSES = ['ยื่นฟ้อง', 'พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว', 'บังคับคดี', 'ปิดบัญชี'];
 const PAYMENT_STATUSES = ['ค้างชำระ', 'ชำระปกติ', 'ยังไม่ถึงกำหนด', 'ไม่มีแผนชำระ', 'ชำระครบแล้ว'];
 const CASE_STATUS_ICONS: Record<string, string> = {
@@ -195,12 +197,12 @@ function normalizeCourtCaseNo(value: string) {
     .replace(/\s*\/\s*/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
-  const match = raw.match(/^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/);
+  const match = raw.match(/^([ก-๙]{1,10})\s*([A-Za-z]?\d+)\/(25\d{2})$/);
   return match ? `${match[1]}${match[2]}/${match[3]}` : raw;
 }
 
 function isValidCourtCaseNo(value: string) {
-  return /^([A-Za-zก-ฮ]{1,8})\s*([A-Za-z]?\d{1,8})\/(25\d{2})$/.test(
+  return /^([ก-๙]{1,10})\s*([A-Za-z]?\d+)\/(25\d{2})$/.test(
     String(value || '')
       .replace(/\s*\/\s*/g, '/')
       .replace(/\s+/g, ' ')
@@ -208,12 +210,40 @@ function isValidCourtCaseNo(value: string) {
   );
 }
 
+function normalizeMoneyInput(value: string) {
+  return String(value || '').replace(/,/g, '').trim();
+}
+
+function formatMoneyWithComma(value: string) {
+  const raw = normalizeMoneyInput(value);
+  if (!raw) return '';
+  if (!/^\d+(\.\d{0,2})?$/.test(raw)) return value;
+  const [integerPart, decimalPart] = raw.split('.');
+  const formattedInteger = integerPart.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',') || '0';
+  return decimalPart !== undefined ? `${formattedInteger}.${decimalPart}` : formattedInteger;
+}
+
+function todayIsoDate() {
+  return dateToIso(todayDateOnly());
+}
+
+const ADD_FIELD_ORDER: (keyof AddForm)[] = [
+  'account_no',
+  'black_case_no',
+  'filing_date',
+  'default_date',
+  'filing_capital',
+  'name',
+  'pre_filing_dpd_days',
+  'filing_note',
+];
+
 function fmtTimestamp(value?: string) {
   return value ? fmtDate(String(value).slice(0, 10)) : '-';
 }
 
 function fmtMoney(value?: number | string, compact = false) {
-  const num = Number(value || 0);
+  const num = Number(String(value || 0).replace(/,/g, ''));
   if (!num) return '฿0.00';
   if (compact && Math.abs(num) >= 1_000_000) return `฿${(num / 1_000_000).toFixed(2)}M`;
   return `฿${num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -268,68 +298,123 @@ function dpdDays(row: Customer) {
 }
 
 function validateAddForm(form: AddForm) {
-  const accountNo = form.account_no.trim();
-  const blackCaseNo = normalizeCourtCaseNo(form.black_case_no);
-  const name = form.name.trim();
-  const filingCapital = form.filing_capital.replace(/,/g, '').trim();
-  const dpd = form.pre_filing_dpd_days.trim();
-  const today = new Date().toISOString().slice(0, 10);
-  if (!/^\d{12}$/.test(accountNo)) return 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก';
-  if (!blackCaseNo) return 'กรุณากรอกคดีหมายเลขดำที่';
-  if (!isValidCourtCaseNo(blackCaseNo)) return 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567';
-  if (!form.filing_date) return 'กรุณาเลือกวันที่ยื่นฟ้อง';
-  if (!form.default_date) return 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
-  if (form.filing_date > today) return 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต';
-  if (form.default_date > today) return 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต';
-  if (form.default_date > form.filing_date) return 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง';
-  if (!/^\d+(\.\d{1,2})?$/.test(filingCapital) || Number(filingCapital) <= 0) return 'ทุนทรัพย์ที่ฟ้องต้องเป็นตัวเลขมากกว่า 0 และมีทศนิยมได้สูงสุด 2 ตำแหน่ง';
-  if (!name) return 'กรุณากรอกชื่อ-นามสกุล';
-  if (!/^[\u0E00-\u0E7Fa-zA-Z0-9\s.\-()]+$/.test(name)) return 'ชื่อ-นามสกุล/ชื่อบริษัทมีอักขระที่ไม่อนุญาต';
-  if (!/^\d+$/.test(dpd) || Number(dpd) <= 0) return 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มมากกว่า 0';
-  if (form.filing_note.length > 100) return 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร';
-  return '';
+  const errors = validateAddFields(form, true);
+  return ADD_FIELD_ORDER.map(field => errors[field]).find(Boolean) || '';
 }
 
-function addFormInlineErrors(form: AddForm, submitError = '') {
+function validateAddFields(form: AddForm, includeRequired: boolean): AddFieldErrors {
   const accountNo = form.account_no.trim();
   const blackCaseNo = normalizeCourtCaseNo(form.black_case_no);
-  const filingCapital = form.filing_capital.replace(/,/g, '').trim();
+  const filingCapital = normalizeMoneyInput(form.filing_capital);
   const name = form.name.trim();
   const dpd = form.pre_filing_dpd_days.trim();
-  const today = new Date().toISOString().slice(0, 10);
-  const errors: Partial<Record<keyof AddForm, string>> = {};
+  const today = todayIsoDate();
+  const errors: AddFieldErrors = {};
 
-  if ((accountNo && !/^\d{12}$/.test(accountNo)) || submitError === 'เลขที่บัญชีต้องเป็นตัวเลข 12 หลัก') {
-    errors.account_no = 'กรอกเลขบัญชีจำนวน 12 หลัก';
+  if (!accountNo) {
+    if (includeRequired) errors.account_no = 'กรุณากรอกหมายเลขบัญชี';
+  } else if (!/^\d+$/.test(accountNo)) {
+    errors.account_no = 'กรุณากรอกเฉพาะตัวเลข 0-9 เท่านั้น';
+  } else if (accountNo.length !== 12) {
+    errors.account_no = 'หมายเลขบัญชีต้องมี 12 หลัก';
   }
-  if ((blackCaseNo && !isValidCourtCaseNo(blackCaseNo)) || submitError === 'กรุณากรอกคดีหมายเลขดำที่' || submitError.startsWith('คดีหมายเลขดำที่')) {
-    errors.black_case_no = 'รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567';
+
+  if (!blackCaseNo) {
+    if (includeRequired) errors.black_case_no = 'กรุณากรอกคดีหมายเลขดำ';
+  } else if (!isValidCourtCaseNo(blackCaseNo)) {
+    errors.black_case_no = 'กรุณากรอกหมายเลขคดีดำให้ถูกต้อง เช่น ผบE1234/2568';
   }
-  if (submitError === 'กรุณาเลือกวันที่ยื่นฟ้อง') {
-    errors.filing_date = 'กรุณาเลือกวันที่ยื่นฟ้อง';
+
+  if (!form.filing_date) {
+    if (includeRequired) errors.filing_date = 'กรุณาเลือกวันที่ยื่นฟ้อง';
   } else if (form.filing_date && form.filing_date > today) {
     errors.filing_date = 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต';
   }
-  if (submitError === 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง') {
-    errors.default_date = 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
+
+  if (!form.default_date) {
+    if (includeRequired) errors.default_date = 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
+  } else if (!form.filing_date) {
+    errors.default_date = 'กรุณาเลือกวันที่ยื่นฟ้องก่อน';
+  } else if (form.default_date && form.filing_date && form.default_date > form.filing_date) {
+    errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เกินวันที่ยื่นฟ้อง';
   } else if (form.default_date && form.default_date > today) {
     errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต';
-  } else if (form.default_date && form.filing_date && form.default_date > form.filing_date) {
-    errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง';
   }
-  if ((filingCapital && (!/^\d+(\.\d{1,2})?$/.test(filingCapital) || Number(filingCapital) <= 0)) || submitError.startsWith('ทุนทรัพย์ที่ฟ้อง')) {
-    errors.filing_capital = 'ต้องเป็นตัวเลขมากกว่า 0 และมีทศนิยมได้สูงสุด 2 ตำแหน่ง';
+
+  if (!filingCapital) {
+    if (includeRequired) errors.filing_capital = 'กรุณากรอกทุนทรัพย์ที่ฟ้อง';
+  } else if (!/^[0-9.]+$/.test(filingCapital)) {
+    errors.filing_capital = 'กรุณากรอกจำนวนเงินเป็นตัวเลขเท่านั้น';
+  } else if (!/^\d+(\.\d+)?$/.test(filingCapital)) {
+    errors.filing_capital = 'กรุณากรอกจำนวนเงินเป็นตัวเลขเท่านั้น';
+  } else if (!/^\d+(\.\d{1,2})?$/.test(filingCapital)) {
+    errors.filing_capital = 'กรุณากรอกทศนิยมไม่เกิน 2 ตำแหน่ง';
+  } else if (Number(filingCapital) <= 0) {
+    errors.filing_capital = 'ทุนทรัพย์ที่ฟ้องต้องมากกว่า 0';
   }
-  if (submitError === 'กรุณากรอกชื่อ-นามสกุล') {
-    errors.name = 'กรุณากรอกชื่อ-นามสกุล';
-  } else if (name && !/^[\u0E00-\u0E7Fa-zA-Z0-9\s.\-()]+$/.test(name)) {
-    errors.name = 'มีอักขระที่ไม่อนุญาต';
+
+  if (!name) {
+    if (includeRequired) errors.name = 'กรุณากรอกชื่อ-นามสกุล';
+  } else if (!/^[A-Za-zก-๙ .-]+$/.test(name)) {
+    errors.name = 'ชื่อ-นามสกุลใช้ได้เฉพาะภาษาไทย ภาษาอังกฤษ เว้นวรรค จุด และขีดกลาง';
   }
-  if ((dpd && (!/^\d+$/.test(dpd) || Number(dpd) <= 0)) || submitError.startsWith('DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน')) {
-    errors.pre_filing_dpd_days = 'ต้องเป็นจำนวนเต็มมากกว่า 0';
+
+  if (!dpd) {
+    if (includeRequired) errors.pre_filing_dpd_days = 'กรุณากรอก DPD';
+  } else if (!/^\d+$/.test(dpd)) {
+    errors.pre_filing_dpd_days = 'กรุณากรอก DPD เป็นตัวเลขเท่านั้น';
+  } else if (Number(dpd) < 0) {
+    errors.pre_filing_dpd_days = 'DPD ต้องไม่น้อยกว่า 0';
   }
-  if (form.filing_note.length > 100 || submitError.startsWith('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม')) {
-    errors.filing_note = 'ต้องไม่เกิน 100 ตัวอักษร';
+
+  if (form.filing_note.length > 100) {
+    errors.filing_note = 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร';
+  }
+
+  return errors;
+}
+
+function hasValidationErrors(errors: AddFieldErrors) {
+  return ADD_FIELD_ORDER.some(field => Boolean(errors[field]));
+}
+
+function firstValidationField(errors: AddFieldErrors) {
+  return ADD_FIELD_ORDER.find(field => Boolean(errors[field])) || '';
+}
+
+function fieldDomId(field: keyof AddForm) {
+  return `add-${field.replace(/_/g, '-')}`;
+}
+
+function focusAddField(field: keyof AddForm) {
+  window.requestAnimationFrame(() => {
+    const el = document.getElementById(fieldDomId(field));
+    if (el instanceof HTMLElement) {
+      el.focus();
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  });
+}
+
+function errorFromServerMessage(message: string): AddFieldErrors {
+  const errors: AddFieldErrors = {};
+  if (!message) return errors;
+  if (message.includes('เลขที่บัญชี') || message.includes('หมายเลขบัญชี')) {
+    errors.account_no = message;
+  } else if (message.includes('คดีหมายเลขดำ')) {
+    errors.black_case_no = message;
+  } else if (message.includes('วันที่ยื่นฟ้อง')) {
+    errors.filing_date = message;
+  } else if (message.includes('วันที่ผิดนัด')) {
+    errors.default_date = message;
+  } else if (message.includes('ทุนทรัพย์')) {
+    errors.filing_capital = message;
+  } else if (message.includes('ชื่อ')) {
+    errors.name = message;
+  } else if (message.includes('DPD')) {
+    errors.pre_filing_dpd_days = message;
+  } else if (message.includes('หมายเหตุ')) {
+    errors.filing_note = message;
   }
   return errors;
 }
@@ -406,6 +491,8 @@ export default function CustomerListPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddForm>(emptyAddForm);
   const [addError, setAddError] = useState('');
+  const [addFieldErrors, setAddFieldErrors] = useState<AddFieldErrors>({});
+  const [addSubmitted, setAddSubmitted] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
   const [copyToast, setCopyToast] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -426,7 +513,8 @@ export default function CustomerListPage() {
 
   useEffect(() => {
     if (addError) setAddError('');
-  }, [addForm]);
+    setAddFieldErrors(validateAddFields(addForm, addSubmitted));
+  }, [addForm, addSubmitted]);
 
   const loadData = useCallback(async (nextPage = 1) => {
     if (!role) {
@@ -607,16 +695,31 @@ export default function CustomerListPage() {
   function startAdd() {
     setAddForm(emptyAddForm());
     setAddError('');
+    setAddFieldErrors({});
+    setAddSubmitted(false);
     setReviewOpen(false);
     setAddOpen(true);
   }
 
   function handleAddReview(e: FormEvent) {
     e.preventDefault();
+    setAddSubmitted(true);
+    const fieldErrors = validateAddFields(addForm, true);
+    setAddFieldErrors(fieldErrors);
+    if (hasValidationErrors(fieldErrors)) {
+      const firstField = firstValidationField(fieldErrors);
+      setAddError('กรุณาตรวจสอบข้อมูลที่กรอกไม่ถูกต้อง');
+      if (firstField) focusAddField(firstField);
+      return;
+    }
     const msg = validateAddForm(addForm);
     setAddError(msg);
     if (!msg) {
-      setAddForm(form => ({ ...form, black_case_no: normalizeCourtCaseNo(form.black_case_no) }));
+      setAddForm(form => ({
+        ...form,
+        black_case_no: normalizeCourtCaseNo(form.black_case_no),
+        filing_capital: formatMoneyWithComma(form.filing_capital),
+      }));
       setAddOpen(false);
       setReviewOpen(true);
     }
@@ -644,11 +747,15 @@ export default function CustomerListPage() {
       }));
       setReviewOpen(false);
       setAddForm(emptyAddForm());
+      setAddFieldErrors({});
+      setAddSubmitted(false);
       await loadData(page);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'บันทึกข้อมูลไม่สำเร็จ';
       setReviewOpen(false);
       setAddOpen(true);
-      setAddError(err instanceof Error ? err.message : 'บันทึกข้อมูลไม่สำเร็จ');
+      setAddError(message);
+      setAddFieldErrors(errorFromServerMessage(message));
     } finally {
       setSavingAdd(false);
     }
@@ -859,7 +966,7 @@ export default function CustomerListPage() {
       {showRefreshingModal && <WaitModal />}
       {drawerOpen && <FilterDrawer draft={draftFilters} setDraft={setDraftFilters} onApply={() => { setFilters(draftFilters); setDrawerOpen(false); }} onReset={() => { setFilters(emptyFilters()); setDraftFilters(emptyFilters()); setDrawerOpen(false); }} onClose={() => setDrawerOpen(false)} />}
       {checkerOpen && <CheckerExportModal dateFrom={checkerDateFrom} dateTo={checkerDateTo} setDateFrom={setCheckerDateFrom} setDateTo={setCheckerDateTo} onSubmit={handleCheckerExport} onClose={() => setCheckerOpen(false)} />}
-      {addOpen && <AddCustomerModal form={addForm} setForm={setAddForm} error={addError} onSubmit={handleAddReview} onClose={() => setAddOpen(false)} />}
+      {addOpen && <AddCustomerModal form={addForm} setForm={setAddForm} fieldErrors={addFieldErrors} error={addError} onSubmit={handleAddReview} onClose={() => setAddOpen(false)} />}
       {reviewOpen && <AddReviewModal form={addForm} saving={savingAdd} onBack={() => { setReviewOpen(false); setAddOpen(true); }} onSubmit={doAddSubmit} />}
       {deleteAccount && <DeleteModal account={deleteAccount} onClose={() => setDeleteAccount('')} onConfirm={confirmDelete} />}
     </div>
@@ -1485,8 +1592,9 @@ function CheckerExportModal(props: { dateFrom: string; dateTo: string; setDateFr
   );
 }
 
-function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: AddForm; setForm: (form: AddForm) => void; error: string; onSubmit: (e: FormEvent) => void; onClose: () => void }) {
-  const fieldErrors = addFormInlineErrors(form, error);
+function AddCustomerModal({ form, setForm, fieldErrors, error, onSubmit, onClose }: { form: AddForm; setForm: (form: AddForm) => void; fieldErrors: AddFieldErrors; error: string; onSubmit: (e: FormEvent) => void; onClose: () => void }) {
+  const updateForm = (field: keyof AddForm, value: string) => setForm({ ...form, [field]: value });
+  const updateMoney = (value: string) => updateForm('filing_capital', formatMoneyWithComma(value));
 
   return (
     <ModalShell onClose={onClose} large>
@@ -1497,14 +1605,14 @@ function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: A
           <form onSubmit={onSubmit} className="modal-body">
             <div className="flex items-center justify-between gap-3 mb-4"><p className="modal-section-title">ข้อมูลลูกหนี้</p><div className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-bold text-primary"><span className="material-symbols-outlined text-[15px]">edit_note</span>ข้อมูลจำเป็น</div></div>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <AddInput label="หมายเลขบัญชี *" value={form.account_no} onChange={v => setForm({ ...form, account_no: v.replace(/\D/g, '').slice(0, 12) })} icon="badge" placeholder="กรอกหมายเลขบัญชี 12 หลัก" helper="กรอกเลขบัญชีจำนวน 12 หลัก" error={fieldErrors.account_no} maxLength={12} inputMode="numeric" inputClassName="pr-16" rightSlot={<span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none font-mono ${fieldErrors.account_no ? 'text-red-400' : 'text-slate-300'}`}>{form.account_no.length}/12</span>} />
-              <AddInput label="คดีหมายเลขดำที่ *" value={form.black_case_no} onChange={v => setForm({ ...form, black_case_no: v })} icon="article" placeholder="กรอกคดีหมายเลขดำที่" helper="รูปแบบ: ตัวย่อประเภทคดีติดเลขที่/ปี พ.ศ. เช่น ผบ1234/2567" error={fieldErrors.black_case_no} />
-              <AddDateInput label="วันที่ยื่นฟ้อง *" value={form.filing_date} onChange={v => setForm({ ...form, filing_date: v })} icon="calendar_today" placeholder="เลือกวันที่ยื่นฟ้อง" helper="เลือกวันที่ตามเอกสารยื่นฟ้อง" error={fieldErrors.filing_date} />
-              <AddDateInput label="วันที่ผิดนัดชำระก่อนฟ้อง *" value={form.default_date} onChange={v => setForm({ ...form, default_date: v })} icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" error={fieldErrors.default_date} />
-              <AddInput label="ทุนทรัพย์ที่ฟ้อง *" value={form.filing_capital} onChange={v => setForm({ ...form, filing_capital: v })} icon="payments" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" helper="กรอกจำนวนเงินได้สูงสุด 2 ตำแหน่งทศนิยม" error={fieldErrors.filing_capital} inputMode="decimal" />
-              <AddInput label="ชื่อ-นามสกุล *" value={form.name} onChange={v => setForm({ ...form, name: v })} icon="person" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" helper="ใช้ได้เฉพาะตัวอักษร ตัวเลข เว้นวรรค จุด (.) และขีดกลาง (-)" error={fieldErrors.name} />
-              <AddInput label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *" value={form.pre_filing_dpd_days} onChange={v => setForm({ ...form, pre_filing_dpd_days: v.replace(/\D/g, '') })} icon="pin" placeholder="กรอกจำนวนวัน" helper="กรอกจำนวนเต็มมากกว่า 0 เท่านั้น" error={fieldErrors.pre_filing_dpd_days} inputMode="numeric" />
-              <div className="add-field md:col-span-6"><label className="add-label">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label><textarea value={form.filing_note} onChange={e => setForm({ ...form, filing_note: e.target.value.slice(0, 100) })} className={`add-input add-note-input h-[58px] min-h-[58px] resize-none ${fieldErrors.filing_note ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" maxLength={100} aria-invalid={fieldErrors.filing_note ? 'true' : undefined} /><p className={`add-helper !mt-1 !min-h-0 ${fieldErrors.filing_note ? '!text-red-500' : ''}`}>{fieldErrors.filing_note || `${form.filing_note.length}/100 ตัวอักษร`}</p></div>
+              <AddInput id={fieldDomId('account_no')} label="หมายเลขบัญชี *" value={form.account_no} onChange={v => updateForm('account_no', v.slice(0, 12))} icon="badge" placeholder="กรอกหมายเลขบัญชี 12 หลัก" helper="กรอกเลขบัญชีจำนวน 12 หลัก" error={fieldErrors.account_no} maxLength={12} inputMode="numeric" inputClassName="pr-16" rightSlot={<span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none font-mono ${fieldErrors.account_no ? 'text-red-400' : 'text-slate-300'}`}>{form.account_no.length}/12</span>} />
+              <AddInput id={fieldDomId('black_case_no')} label="คดีหมายเลขดำที่ *" value={form.black_case_no} onChange={v => updateForm('black_case_no', v)} icon="article" placeholder="กรอกคดีหมายเลขดำที่" helper="เช่น ผบE1234/2568 หรือ ผบ1234/2568" error={fieldErrors.black_case_no} />
+              <AddDateInput id={fieldDomId('filing_date')} label="วันที่ยื่นฟ้อง *" value={form.filing_date} onChange={v => updateForm('filing_date', v)} icon="calendar_today" placeholder="เลือกวันที่ยื่นฟ้อง" helper="เลือกได้ถึงวันที่ปัจจุบัน" error={fieldErrors.filing_date} maxDate={todayIsoDate()} />
+              <AddDateInput id={fieldDomId('default_date')} label="วันที่ผิดนัดชำระก่อนฟ้อง *" value={form.default_date} onChange={v => updateForm('default_date', v)} icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="ต้องไม่เกินวันที่ยื่นฟ้อง" error={fieldErrors.default_date} maxDate={form.filing_date || todayIsoDate()} />
+              <AddInput id={fieldDomId('filing_capital')} label="ทุนทรัพย์ที่ฟ้อง *" value={form.filing_capital} onChange={updateMoney} icon="payments" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" helper="ระบบจะแสดง comma อัตโนมัติ และส่งค่าแบบไม่มี comma" error={fieldErrors.filing_capital} inputMode="decimal" />
+              <AddInput id={fieldDomId('name')} label="ชื่อ-นามสกุล *" value={form.name} onChange={v => updateForm('name', v)} icon="person" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" helper="ใช้ได้เฉพาะภาษาไทย ภาษาอังกฤษ เว้นวรรค จุด (.) และขีดกลาง (-)" error={fieldErrors.name} />
+              <AddInput id={fieldDomId('pre_filing_dpd_days')} label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *" value={form.pre_filing_dpd_days} onChange={v => updateForm('pre_filing_dpd_days', v)} icon="pin" placeholder="กรอกจำนวนวัน" helper="กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป" error={fieldErrors.pre_filing_dpd_days} inputMode="numeric" />
+              <div className="add-field md:col-span-6"><label className="add-label" htmlFor={fieldDomId('filing_note')}>หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label><textarea id={fieldDomId('filing_note')} value={form.filing_note} onChange={e => updateForm('filing_note', e.target.value.slice(0, 100))} className={`add-input add-note-input h-[58px] min-h-[58px] resize-none ${fieldErrors.filing_note ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" maxLength={100} aria-invalid={fieldErrors.filing_note ? 'true' : undefined} aria-describedby={`${fieldDomId('filing_note')}-error`} /><p id={`${fieldDomId('filing_note')}-error`} className={`add-helper !mt-1 !min-h-0 ${fieldErrors.filing_note ? '!text-red-500' : ''}`}>{fieldErrors.filing_note || `${form.filing_note.length}/100 ตัวอักษร`}</p></div>
             </div>
             <div className="modal-footer -mx-5 md:-mx-6 -mb-5 mt-5"><p className="text-[11px] text-slate-400 leading-relaxed">ฟิลด์ที่มีเครื่องหมาย * จำเป็นต้องกรอก</p><div className="flex items-center justify-end gap-2"><button type="button" onClick={close} className="btn-secondary-modern">ยกเลิก</button><button type="submit" className="btn-primary-modern"><span className="material-symbols-outlined text-base">fact_check</span>ตรวจสอบข้อมูล</button></div></div>
           </form>
@@ -1514,7 +1622,8 @@ function AddCustomerModal({ form, setForm, error, onSubmit, onClose }: { form: A
   );
 }
 
-function AddInput({ label, value, onChange, icon, helper, error, type = 'text', placeholder, inputMode, maxLength, inputClassName = '', fieldClassName, rightSlot }: {
+function AddInput({ id, label, value, onChange, icon, helper, error, type = 'text', placeholder, inputMode, maxLength, inputClassName = '', fieldClassName, rightSlot }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -1529,10 +1638,11 @@ function AddInput({ label, value, onChange, icon, helper, error, type = 'text', 
   fieldClassName?: string;
   rightSlot?: ReactNode;
 }) {
-  return <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}><label className="add-label">{label}</label><div className="relative"><span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-indigo-300'}`}>{icon}</span><input value={value} onChange={e => onChange(e.target.value)} className={`add-input ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''} ${inputClassName}`} type={type} placeholder={placeholder} inputMode={inputMode} maxLength={maxLength} autoComplete="off" aria-invalid={error ? 'true' : undefined} />{rightSlot}</div>{(error || helper) && <p className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}</div>;
+  return <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}><label className="add-label" htmlFor={id}>{label}</label><div className="relative"><span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-indigo-300'}`}>{icon}</span><input id={id} value={value} onChange={e => onChange(e.target.value)} className={`add-input ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''} ${inputClassName}`} type={type} placeholder={placeholder} inputMode={inputMode} maxLength={maxLength} autoComplete="off" aria-invalid={error ? 'true' : undefined} aria-describedby={`${id}-error`} />{rightSlot}</div>{(error || helper) && <p id={`${id}-error`} className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}</div>;
 }
 
-function AddDateInput({ label, value, onChange, icon, helper, error, placeholder, fieldClassName }: {
+function AddDateInput({ id, label, value, onChange, icon, helper, error, placeholder, maxDate, fieldClassName }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -1540,19 +1650,20 @@ function AddDateInput({ label, value, onChange, icon, helper, error, placeholder
   helper?: string;
   error?: string;
   placeholder?: string;
+  maxDate?: string;
   fieldClassName?: string;
 }) {
   return (
     <div className={`add-field ${fieldClassName || 'md:col-span-6'}`}>
-      <label className="add-label">{label}</label>
+      <label className="add-label" htmlFor={id}>{label}</label>
       <div className="relative">
         <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-indigo-300'}`}>{icon}</span>
-        <ThemedDatePicker value={value} onChange={onChange} placeholder={placeholder} className={`add-input text-left ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} openClassName={error ? 'border-red-400 bg-white ring-4 ring-red-100' : 'border-primary bg-white ring-4 ring-primary/10'}>
+        <ThemedDatePicker id={id} value={value} onChange={onChange} placeholder={placeholder} maxDate={maxDate} ariaInvalid={Boolean(error)} ariaDescribedBy={`${id}-error`} className={`add-input text-left ${error ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} openClassName={error ? 'border-red-400 bg-white ring-4 ring-red-100' : 'border-primary bg-white ring-4 ring-primary/10'}>
           {(dateText, isPlaceholder) => <span className={error ? 'text-red-700' : isPlaceholder ? 'text-slate-400' : 'text-slate-700'}>{dateText}</span>}
         </ThemedDatePicker>
         <span className={`material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[18px] pointer-events-none ${error ? 'text-red-400' : 'text-slate-700'}`}>calendar_today</span>
       </div>
-      {(error || helper) && <p className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}
+      {(error || helper) && <p id={`${id}-error`} className={`add-helper ${error ? '!text-red-500' : ''}`}>{error || helper}</p>}
     </div>
   );
 }
