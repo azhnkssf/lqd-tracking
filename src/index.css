@@ -52,6 +52,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 }
 
 #root[data-page="customer-detail"] {
+  --app-sidebar-width: 14rem;
   display: block;
   align-items: initial;
   justify-content: initial;
@@ -227,7 +228,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
    CUSTOMER DETAIL — migrated from the legacy template visual system
 ══════════════════════════════════════════════════════════════ */
 #root[data-page="customer-detail"] .customer-detail-page {
-  font-family: "Kanit", "Sarabun", var(--font), sans-serif;
+  font-family: var(--font);
 }
 #root[data-page="customer-detail"] .customer-detail-page h1,
 #root[data-page="customer-detail"] .customer-detail-page h2,
@@ -241,7 +242,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   padding: 0.5rem 1rem;
-  font-family: "Kanit", "Sarabun", sans-serif;
+  font-family: var(--font);
   font-size: 0.875rem;
   color: #1e293b;
   transition: all 0.2s;
@@ -256,6 +257,12 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   border-color: #f87171;
   background: rgba(254, 242, 242, 0.3);
   box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.1);
+}
+#root[data-page="customer-detail"] .form-input-styled::placeholder,
+#root[data-page="customer-detail"] textarea.form-input-styled::placeholder {
+  font-family: var(--font);
+  color: #94a3b8;
+  font-weight: 500;
 }
 .autocalc-input {
   background: #f1f5f9;
@@ -346,8 +353,8 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   border-top: 1px solid #f1f5f9;
 }
 @media (min-width: 768px) {
-  .detail-footer {
-    left: 16rem;
+  #root[data-page="customer-detail"] .detail-footer {
+    left: var(--app-sidebar-width);
   }
 }
 .case-entry-card {
@@ -395,7 +402,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   border-radius: 0.75rem;
   padding: 0.5rem 2.5rem 0.5rem 1rem;
   width: 100%;
-  font-family: "Kanit", "Sarabun", sans-serif;
+  font-family: var(--font);
   font-size: 0.875rem;
   color: #1e293b;
   cursor: pointer;
@@ -445,7 +452,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
   width: 288px;
   padding: 1rem;
-  font-family: "Kanit", "Sarabun", sans-serif;
+  font-family: var(--font);
   overflow-y: auto;
 }
 .dp-header {
@@ -548,7 +555,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   padding: 4px 10px;
   border-radius: 0.5rem;
   transition: color 0.15s;
-  font-family: "Kanit", "Sarabun", sans-serif;
+  font-family: var(--font);
 }
 .dp-btn-clear:hover { color: #ef4444; }
 .dp-btn-today {
@@ -561,7 +568,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   padding: 4px 12px;
   border-radius: 0.5rem;
   transition: all 0.15s;
-  font-family: "Kanit", "Sarabun", sans-serif;
+  font-family: var(--font);
 }
 .dp-btn-today:hover { background: #2D3282; color: #fff; }
 .dp-my-grid {
@@ -590,9 +597,9 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 }
 
 /* Hero progress bar */
-.pb-track { display: flex; flex-direction: column; gap: 6px; }
+.pb-track { display: flex; flex-direction: column; gap: 10px; }
 .pb-dots-row { display: flex; align-items: center; }
-.pb-labels-row { display: flex; align-items: flex-start; }
+.pb-labels-row { display: flex; align-items: flex-start; margin-top: 2px; }
 .pb-dot-done,
 .pb-dot-active,
 .pb-dot-pending {
@@ -617,7 +624,7 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 4px rgba(56, 232, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.2);
   animation: pb-pulse 2s ease-in-out infinite;
 }
 .pb-dot-active-inner {
@@ -678,8 +685,8 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
   white-space: nowrap;
 }
 @keyframes pb-pulse {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(56, 232, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.2); }
-  50% { box-shadow: 0 0 0 6px rgba(56, 232, 255, 0.32), 0 2px 8px rgba(0, 0, 0, 0.2); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(56, 232, 255, 0.18), 0 2px 8px rgba(0, 0, 0, 0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(56, 232, 255, 0.24), 0 2px 8px rgba(0, 0, 0, 0.2); }
 }
 
 /* Confirm Review Modal v2 */

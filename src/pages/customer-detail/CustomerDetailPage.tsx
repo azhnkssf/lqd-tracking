@@ -1594,7 +1594,7 @@ export default function CustomerDetailPage() {
   return (
     <AppLayout activePage="customer-list">
       <div className="customer-detail-page min-h-screen bg-surface text-on-surface font-body">
-        <main className="main-content md:ml-64 pt-16 min-h-screen pb-24">
+        <main className="main-content md:ml-56 pt-16 min-h-screen pb-24">
           <HeroBar customer={customer} logs={statusLogs} />
           <div className="px-6 md:px-8 py-6">
           <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-4 items-stretch">

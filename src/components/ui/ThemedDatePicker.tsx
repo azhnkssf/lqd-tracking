@@ -99,18 +99,24 @@ export default function ThemedDatePicker({
     };
     if (spaceBelow >= 340) nextStyle.top = rect.bottom + 6;
     else if (spaceAbove >= 340) nextStyle.bottom = window.innerHeight - rect.top + 6;
-    else nextStyle.top = 8;
+    else nextStyle.top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 320));
     setPopupStyle(nextStyle);
   }, []);
 
   const openCalendar = () => {
+    if (disabled) return;
     const currentValue = dateFromIso(value) || todayDateOnly();
     setYear(currentValue.getFullYear());
     setMonth(currentValue.getMonth());
     setMonthView(false);
     setOpen(true);
-    window.requestAnimationFrame(positionPopup);
   };
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const frame = window.requestAnimationFrame(positionPopup);
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, positionPopup]);
 
   useEffect(() => {
     if (!open) return undefined;
