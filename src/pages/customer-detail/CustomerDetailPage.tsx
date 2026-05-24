@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FocusEvent } from "react";
 import AppLayout from "../../components/layout/AppLayout";
 import AppFeedbackModal, { type AppFeedbackModalState } from "../../components/ui/AppFeedbackModal";
+import PaginationControls from "../../components/ui/PaginationControls";
 import ThemedDatePicker from "../../components/ui/ThemedDatePicker";
 
 type UserRole = "user" | "admin" | "superadmin" | "";
@@ -1058,12 +1059,8 @@ function SchedulePreviewPanel({
               </div>
               <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/30 flex items-center justify-between gap-4">
                 <span className="text-[11px] text-slate-500">{scheduleView === "daily" ? `แสดง ${shownRows.length} จาก ${rows.length} รายการ` : `ทั้งหมด ${rows.length} เดือน`}</span>
-                {scheduleView === "daily" && pageCount > 1 ? (
-                  <div className="flex items-center gap-2">
-                    <button type="button" disabled={schedulePage <= 1} onClick={() => onPageChange(schedulePage - 1)} className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40">ก่อนหน้า</button>
-                    <span className="font-bold">{schedulePage}/{pageCount}</span>
-                    <button type="button" disabled={schedulePage >= pageCount} onClick={() => onPageChange(schedulePage + 1)} className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40">ถัดไป</button>
-                  </div>
+                {scheduleView === "daily" ? (
+                  <PaginationControls page={schedulePage} pageCount={pageCount} onPageChange={onPageChange} size="sm" />
                 ) : null}
               </div>
             </>
