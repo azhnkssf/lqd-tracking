@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FocusEvent } from "react";
 import AppLayout from "../../components/layout/AppLayout";
 import ThemedDatePicker from "../../components/ui/ThemedDatePicker";
 
@@ -89,6 +89,8 @@ interface CustomerDetailFormState {
 interface FieldErrors {
   [fieldName: string]: string;
 }
+
+type TouchedFields = Partial<Record<keyof CustomerDetailFormState, boolean>>;
 
 interface ScheduleRow {
   date?: string;
@@ -364,8 +366,6 @@ function getPreviewRequiredFields(customer: CustomerDetailData | null) {
     "principal",
     "interestRate",
     "defaultInterestRate",
-    "courtFee",
-    "lawyerFee",
     "installmentCount",
     "firstDueDate",
     "installment1",
@@ -400,7 +400,6 @@ function validateBusinessRules(form: CustomerDetailFormState, customer: Customer
   if (form.judgmentDate && form.firstDueDate && form.firstDueDate < form.judgmentDate) {
     errors.firstDueDate = "วันครบกำหนดงวดแรกต้องไม่น้อยกว่าวันที่พิพากษา";
   }
-  if (customer?.case_status === "ยื่นฟ้อง" && !form.judgmentType) errors.judgmentType = "กรุณาเลือกประเภทคำพิพากษา";
   return errors;
 }
 
@@ -422,6 +421,17 @@ function getFieldError(
   customer: CustomerDetailData | null,
 ) {
   return getRequiredFieldError(field, form, customer) || validateBusinessRules(form, customer)[field] || "";
+}
+
+function getInlineFieldError(
+  field: keyof CustomerDetailFormState,
+  form: CustomerDetailFormState,
+  customer: CustomerDetailData | null,
+  touchedFields: TouchedFields,
+) {
+  const businessError = validateBusinessRules(form, customer)[field];
+  if (businessError) return businessError;
+  return touchedFields[field] ? getRequiredFieldError(field, form, customer) : "";
 }
 
 function getRelatedValidationFields(field: keyof CustomerDetailFormState) {
@@ -454,13 +464,21 @@ function validateInlineFields(
   fields: Array<keyof CustomerDetailFormState>,
   form: CustomerDetailFormState,
   customer: CustomerDetailData | null,
+  touchedFields: TouchedFields = {},
 ) {
   const nextErrors: FieldErrors = {};
   fields.forEach((field) => {
-    const message = getFieldError(field, form, customer);
+    const message = getInlineFieldError(field, form, customer, touchedFields);
     if (message) nextErrors[field] = message;
   });
   return nextErrors;
+}
+
+function touchFields(fields: Array<keyof CustomerDetailFormState>) {
+  return fields.reduce<TouchedFields>((acc, field) => {
+    acc[field] = true;
+    return acc;
+  }, {});
 }
 
 function isPreviewFormReady(form: CustomerDetailFormState, customer: CustomerDetailData | null) {
@@ -525,6 +543,7 @@ function DateField({
   id,
   value,
   onChange,
+  onBlur,
   placeholder,
   disabled,
   minDate,
@@ -534,6 +553,7 @@ function DateField({
   id: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   placeholder: string;
   disabled?: boolean;
   minDate?: string;
@@ -546,7 +566,10 @@ function DateField({
         <ThemedDatePicker
           id={id}
           value={value}
-          onChange={onChange}
+          onChange={(nextValue) => {
+            onChange(nextValue);
+            if (onBlur) window.requestAnimationFrame(onBlur);
+          }}
           placeholder={placeholder}
           minDate={minDate}
           maxDate={maxDate}
@@ -633,32 +656,28 @@ function StatusProgressBar({ customer, logs }: { customer: CustomerDetailData | 
   const visited = new Set(logStatuses);
   if (current) visited.add(current);
   if (logs.length === 0 && current === "ปิดบัญชี") visited.delete("บังคับคดี");
+  const currentIndex = flow.indexOf(current);
+  const isStepDone = (status: string, index: number) => visited.has(status) || (currentIndex >= 0 && index <= currentIndex);
   return (
     <div className="pb-track min-w-[300px] min-h-[52px]">
-      <div className="pb-dots-row">
-        {flow.map((status, index) => {
-          const active = current === status;
-          const done = visited.has(status);
-          return (
-            <div key={`dot-${status}-${index}`} className="flex items-center flex-1 last:flex-none">
-              <div className={active ? "pb-dot-active" : done ? "pb-dot-done" : "pb-dot-pending"}>
-                {active ? <span className="pb-dot-active-inner" /> : done ? <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>check</span> : null}
-              </div>
-              {index < flow.length - 1 ? <div className="pb-line"><div className={done ? "pb-line-fill pb-line-fill-done" : "pb-line-fill pb-line-fill-none"} /></div> : null}
-            </div>
-          );
+      <div className="pb-connector" aria-hidden="true">
+        {flow.slice(0, -1).map((status, index) => {
+          const done = isStepDone(status, index);
+          return <span key={`line-${status}-${index}`} className={done ? "pb-connector-segment pb-connector-segment-done" : "pb-connector-segment"} />;
         })}
       </div>
-      <div className="pb-labels-row">
+      <div className="pb-steps">
         {flow.map((status, index) => {
           const active = current === status;
-          const done = visited.has(status);
-          const slotClass = index === 0 ? "pb-label-slot pb-label-slot-start" : index === flow.length - 1 ? "pb-label-slot pb-label-slot-end" : "pb-label-slot";
+          const done = isStepDone(status, index);
           return (
-            <div key={`label-${status}-${index}`} className={slotClass}>
-              <div className="pb-label-col">
-                <span className={active ? "pb-label-active" : done ? "pb-label-done" : "pb-label-pending"}>{status}</span>
+            <div key={`${status}-${index}`} className="pb-step">
+              <div className="pb-step-dot-wrap">
+                <div className={active ? "pb-dot-active" : done ? "pb-dot-done" : "pb-dot-pending"}>
+                  {active ? <span className="pb-dot-active-inner" /> : done ? <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>check</span> : null}
+                </div>
               </div>
+              <span className={`pb-step-label ${active ? "pb-label-active" : done ? "pb-label-done" : "pb-label-pending"}`}>{status}</span>
             </div>
           );
         })}
@@ -757,9 +776,10 @@ function JudgmentDetailsForm(props: {
   onToggleJudgmentType: () => void;
   onSelectJudgmentType: (value: JudgmentType) => void;
   onChange: (field: keyof CustomerDetailFormState, value: string) => void;
+  onBlurField: (field: keyof CustomerDetailFormState) => void;
   onMoneyBlur: (field: keyof CustomerDetailFormState) => void;
   onRateBlur: (field: keyof CustomerDetailFormState) => void;
-  onFocusPlain: (field: keyof CustomerDetailFormState) => void;
+  onFocusPlain: (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => void;
   onConfirmRetroJudgment: () => void;
 }) {
   const { customer, form, fieldErrors, canEdit, hasRecordedRedCaseNo, activeJudgmentType } = props;
@@ -794,17 +814,17 @@ function JudgmentDetailsForm(props: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 field-grid-enhanced">
             <div>
               <label className="form-label-styled">วันที่ยื่นฟ้อง <span className="text-red-500">*</span></label>
-              <DateField id="filing-date" value={form.filingDate} onChange={(v) => props.onChange("filingDate", v)} placeholder="เลือกวันที่ยื่นฟ้อง" disabled error={fieldErrors.filingDate} />
+              <DateField id="filing-date" value={form.filingDate} onChange={(v) => props.onChange("filingDate", v)} onBlur={() => props.onBlurField("filingDate")} placeholder="เลือกวันที่ยื่นฟ้อง" disabled error={fieldErrors.filingDate} />
               <FieldError message={fieldErrors.filingDate} />
             </div>
             <div>
               <label className="form-label-styled">วันที่พิพากษา <span className="text-red-500">*</span></label>
-              <DateField id="judgment-date" value={form.judgmentDate} onChange={(v) => props.onChange("judgmentDate", v)} placeholder="เลือกวันที่พิพากษา" disabled={!canEdit} minDate={form.filingDate || undefined} error={fieldErrors.judgmentDate} />
+              <DateField id="judgment-date" value={form.judgmentDate} onChange={(v) => props.onChange("judgmentDate", v)} onBlur={() => props.onBlurField("judgmentDate")} placeholder="เลือกวันที่พิพากษา" disabled={!canEdit} minDate={form.filingDate || undefined} error={fieldErrors.judgmentDate} />
               <FieldError message={fieldErrors.judgmentDate} />
             </div>
             <div>
               <label className="form-label-styled">คดีหมายเลขแดงที่ <span className="text-red-500">*</span></label>
-              <input value={form.redCaseNo} onChange={(e) => props.onChange("redCaseNo", e.target.value)} readOnly={redCaseNoLocked} disabled={redCaseNoLocked} title={hasRecordedRedCaseNo ? "คดีหมายเลขแดงที่ถูกบันทึกครั้งแรกแล้ว ไม่อนุญาตให้แก้ไข" : ""} className={inputClass("redCaseNo", redCaseNoLocked ? "autocalc-input bg-slate-100 text-slate-500 cursor-not-allowed" : "")} type="text" placeholder="กรอกคดีหมายเลขแดงที่" autoComplete="off" />
+              <input value={form.redCaseNo} onChange={(e) => props.onChange("redCaseNo", e.target.value)} onBlur={() => props.onBlurField("redCaseNo")} readOnly={redCaseNoLocked} disabled={redCaseNoLocked} title={hasRecordedRedCaseNo ? "คดีหมายเลขแดงที่ถูกบันทึกครั้งแรกแล้ว ไม่อนุญาตให้แก้ไข" : ""} className={inputClass("redCaseNo", redCaseNoLocked ? "autocalc-input bg-slate-100 text-slate-500 cursor-not-allowed" : "")} type="text" placeholder="กรอกคดีหมายเลขแดงที่" autoComplete="off" />
               <FieldError message={fieldErrors.redCaseNo} />
             </div>
             {[
@@ -817,7 +837,7 @@ function JudgmentDetailsForm(props: {
               <div key={field}>
                 <label className="form-label-styled">{label} {["totalDebt", "principal", "interestRate"].includes(field) ? <span className="text-red-500">*</span> : null}</label>
                 <div className="relative">
-                  <input value={form[field as keyof CustomerDetailFormState]} onFocus={() => props.onFocusPlain(field as keyof CustomerDetailFormState)} onChange={(e) => props.onChange(field as keyof CustomerDetailFormState, field.includes("Rate") ? cleanRate(e.target.value) : cleanDecimal(e.target.value))} onBlur={() => field.includes("Rate") ? props.onRateBlur(field as keyof CustomerDetailFormState) : props.onMoneyBlur(field as keyof CustomerDetailFormState)} readOnly={!canEdit} disabled={!canEdit} className={inputClass(field, `${prefix ? "text-right pr-4 pl-10" : "text-right"} ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder={field.includes("Rate") ? "0" : "0.00"} type="text" inputMode="decimal" autoComplete="off" />
+                  <input value={form[field as keyof CustomerDetailFormState]} onFocus={(e) => props.onFocusPlain(field as keyof CustomerDetailFormState, e)} onChange={(e) => props.onChange(field as keyof CustomerDetailFormState, field.includes("Rate") ? cleanRate(e.target.value) : cleanDecimal(e.target.value))} onBlur={() => field.includes("Rate") ? props.onRateBlur(field as keyof CustomerDetailFormState) : props.onMoneyBlur(field as keyof CustomerDetailFormState)} readOnly={!canEdit} disabled={!canEdit} className={inputClass(field, `${prefix ? "text-right pr-4 pl-10" : "text-right"} ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder={field.includes("Rate") ? "0" : "0.00"} type="text" inputMode="decimal" autoComplete="off" />
                   {prefix ? <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">{prefix}</span> : null}
                 </div>
                 <FieldError message={fieldErrors[field]} />
@@ -825,7 +845,7 @@ function JudgmentDetailsForm(props: {
             ))}
             <div>
               <label className="form-label-styled">จำนวนงวดผ่อน <span className="text-red-500">*</span></label>
-              <input value={form.installmentCount} onChange={(e) => props.onChange("installmentCount", e.target.value.replace(/\D/g, ""))} readOnly={!canEdit || defaultJudgment} disabled={!canEdit || defaultJudgment} className={inputClass("installmentCount", (!canEdit || defaultJudgment) ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "")} placeholder="0" type="text" inputMode="numeric" autoComplete="off" />
+              <input value={form.installmentCount} onChange={(e) => props.onChange("installmentCount", e.target.value.replace(/\D/g, ""))} onBlur={() => props.onBlurField("installmentCount")} readOnly={!canEdit || defaultJudgment} disabled={!canEdit || defaultJudgment} className={inputClass("installmentCount", (!canEdit || defaultJudgment) ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "")} placeholder="0" type="text" inputMode="numeric" autoComplete="off" />
               <FieldError message={fieldErrors.installmentCount} />
             </div>
             <div>
@@ -837,7 +857,7 @@ function JudgmentDetailsForm(props: {
             </div>
             <div className="sm:col-span-2">
               <label className="form-label-styled">หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label>
-              <textarea value={form.judgmentNote} onChange={(e) => props.onChange("judgmentNote", e.target.value.slice(0, 100))} readOnly={!canEdit} disabled={!canEdit} className={inputClass("judgmentNote", `min-h-[92px] resize-none ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} maxLength={100} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" />
+              <textarea value={form.judgmentNote} onChange={(e) => props.onChange("judgmentNote", e.target.value.slice(0, 100))} onBlur={() => props.onBlurField("judgmentNote")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("judgmentNote", `min-h-[92px] resize-none ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} maxLength={100} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" />
               <p className="text-[10px] text-slate-400 mt-1">{form.judgmentNote.length}/100 ตัวอักษร</p>
               <FieldError message={fieldErrors.judgmentNote} />
             </div>
@@ -855,9 +875,10 @@ function PaymentDetailsForm(props: {
   canEdit: boolean;
   activeJudgmentType: JudgmentType | CaseStatus;
   onChange: (field: keyof CustomerDetailFormState, value: string) => void;
+  onBlurField: (field: keyof CustomerDetailFormState) => void;
   onMoneyBlur: (field: keyof CustomerDetailFormState) => void;
   onRateBlur: (field: keyof CustomerDetailFormState) => void;
-  onFocusPlain: (field: keyof CustomerDetailFormState) => void;
+  onFocusPlain: (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => void;
 }) {
   const { form, fieldErrors, canEdit, activeJudgmentType } = props;
   const defaultJudgment = activeJudgmentType === "พิพากษาฝ่ายเดียว";
@@ -881,7 +902,7 @@ function PaymentDetailsForm(props: {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 field-grid-enhanced">
               <div>
                 <label className="form-label-styled">วันครบกำหนดงวดแรก <span className="text-red-500">*</span></label>
-                <DateField id="first-due-date" value={form.firstDueDate} onChange={(v) => props.onChange("firstDueDate", v)} placeholder="เลือกวันครบกำหนดงวดแรก" disabled={!canEdit} minDate={form.judgmentDate || undefined} error={fieldErrors.firstDueDate} />
+                <DateField id="first-due-date" value={form.firstDueDate} onChange={(v) => props.onChange("firstDueDate", v)} onBlur={() => props.onBlurField("firstDueDate")} placeholder="เลือกวันครบกำหนดงวดแรก" disabled={!canEdit} minDate={form.judgmentDate || undefined} error={fieldErrors.firstDueDate} />
                 <FieldError message={fieldErrors.firstDueDate} />
               </div>
               <div>
@@ -896,7 +917,7 @@ function PaymentDetailsForm(props: {
                   <div key={field}>
                     <label className="form-label-styled">ค่างวดที่ {index + 1} {index === 0 ? <span className="text-red-500">*</span> : null}</label>
                     <div className="relative">
-                      <input value={form[field]} onFocus={() => props.onFocusPlain(field)} onChange={(e) => props.onChange(field, cleanDecimal(e.target.value))} onBlur={() => props.onMoneyBlur(field)} readOnly={locked} disabled={locked} className={inputClass(field, `text-right pr-4 pl-10 ${locked ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0.00" type="text" inputMode="decimal" autoComplete="off" />
+                      <input value={form[field]} onFocus={(e) => props.onFocusPlain(field, e)} onChange={(e) => props.onChange(field, cleanDecimal(e.target.value))} onBlur={() => props.onMoneyBlur(field)} readOnly={locked} disabled={locked} className={inputClass(field, `text-right pr-4 pl-10 ${locked ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0.00" type="text" inputMode="decimal" autoComplete="off" />
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">฿</span>
                     </div>
                     <FieldError message={fieldErrors[field]} />
@@ -906,7 +927,7 @@ function PaymentDetailsForm(props: {
             </div>
             <div>
               <label className="form-label-styled">ดอกเบี้ยเมื่อผิดนัด <span className="text-red-500">*</span></label>
-              <input value={form.defaultInterestRate} onFocus={() => props.onFocusPlain("defaultInterestRate")} onChange={(e) => props.onChange("defaultInterestRate", cleanRate(e.target.value))} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
+              <input value={form.defaultInterestRate} onFocus={(e) => props.onFocusPlain("defaultInterestRate", e)} onChange={(e) => props.onChange("defaultInterestRate", cleanRate(e.target.value))} onBlur={() => props.onRateBlur("defaultInterestRate")} readOnly={!canEdit} disabled={!canEdit} className={inputClass("defaultInterestRate", `text-right ${!canEdit ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : ""}`)} placeholder="0" type="text" inputMode="decimal" autoComplete="off" />
               <FieldError message={fieldErrors.defaultInterestRate} />
             </div>
             <div className="helper-panel">
@@ -962,7 +983,7 @@ function SchedulePreviewPanel({
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center bg-white/80 p-1 rounded-xl border border-blue-100 shadow-sm">
                 {(["monthly", "daily"] as const).map((view) => (
-                  <button key={view} type="button" onClick={() => onViewChange(view)} className={`px-3 py-1 rounded-lg text-[12px] font-bold transition-all ${scheduleView === view ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                  <button key={view} type="button" onClick={() => onViewChange(view)} className={`px-3 py-1 rounded-lg text-[12px] font-bold transition-all ${scheduleView === view ? "bg-primary text-white shadow-sm shadow-blue-900/15" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
                     {view === "monthly" ? "แสดงรายเดือน" : "แสดงทุกวันที่"}
                   </button>
                 ))}
@@ -989,7 +1010,7 @@ function SchedulePreviewPanel({
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-[12px]">
                     {shownRows.map((row, index) => (
-                      <tr key={`${row.date || row.due_date || index}-${index}`} className="hover:bg-slate-50/60">
+                      <tr key={`${row.date || row.due_date || index}-${index}`} className="bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
                         <td className="py-2.5 px-4 whitespace-nowrap text-slate-700 font-semibold">{fmtDate(row.date || row.due_date as string)}</td>
                         <td className="py-2.5 px-4 text-center">{String(row.term ?? row.month ?? "-")}</td>
                         {["principal_bf", "payment", "interest_paid", "principal_paid", "other_paid", "principal_bal", "daily_interest", "acc_interest"].map((key) => (
@@ -1040,14 +1061,15 @@ function EditHistoryPanel({ edits }: { edits: EditHistoryItem[] }) {
                 <p className="text-sm font-extrabold text-slate-800">{edit.edited_by_name || "-"}</p>
                 <p className="text-xs text-slate-400">{fmtTs(edit.edited_at)}</p>
               </div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                {Object.entries(edit.changes || {}).map(([field, change]) => (
-                  <div key={field} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                    <p className="text-[11px] font-black text-slate-500">{change.label || field}</p>
-                    <p className="text-xs text-slate-600 mt-1 break-words">{String(change.from ?? "-")} → <span className="font-bold text-slate-800">{String(change.to ?? "-")}</span></p>
-                  </div>
+              <p className="mt-2 text-xs leading-6 text-slate-600 break-words">
+                {Object.entries(edit.changes || {}).map(([field, change], index, entries) => (
+                  <span key={field}>
+                    <span className="font-black text-slate-500">{change.label || field}:</span>{" "}
+                    <span>{String(change.from ?? "-")} → <span className="font-bold text-slate-800">{String(change.to ?? "-")}</span></span>
+                    {index < entries.length - 1 ? <span className="mx-2 text-slate-300">·</span> : null}
+                  </span>
                 ))}
-              </div>
+              </p>
             </div>
           ))}
         </div>
@@ -1093,7 +1115,7 @@ function EnforcementSection({
           </div>
         </div>
         <div className="dashboard-card-content form-section-compact">
-          {showInfo ? (
+          {showInfo && !showForm ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 field-grid-enhanced mb-3">
               <InfoBox label="หมายเลขบังคับคดี" value={customer?.enforcement_order_no || customer?.red_case_no || "-"} />
               <InfoBox label="วันที่ของหมาย" value={fmtDate(customer?.enforcement_judgment_date)} />
@@ -1101,7 +1123,11 @@ function EnforcementSection({
             </div>
           ) : null}
           {showForm ? (
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div>
+                <label className="form-label-styled">หมายเลขคดีแดง / หมายเลขบังคับคดี</label>
+                <input value={customer?.red_case_no || customer?.enforcement_order_no || "-"} readOnly disabled className="form-input-styled autocalc-input bg-slate-100 text-slate-500 cursor-not-allowed font-medium" />
+              </div>
               <div>
                 <label className="form-label-styled">วันที่ของหมายบังคับคดี <span className="text-red-500">*</span></label>
                 <DateField id="enf-judgment-date" value={value} onChange={onChange} placeholder="เลือกวันที่ของหมาย" maxDate={todayIso()} error={error} />
@@ -1127,12 +1153,12 @@ function InfoBox({ label, value }: { label: string; value: string }) {
 }
 
 function RetroactivePanel({ type, alert, role, onConfirm }: { type: "judgment" | "enforcement"; alert?: RetroactiveAlert | null; role: UserRole; onConfirm: () => void }) {
+  if (!alert) return null;
   const affected = alert?.affected_month_label || alert?.affected_report_month || "-";
   const source = alert?.source_month_label || alert?.source_report_month || "-";
   const marked = Boolean(alert?.marked);
-  const hasAlert = Boolean(alert);
   const title = type === "judgment" ? "คำพิพากษาข้ามเดือน" : "บังคับคดีข้ามเดือน";
-  const canConfirm = hasAlert && !marked && isAdminRole(role);
+  const canConfirm = !marked && isAdminRole(role);
   return (
     <div className="sm:col-span-2 border border-amber-100 bg-amber-50/60 rounded-2xl px-4 py-3 mt-3">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -1143,13 +1169,13 @@ function RetroactivePanel({ type, alert, role, onConfirm }: { type: "judgment" |
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-extrabold text-slate-800">{title}</p>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${!hasAlert || marked ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-amber-50 text-amber-700 border-amber-100"}`}>{!hasAlert ? "ไม่มีรายการย้อนหลัง" : marked ? "แก้แล้ว" : "รอยืนยัน"}</span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${marked ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-amber-50 text-amber-700 border-amber-100"}`}>{marked ? "แก้แล้ว" : "รอยืนยัน"}</span>
             </div>
-            <p className="text-[12px] text-slate-500 mt-1">{!hasAlert ? "ไม่มีรายการที่ต้องยืนยันว่าแก้รายงานย้อนหลัง" : marked ? `ยืนยันแล้วว่าแก้รายงานเดือน ${affected} เรียบร้อย` : alert?.reason || `กรุณาตรวจสอบ/แก้รายงานเดือน ${affected}`}</p>
-            <p className="text-[11px] text-slate-400 mt-1">{marked ? `ยืนยันโดย ${alert?.marked_by_name || "-"} วันที่ ${fmtTs(alert?.marked_at)}` : hasAlert ? `วันที่มีผล: ${fmtDate(alert?.effective_date || alert?.enforcement_date)} | เดือนรายงานที่พบ: ${source}` : "รายการนี้ใช้เฉพาะเคสที่มีเงื่อนไขรายงานย้อนหลัง"}</p>
+            <p className="text-[12px] text-slate-500 mt-1">{marked ? `ยืนยันแล้วว่าแก้รายงานเดือน ${affected} เรียบร้อย` : alert.reason || `กรุณาตรวจสอบ/แก้รายงานเดือน ${affected}`}</p>
+            <p className="text-[11px] text-slate-400 mt-1">{marked ? `ยืนยันโดย ${alert.marked_by_name || "-"} วันที่ ${fmtTs(alert.marked_at)}` : `วันที่มีผล: ${fmtDate(alert.effective_date || alert.enforcement_date)} | เดือนรายงานที่พบ: ${source}`}</p>
           </div>
         </div>
-        <button type="button" onClick={onConfirm} disabled={!canConfirm} title={!hasAlert ? "ไม่มีรายการที่ต้องยืนยัน" : !isAdminRole(role) ? "เฉพาะ Admin เท่านั้นที่ยืนยันได้" : ""} className={`w-full sm:w-[245px] px-4 py-2.5 rounded-xl border bg-white text-xs font-bold transition-all ${canConfirm ? "border-amber-200 text-amber-700 hover:bg-amber-50" : "border-slate-200 text-slate-500 cursor-not-allowed"}`}>
+        <button type="button" onClick={onConfirm} disabled={!canConfirm} title={!isAdminRole(role) ? "เฉพาะ Admin เท่านั้นที่ยืนยันได้" : ""} className={`w-full sm:w-[245px] px-4 py-2.5 rounded-xl border bg-white text-xs font-bold transition-all ${canConfirm ? "border-amber-200 text-amber-700 hover:bg-amber-50" : "border-slate-200 text-slate-500 cursor-not-allowed"}`}>
           ยืนยันว่าแก้รายงานย้อนหลังแล้ว
         </button>
       </div>
@@ -1344,6 +1370,7 @@ export default function CustomerDetailPage() {
   const [originalForm, setOriginalForm] = useState<CustomerDetailFormState | null>(null);
   const [form, setForm] = useState<CustomerDetailFormState>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touchedFields, setTouchedFields] = useState<TouchedFields>({});
   const [previewDone, setPreviewDone] = useState(false);
   const [scheduleData, setScheduleData] = useState<SchedulePreviewData>({ daily: [], monthly: [] });
   const [scheduleView, setScheduleView] = useState<"monthly" | "daily">("monthly");
@@ -1398,6 +1425,7 @@ export default function CustomerDetailPage() {
     const activeType = nextForm.judgmentType || nextCustomer.case_status || "";
     if (manual) {
       const errors = validateFormForPreview(nextForm, nextCustomer);
+      setTouchedFields((prev) => ({ ...prev, ...touchFields(getPreviewRequiredFields(nextCustomer)) }));
       setFieldErrors(errors);
       if (Object.keys(errors).length) {
         setPreviewDone(false);
@@ -1452,6 +1480,7 @@ export default function CustomerDetailPage() {
       setOriginalForm(nextForm);
       setPreviewDone(false);
       setFieldErrors({});
+      setTouchedFields({});
       setEnforcementJudgmentDate("");
       await Promise.all([loadStatusLogs(), loadEditHistory()]);
       if (isPreviewFormReady(nextForm, data)) await runPreview(nextForm, data, false);
@@ -1474,7 +1503,7 @@ export default function CustomerDetailPage() {
         next.lastDueDate = calculateLastDueDate(next, next.judgmentType || customer?.case_status || "");
       }
       const relatedFields = getRelatedValidationFields(field);
-      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer, touchedFields);
       setFieldErrors((prevErrors) => {
         const merged = { ...prevErrors };
         relatedFields.forEach((relatedField) => {
@@ -1488,6 +1517,21 @@ export default function CustomerDetailPage() {
     setPreviewDone(false);
   };
 
+  const handleFieldBlur = (field: keyof CustomerDetailFormState) => {
+    const relatedFields = getRelatedValidationFields(field);
+    const nextTouched = { ...touchedFields, [field]: true };
+    setTouchedFields(nextTouched);
+    const nextInlineErrors = validateInlineFields(relatedFields, form, customer, nextTouched);
+    setFieldErrors((prevErrors) => {
+      const merged = { ...prevErrors };
+      relatedFields.forEach((relatedField) => {
+        if (nextInlineErrors[relatedField]) merged[relatedField] = nextInlineErrors[relatedField];
+        else delete merged[relatedField];
+      });
+      return merged;
+    });
+  };
+
   const handleSelectJudgmentType = (value: JudgmentType) => {
     setForm((prev) => {
       const next = { ...prev, judgmentType: value };
@@ -1499,7 +1543,8 @@ export default function CustomerDetailPage() {
       }
       next.lastDueDate = calculateLastDueDate(next, value || customer?.case_status || "");
       const relatedFields = getRelatedValidationFields("judgmentType");
-      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer, { ...touchedFields, judgmentType: true });
+      setTouchedFields((prevTouched) => ({ ...prevTouched, judgmentType: true }));
       setFieldErrors((prevErrors) => {
         const merged = { ...prevErrors };
         relatedFields.forEach((field) => {
@@ -1517,9 +1562,13 @@ export default function CustomerDetailPage() {
   const handleMoneyBlur = (field: keyof CustomerDetailFormState) => {
     if (!moneyFields.has(field)) return;
     setForm((prev) => {
-      const next = { ...prev, [field]: formatMoney(prev[field]) };
+      const isRequired = getPreviewRequiredFields(customer).includes(field);
+      const raw = String(prev[field] || "").trim();
+      const next = { ...prev, [field]: raw || !isRequired ? formatMoney(raw) : "" };
       const relatedFields = getRelatedValidationFields(field);
-      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      const nextTouched = { ...touchedFields, [field]: true };
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer, nextTouched);
+      setTouchedFields(nextTouched);
       setFieldErrors((prevErrors) => {
         const merged = { ...prevErrors };
         relatedFields.forEach((relatedField) => {
@@ -1536,7 +1585,9 @@ export default function CustomerDetailPage() {
     setForm((prev) => {
       const next = { ...prev, [field]: formatRate(prev[field]) };
       const relatedFields = getRelatedValidationFields(field);
-      const nextInlineErrors = validateInlineFields(relatedFields, next, customer);
+      const nextTouched = { ...touchedFields, [field]: true };
+      const nextInlineErrors = validateInlineFields(relatedFields, next, customer, nextTouched);
+      setTouchedFields(nextTouched);
       setFieldErrors((prevErrors) => {
         const merged = { ...prevErrors };
         relatedFields.forEach((relatedField) => {
@@ -1549,8 +1600,16 @@ export default function CustomerDetailPage() {
     });
   };
 
-  const handleFocusPlain = (field: keyof CustomerDetailFormState) => {
-    setForm((prev) => ({ ...prev, [field]: String(prev[field] || "").replace(/,/g, "").replace("%", "") }));
+  const handleFocusPlain = (field: keyof CustomerDetailFormState, event: FocusEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    setForm((prev) => {
+      const raw = String(prev[field] || "");
+      const plain = raw.replace(/,/g, "").replace("%", "");
+      const isRateField = field === "interestRate" || field === "defaultInterestRate";
+      const numericValue = isRateField ? parseRate(raw) : parseMoney(raw);
+      return { ...prev, [field]: numericValue === 0 ? "" : plain };
+    });
+    window.requestAnimationFrame(() => input.select());
   };
 
   const handlePreview = () => {
@@ -1569,6 +1628,7 @@ export default function CustomerDetailPage() {
       return;
     }
     const errors = validateFormForSubmit(form, customer);
+    setTouchedFields((prev) => ({ ...prev, ...touchFields(getPreviewRequiredFields(customer)) }));
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       showAlert("warning", "กรุณาตรวจสอบข้อมูล", Object.values(errors)[0] || "กรุณากรอกข้อมูลให้ครบ");
@@ -1729,6 +1789,7 @@ export default function CustomerDetailPage() {
                   onToggleJudgmentType={() => setJudgmentTypeOpen((open) => !open)}
                   onSelectJudgmentType={handleSelectJudgmentType}
                   onChange={updateForm}
+                  onBlurField={handleFieldBlur}
                   onMoneyBlur={handleMoneyBlur}
                   onRateBlur={handleRateBlur}
                   onFocusPlain={handleFocusPlain}
@@ -1740,6 +1801,7 @@ export default function CustomerDetailPage() {
                   canEdit={canEdit}
                   activeJudgmentType={activeJudgmentType}
                   onChange={updateForm}
+                  onBlurField={handleFieldBlur}
                   onMoneyBlur={handleMoneyBlur}
                   onRateBlur={handleRateBlur}
                   onFocusPlain={handleFocusPlain}
