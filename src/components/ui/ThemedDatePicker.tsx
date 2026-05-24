@@ -10,7 +10,9 @@ type ThemedDatePickerProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  minDate?: string;
   maxDate?: string;
+  disabled?: boolean;
   ariaInvalid?: boolean;
   ariaDescribedBy?: string;
   className?: string;
@@ -60,7 +62,9 @@ export default function ThemedDatePicker({
   value,
   onChange,
   placeholder = 'เลือกวันที่',
+  minDate,
   maxDate,
+  disabled,
   ariaInvalid,
   ariaDescribedBy,
   className = 'filter-date-display relative',
@@ -126,6 +130,7 @@ export default function ThemedDatePicker({
   }, [open, positionPopup]);
 
   const selectDay = (nextValue: string) => {
+    if (minDate && nextValue && nextValue < minDate) return;
     if (maxDate && nextValue && nextValue > maxDate) return;
     onChange(nextValue);
     setOpen(false);
@@ -173,10 +178,10 @@ export default function ThemedDatePicker({
               const isoValue = dateToIso(cell.date);
               const active = cell.currentMonth && isoValue === value;
               const isToday = cell.currentMonth && cell.date.getTime() === today.getTime();
-              const disabled = Boolean(cell.currentMonth && maxDate && isoValue > maxDate);
-              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''} ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`;
+              const dayDisabled = Boolean(cell.currentMonth && ((minDate && isoValue < minDate) || (maxDate && isoValue > maxDate)));
+              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''} ${dayDisabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`;
               return cell.currentMonth
-                ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={dayClassName} disabled={disabled}>{cell.date.getDate()}</button>
+                ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={dayClassName} disabled={dayDisabled}>{cell.date.getDate()}</button>
                 : <span key={isoValue} className={dayClassName}>{cell.date.getDate()}</span>;
             })}
           </div>
@@ -191,7 +196,7 @@ export default function ThemedDatePicker({
 
   return (
     <>
-      <button id={id} ref={anchorRef} type="button" onClick={openCalendar} className={`${className} ${open ? openClassName : ''}`} aria-invalid={ariaInvalid ? 'true' : undefined} aria-describedby={ariaDescribedBy}>
+      <button id={id} ref={anchorRef} type="button" onClick={openCalendar} className={`${className} ${open ? openClassName : ''} ${disabled ? 'cursor-not-allowed opacity-75 dp-autocalc' : ''}`} aria-invalid={ariaInvalid ? 'true' : undefined} aria-describedby={ariaDescribedBy} disabled={disabled}>
         {children ? children(dateText, !value) : dateText}
       </button>
       {calendarPopup ? createPortal(calendarPopup, document.body) : null}
