@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FocusEvent } from "react";
 import AppLayout from "../../components/layout/AppLayout";
+import AppFeedbackModal, { type AppFeedbackModalState } from "../../components/ui/AppFeedbackModal";
 import ThemedDatePicker from "../../components/ui/ThemedDatePicker";
 
 type UserRole = "user" | "admin" | "superadmin" | "";
@@ -1347,24 +1348,6 @@ function AlertModal({ state, onClose }: { state: { open: boolean; type: "warning
   );
 }
 
-function ToastModal({ state, onClose }: { state: { open: boolean; title: string; message: string; type: "success" | "error" }; onClose: () => void }) {
-  return (
-    <ModalShell open={state.open} z="z-[220]">
-      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose}></div>
-      <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
-        <div className="p-6 flex flex-col items-center text-center">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${state.type === "success" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>
-            <span className="material-symbols-outlined text-3xl">{state.type === "success" ? "check_circle" : "error"}</span>
-          </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">{state.title}</h3>
-          <p className="text-sm text-slate-500 leading-relaxed mb-6">{state.message}</p>
-          <button type="button" onClick={onClose} className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl transition-all text-sm">ตกลง</button>
-        </div>
-      </div>
-    </ModalShell>
-  );
-}
-
 function RetroEnforcementConfirmModal({ open, customer, submitting, onClose, onConfirm }: { open: boolean; customer: CustomerDetailData | null; submitting: boolean; onClose: () => void; onConfirm: () => void }) {
   const alert = customer?.retroactive_enforcement_alert;
   const affected = alert?.affected_month_label || alert?.affected_report_month || "-";
@@ -1414,7 +1397,12 @@ export default function CustomerDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [alertState, setAlertState] = useState({ open: false, type: "info" as "warning" | "error" | "info", title: "", message: "" });
-  const [toastState, setToastState] = useState({ open: false, title: "", message: "", type: "success" as "success" | "error" });
+  const [toastState, setToastState] = useState<AppFeedbackModalState>({
+    open: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
   const [editHistory, setEditHistory] = useState<EditHistoryItem[]>([]);
   const [statusLogs, setStatusLogs] = useState<StatusLog[]>([]);
   const [judgmentTypeOpen, setJudgmentTypeOpen] = useState(false);
@@ -1437,7 +1425,7 @@ export default function CustomerDetailPage() {
     setAlertState({ open: true, type, title, message });
   }, []);
 
-  const showToast = useCallback((type: "success" | "error", title: string, message: string) => {
+  const showToast = useCallback((type: AppFeedbackModalState["type"], title: string, message: string) => {
     setToastState({ open: true, type, title, message });
   }, []);
 
@@ -1900,7 +1888,7 @@ export default function CustomerDetailPage() {
         </footer>
         <ConfirmReviewModal open={isConfirmOpen} form={form} customer={customer} activeJudgmentType={activeJudgmentType} isSubmitting={isSubmitting} onClose={() => setIsConfirmOpen(false)} onConfirm={handleConfirmSubmit} />
         <AlertModal state={alertState} onClose={() => setAlertState((state) => ({ ...state, open: false }))} />
-        <ToastModal state={toastState} onClose={() => setToastState((state) => ({ ...state, open: false }))} />
+        <AppFeedbackModal state={toastState} onClose={() => setToastState((state) => ({ ...state, open: false }))} />
         <RetroEnforcementConfirmModal open={retroEnforcementConfirmOpen} customer={customer} submitting={isRetroSubmitting} onClose={() => setRetroEnforcementConfirmOpen(false)} onConfirm={handleConfirmRetroEnforcement} />
         {isRetroSubmitting && !retroEnforcementConfirmOpen ? <div className="fixed bottom-24 right-6 z-[100] rounded-xl bg-slate-900 text-white text-xs font-bold px-4 py-3 shadow-xl">กำลังบันทึกการยืนยัน...</div> : null}
       </div>
