@@ -231,7 +231,7 @@ function fmtTs(value?: string | null) {
 
 function fmtAccNo(value?: string | null) {
   const text = String(value || "");
-  return text.length === 12 ? `${text.slice(0, 3)}-${text.slice(3, 9)}-${text.slice(9)}` : text || "-";
+  return text.length === 12 ? `${text.slice(0, 4)}-${text.slice(4, 8)}-${text.slice(8, 12)}` : text || "-";
 }
 
 function parseMoney(value: string | number | undefined | null) {
@@ -383,7 +383,9 @@ function validateBusinessRules(form: CustomerDetailFormState, customer: Customer
   }
   if (parseRate(form.interestRate) > 24) errors.interestRate = "อัตราดอกเบี้ยต้องไม่เกิน 24%";
   if (parseRate(form.defaultInterestRate) > 24) errors.defaultInterestRate = "ดอกเบี้ยผิดนัดต้องไม่เกิน 24%";
-  if (form.filingDate && form.judgmentDate && form.judgmentDate < form.filingDate) {
+  if (form.filingDate && form.judgmentDate && customer?.case_status === "ยื่นฟ้อง" && form.judgmentDate <= form.filingDate) {
+    errors.judgmentDate = "วันที่พิพากษาต้องมากกว่าวันที่ยื่นฟ้อง";
+  } else if (form.filingDate && form.judgmentDate && form.judgmentDate < form.filingDate) {
     errors.judgmentDate = "วันที่พิพากษาต้องไม่น้อยกว่าวันที่ยื่นฟ้อง";
   }
   if (form.judgmentDate && form.firstDueDate && form.firstDueDate < form.judgmentDate) {
