@@ -157,7 +157,7 @@ export default function ThemedDatePicker({
 
   const dateText = value ? displayDate(value) : placeholder;
   const calendarPopup = open && (
-    <div ref={popupRef} style={popupStyle} className="dp-popup">
+    <div ref={popupRef} style={popupStyle} className="dp-popup open">
       <div className="dp-header">
         <button type="button" onClick={() => navMonth(-1)} className="dp-nav-btn" aria-label="เดือนก่อนหน้า"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
         <button type="button" onClick={() => setMonthView(view => !view)} className="dp-month-year">{THAI_MONTHS[month]} {year + 543}</button>
