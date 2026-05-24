@@ -1257,20 +1257,37 @@ function QuickSection({ icon, title, items }: { icon: string; title: string; ite
   );
 }
 
+function getPaginationWindow(page: number, totalPages: number, windowSize = 5) {
+  const size = Math.max(1, Math.min(windowSize, totalPages));
+  const half = Math.floor(size / 2);
+  let start = page - half;
+  let end = start + size - 1;
+
+  if (start < 1) {
+    start = 1;
+    end = size;
+  }
+  if (end > totalPages) {
+    end = totalPages;
+    start = Math.max(1, end - size + 1);
+  }
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
 function Pagination({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (page: number) => void }) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(i => i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1));
+  const pages = getPaginationWindow(page, totalPages);
   return (
     <div className="flex items-center gap-1">
+      <button onClick={() => onPage(1)} disabled={page === 1} className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all disabled:opacity-30"><span className="material-symbols-outlined text-indigo-300 text-base">first_page</span></button>
       <button onClick={() => onPage(page - 1)} disabled={page === 1} className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all disabled:opacity-30"><span className="material-symbols-outlined text-indigo-300 text-base">chevron_left</span></button>
       <div className="flex gap-1 px-2">
-        {pages.map((p, idx) => (
-          <span key={p} className="contents">
-            {idx > 0 && p - pages[idx - 1] > 1 && <span className="w-7 h-7 flex items-center justify-center text-[10px] text-indigo-200">...</span>}
-            <button onClick={() => onPage(p)} className={`w-7 h-7 rounded-lg text-[10px] transition-all ${p === page ? 'bg-primary text-white shadow-sm' : 'hover:bg-white text-indigo-400'}`}>{p}</button>
-          </span>
+        {pages.map(p => (
+          <button key={p} onClick={() => onPage(p)} className={`w-7 h-7 rounded-lg text-[10px] transition-all ${p === page ? 'bg-primary text-white shadow-sm' : 'hover:bg-white text-indigo-400'}`}>{p}</button>
         ))}
       </div>
       <button onClick={() => onPage(page + 1)} disabled={page === totalPages} className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all disabled:opacity-30"><span className="material-symbols-outlined text-indigo-300 text-base">chevron_right</span></button>
+      <button onClick={() => onPage(totalPages)} disabled={page === totalPages} className="p-1.5 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all disabled:opacity-30"><span className="material-symbols-outlined text-indigo-300 text-base">last_page</span></button>
     </div>
   );
 }

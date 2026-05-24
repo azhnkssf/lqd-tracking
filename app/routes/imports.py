@@ -757,6 +757,47 @@ def import_judgment():
             interest_rate  = parse_required_float(str(row[6]).replace('%', '').strip() if row[6] not in (None, '') else row[6], 'ดอกเบี้ย')
             court_fee      = parse_float(row[7])
             lawyer_fee     = parse_float(row[8])
+            filing_capital = round(float(cus.get('filing_capital') or 0), 2)
+
+            if filing_capital <= 0:
+                raise ValueError(
+                    'ไม่พบทุนทรัพย์ที่ฟ้องในระบบ หรือทุนทรัพย์ที่ฟ้องไม่ถูกต้อง '
+                    'กรุณาตรวจสอบข้อมูลลูกค้าก่อน Import คำพิพากษา'
+                )
+
+            if total_debt <= 0:
+                raise ValueError('ยอดหนี้รวมตามคำพิพากษาต้องมากกว่า 0')
+
+            if principal <= 0:
+                raise ValueError('เงินต้นตามคำพิพากษาต้องมากกว่า 0')
+
+            if total_debt > filing_capital:
+                raise ValueError(
+                    f'ยอดหนี้รวมตามคำพิพากษา ({total_debt:,.2f}) '
+                    f'ต้องไม่มากกว่าทุนทรัพย์ที่ฟ้อง ({filing_capital:,.2f})'
+                )
+
+            if principal > total_debt:
+                raise ValueError(
+                    f'เงินต้นตามคำพิพากษา ({principal:,.2f}) '
+                    f'ต้องไม่มากกว่ายอดหนี้รวมตามคำพิพากษา ({total_debt:,.2f})'
+                )
+
+            if principal > filing_capital:
+                raise ValueError(
+                    f'เงินต้นตามคำพิพากษา ({principal:,.2f}) '
+                    f'ต้องไม่มากกว่าทุนทรัพย์ที่ฟ้อง ({filing_capital:,.2f})'
+                )
+
+            if interest_rate < 0 or interest_rate > 24:
+                raise ValueError('อัตราดอกเบี้ยต่อปี (%) ต้องอยู่ระหว่าง 0 ถึง 24')
+
+            if court_fee < 0:
+                raise ValueError('ค่าธรรมเนียมศาลต้องไม่ติดลบ')
+
+            if lawyer_fee < 0:
+                raise ValueError('ค่าทนายความต้องไม่ติดลบ')
+
             inst_count     = parse_required_int(row[9], 'จำนวนงวด')
             inst1          = parse_required_float(row[11], 'ค่างวด 1')
             inst2          = parse_float(row[12])
