@@ -179,7 +179,7 @@ export default function ThemedDatePicker({
               const active = cell.currentMonth && isoValue === value;
               const isToday = cell.currentMonth && cell.date.getTime() === today.getTime();
               const dayDisabled = Boolean(cell.currentMonth && ((minDate && isoValue < minDate) || (maxDate && isoValue > maxDate)));
-              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''} ${dayDisabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`;
+              const dayClassName = `dp-day ${cell.currentMonth ? '' : 'dp-day-other'} ${active ? 'dp-day-selected' : ''} ${isToday && !active ? 'dp-day-today' : ''} ${dayDisabled ? 'dp-day-disabled opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`;
               return cell.currentMonth
                 ? <button key={isoValue} type="button" onClick={() => selectDay(isoValue)} className={dayClassName} disabled={dayDisabled}>{cell.date.getDate()}</button>
                 : <span key={isoValue} className={dayClassName}>{cell.date.getDate()}</span>;

@@ -485,23 +485,27 @@ function DateField({
   error?: string;
 }) {
   return (
-    <ThemedDatePicker
-      id={id}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      minDate={minDate}
-      maxDate={maxDate}
-      disabled={disabled}
-      className={`dp-input w-full text-left ${error ? "border-red-400 ring-4 ring-red-500/10" : ""}`}
-    >
-      {(text, isPlaceholder) => (
-        <>
-          <span className={isPlaceholder ? "text-slate-400" : "text-slate-800 font-semibold"}>{text}</span>
-          <span className="material-symbols-outlined dp-icon">calendar_today</span>
-        </>
-      )}
-    </ThemedDatePicker>
+    <div className="dp-wrap" id={`dp-wrap-${id}`}>
+      <div className="dp-input-row relative">
+        <ThemedDatePicker
+          id={id}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          minDate={minDate}
+          maxDate={maxDate}
+          disabled={disabled}
+          className={`dp-input w-full text-left ${error ? "error" : ""}`}
+        >
+          {(text, isPlaceholder) => (
+            <>
+              <span className={isPlaceholder ? "text-slate-400" : "text-slate-800 font-semibold"}>{text}</span>
+              <span className="material-symbols-outlined dp-icon">calendar_today</span>
+            </>
+          )}
+        </ThemedDatePicker>
+      </div>
+    </div>
   );
 }
 
@@ -520,34 +524,44 @@ function FieldError({ message }: { message?: string }) {
 function AccountSummaryCard({ customer }: { customer: CustomerDetailData | null }) {
   return (
     <div className="col-span-12">
-      <div className="dashboard-card overflow-hidden">
-        <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 text-white">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold text-indigo-200 uppercase tracking-wider">Customer Detail</p>
-              <h1 className="text-2xl md:text-3xl font-black mt-1">{customer ? customer.name : "กำลังโหลดข้อมูล..."}</h1>
-              <p className="text-sm text-slate-300 mt-1">{fmtAccNo(customer?.account_no)} • {customer?.case_status || "-"}</p>
+      <div className="dashboard-card">
+        <div className="px-5 md:px-6 py-4 border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 rounded-t-2xl overflow-hidden">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-100 to-cyan-100 flex items-center justify-center text-sky-600 shadow-sm flex-shrink-0">
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: '"FILL" 1' }}>account_balance_wallet</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-[18px] font-extrabold text-slate-800 tracking-tight">รายละเอียดบัญชี</h2>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-600 border border-sky-100">{customer?.case_status || "-"}</span>
+                </div>
+                <p className="text-[12px] text-slate-500 mt-0.5">ข้อมูลตั้งต้นจากการยื่นฟ้องและสถานะบัญชีล่าสุด</p>
+              </div>
             </div>
-            <a id="customer-detail-back-link" href={getSafeReturnTo("/customer-list")} className="btn-secondary-modern bg-white/10 text-white border-white/20 hover:bg-white/15">
-              กลับรายการลูกค้า
-            </a>
           </div>
         </div>
-        <div className="dashboard-card-content grid grid-cols-1 md:grid-cols-4 gap-3">
-          {[
-            ["ทุนทรัพย์ที่ฟ้อง", formatMoney(customer?.filing_capital ?? 0)],
-            ["วันที่ยื่นฟ้อง", fmtDate(customer?.filing_date)],
-            ["วันที่ผิดนัด", fmtDate(customer?.default_date)],
-            ["DPD ก่อนฟ้อง", customer?.pre_filing_dpd_days != null ? `${Number(customer.pre_filing_dpd_days).toLocaleString("th-TH")} วัน` : "-"],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-bold text-slate-400 uppercase">{label}</p>
-              <p className="text-sm font-extrabold text-slate-800 mt-1">{value}</p>
+        <div className="dashboard-card-content form-section-compact">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 field-grid-enhanced">
+            {[
+              ["เลขที่บัญชี", fmtAccNo(customer?.account_no)],
+              ["ชื่อ-นามสกุล", customer?.name || "-"],
+              ["ทุนทรัพย์ที่ฟ้อง", formatMoney(customer?.filing_capital ?? 0)],
+              ["วันที่ยื่นฟ้อง", fmtDate(customer?.filing_date)],
+              ["วันที่ผิดนัด", fmtDate(customer?.default_date)],
+              ["DPD ก่อนฟ้อง", customer?.pre_filing_dpd_days != null ? `${Number(customer.pre_filing_dpd_days).toLocaleString("th-TH")} วัน` : "-"],
+              ["สร้างเมื่อ", fmtTs(customer?.created_at)],
+              ["แก้ไขล่าสุด", fmtTs(customer?.updated_at)],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                <p className="text-sm font-extrabold text-slate-800 mt-1">{value}</p>
+              </div>
+            ))}
+            <div className="md:col-span-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">หมายเหตุการฟ้อง</p>
+              <p className="text-sm font-extrabold text-slate-800 mt-1">{customer?.filing_note || "-"}</p>
             </div>
-          ))}
-          <div className="md:col-span-4 rounded-2xl border border-slate-100 bg-white px-4 py-3">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">หมายเหตุการฟ้อง</p>
-            <p className="text-sm text-slate-700 mt-1">{customer?.filing_note || "-"}</p>
           </div>
         </div>
       </div>
@@ -564,25 +578,63 @@ function StatusProgressBar({ customer, logs }: { customer: CustomerDetailData | 
   if (current) visited.add(current);
   if (logs.length === 0 && current === "ปิดบัญชี") visited.delete("บังคับคดี");
   return (
-    <div className="col-span-12">
-      <div className="dashboard-card px-5 py-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {flow.map((status, index) => {
-            const active = current === status;
-            const done = visited.has(status);
-            return (
-              <div key={`${status}-${index}`} className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border ${active ? "bg-indigo-600 text-white border-indigo-600" : done ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
-                  {done ? "✓" : index + 1}
-                </div>
-                <span className={`text-xs font-bold ${active ? "text-indigo-700" : done ? "text-slate-700" : "text-slate-400"}`}>{status}</span>
-                {index < flow.length - 1 ? <div className="w-8 h-px bg-slate-200" /> : null}
+    <div className="pb-track min-w-[300px] min-h-[52px]">
+      <div className="pb-dots-row">
+        {flow.map((status, index) => {
+          const active = current === status;
+          const done = visited.has(status);
+          return (
+            <div key={`dot-${status}-${index}`} className="flex items-center flex-1 last:flex-none">
+              <div className={active ? "pb-dot-active" : done ? "pb-dot-done" : "pb-dot-pending"}>
+                {active ? <span className="pb-dot-active-inner" /> : done ? <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>check</span> : null}
               </div>
-            );
-          })}
-        </div>
+              {index < flow.length - 1 ? <div className="pb-line"><div className={done ? "pb-line-fill pb-line-fill-done" : "pb-line-fill pb-line-fill-none"} /></div> : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="pb-labels-row">
+        {flow.map((status, index) => {
+          const active = current === status;
+          const done = visited.has(status);
+          return (
+            <div key={`label-${status}-${index}`} className="flex items-start flex-1 last:flex-none">
+              <div className="pb-label-col">
+                <span className={active ? "pb-label-active" : done ? "pb-label-done" : "pb-label-pending"}>{status}</span>
+              </div>
+              {index < flow.length - 1 ? <div className="pb-label-spacer" /> : null}
+            </div>
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+function HeroBar({ customer, logs }: { customer: CustomerDetailData | null; logs: StatusLog[] }) {
+  return (
+    <section className="hero-gradient px-8 py-5 min-h-[112px] sticky top-16 z-30 shadow-lg border-b border-white/10">
+      <div className="max-w-[1600px] mx-auto min-h-[72px] flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+        <div className="flex items-start gap-4 min-w-0">
+          <a href={getSafeReturnTo("/customer-list")} className="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-lg shadow-black/10 backdrop-blur-sm hover:bg-white/15 transition-all flex-shrink-0">
+            <span className="material-symbols-outlined text-[26px]">arrow_back</span>
+          </a>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="font-headline text-2xl tracking-tight text-white font-extrabold">รายละเอียดลูกหนี้</h1>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/10 text-blue-100 border border-white/15 backdrop-blur-sm">Customer Detail</span>
+            </div>
+            <p className="text-blue-200/90 font-medium text-sm mt-1 truncate">{customer ? `${fmtAccNo(customer.account_no)} - ${customer.name}` : "กำลังโหลดข้อมูล..."}</p>
+          </div>
+        </div>
+        <div className="w-full xl:w-auto flex items-center xl:justify-end">
+          <div className="flex flex-col gap-2 w-full xl:w-auto">
+            <p className="text-[10px] text-blue-200/75 uppercase tracking-widest font-bold leading-none text-right">Status Progress</p>
+            <StatusProgressBar customer={customer} logs={logs} />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -844,57 +896,56 @@ function SchedulePreviewPanel({
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 shadow-sm flex-shrink-0">
-                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
               </div>
               <div>
-                <h2 className="text-[18px] font-extrabold text-slate-800 tracking-tight">ตารางพรีวิวการผ่อนชำระ</h2>
-                <p className="text-[12px] text-slate-500 mt-0.5">ผลคำนวณจากข้อมูลที่กดพรีวิวล่าสุด</p>
+                <h2 className="text-[18px] font-extrabold text-slate-800 tracking-tight">ตัวอย่างตารางผ่อนชำระ</h2>
+                <p className="text-[12px] text-slate-500 mt-0.5">ใช้ตรวจสอบตารางผ่อนชำระ</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center bg-white/80 p-1 rounded-xl border border-blue-100 shadow-sm">
                 {(["monthly", "daily"] as const).map((view) => (
-                  <button key={view} type="button" onClick={() => onViewChange(view)} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${scheduleView === view ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}>
-                    {view === "monthly" ? "รายเดือน" : "รายวัน"}
+                  <button key={view} type="button" onClick={() => onViewChange(view)} className={`px-3 py-1 rounded-lg text-[12px] font-bold transition-all ${scheduleView === view ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    {view === "monthly" ? "แสดงรายเดือน" : "แสดงทุกวันที่"}
                   </button>
                 ))}
               </div>
-              {stale ? <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 text-xs font-bold text-amber-700">กรุณากดพรีวิวใหม่</div> : null}
+              {stale ? <div className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-600 font-bold"><span className="material-symbols-outlined text-sm">refresh</span>กรุณากดพรีวิวใหม่</div> : null}
             </div>
           </div>
         </div>
         <div className="overflow-hidden flex flex-col">
           {loading ? (
-            <div className="p-10 text-center text-slate-500 font-semibold">กำลังคำนวณตาราง...</div>
+            <div className="p-8 text-center text-slate-400 text-sm">กำลังคำนวณ...</div>
           ) : rows.length === 0 ? (
-            <div className="p-10 text-center text-slate-400">
-              <span className="material-symbols-outlined text-4xl mb-2">visibility</span>
-              <p className="font-bold">{previewDone ? "ไม่พบข้อมูลตาราง" : "กดพรีวิวเพื่อแสดงตารางผ่อนชำระ"}</p>
+            <div className="p-8 text-center text-slate-400 text-sm">
+              {previewDone ? "ไม่พบข้อมูลตาราง" : 'กรอกข้อมูลให้ครบแล้วกด "พรีวิว" เพื่อดูตารางผ่อนชำระ'}
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead className="bg-slate-50 text-slate-500 font-black">
-                    <tr>
-                      {["วันที่", "งวด", "เงินต้นยกมา", "ชำระ", "ดอกเบี้ยที่ชำระ", "เงินต้นที่ชำระ", "อื่น ๆ", "เงินต้นคงเหลือ", "ดอกเบี้ยรายวัน", "ดอกเบี้ยสะสม"].map((head) => <th key={head} className="px-3 py-3 text-right first:text-left">{head}</th>)}
+              <div className="overflow-x-auto" style={{ maxHeight: 480, overflowY: "auto" }}>
+                <table className="w-full text-left border-collapse min-w-[1100px]">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      {["วันที่", "งวดที่", "เงินต้นยกมา", "จ่ายค่างวด", "ตัดดอกเบี้ย", "ตัดเงินต้น", "ชำระอื่น", "เงินต้นคงเหลือ", "ดอกเบี้ยรายวัน", "ดอกเบี้ยสะสม"].map((head, index) => <th key={head} className={`py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest ${index === 0 ? "" : index === 1 ? "text-center" : "text-right"}`}>{head}</th>)}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-50 text-[12px]">
                     {shownRows.map((row, index) => (
-                      <tr key={`${row.date || row.due_date || index}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/60">
-                        <td className="px-3 py-2 whitespace-nowrap text-slate-700 font-semibold">{fmtDate(row.date || row.due_date as string)}</td>
-                        <td className="px-3 py-2 text-right">{String(row.term ?? row.month ?? "-")}</td>
+                      <tr key={`${row.date || row.due_date || index}-${index}`} className="hover:bg-slate-50/60">
+                        <td className="py-2.5 px-4 whitespace-nowrap text-slate-700 font-semibold">{fmtDate(row.date || row.due_date as string)}</td>
+                        <td className="py-2.5 px-4 text-center">{String(row.term ?? row.month ?? "-")}</td>
                         {["principal_bf", "payment", "interest_paid", "principal_paid", "other_paid", "principal_bal", "daily_interest", "acc_interest"].map((key) => (
-                          <td key={key} className="px-3 py-2 text-right font-medium text-slate-700">{formatMoney(row[key] as string | number | undefined)}</td>
+                          <td key={key} className="py-2.5 px-4 text-right font-medium text-slate-700">{formatMoney(row[key] as string | number | undefined)}</td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-slate-500">
-                <span>{scheduleView === "daily" ? `แสดง ${shownRows.length} จาก ${rows.length} รายการ` : `ทั้งหมด ${rows.length} เดือน`}</span>
+              <div className="px-6 py-3 border-t border-slate-50 bg-slate-50/30 flex items-center justify-between gap-4">
+                <span className="text-[11px] text-slate-500">{scheduleView === "daily" ? `แสดง ${shownRows.length} จาก ${rows.length} รายการ` : `ทั้งหมด ${rows.length} เดือน`}</span>
                 {scheduleView === "daily" && pageCount > 1 ? (
                   <div className="flex items-center gap-2">
                     <button type="button" disabled={schedulePage <= 1} onClick={() => onPageChange(schedulePage - 1)} className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40">ก่อนหน้า</button>
@@ -1067,55 +1118,86 @@ function ConfirmReviewModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const items = [
-    ["หมายเลขบัญชี", fmtAccNo(customer?.account_no)],
-    ["ชื่อ-นามสกุล", customer?.name || "-"],
-    ["วันที่ยื่นฟ้อง", fmtDate(form.filingDate)],
-    ["วันที่พิพากษา", fmtDate(form.judgmentDate)],
-    ["คดีหมายเลขแดงที่", customer?.red_case_no || normalizeCaseNo(form.redCaseNo) || form.redCaseNo || "-"],
-    ["ประเภทคำพิพากษา", customer?.case_status === "ยื่นฟ้อง" ? activeJudgmentType || "-" : customer?.case_status || "-"],
-    ["หมายเหตุ", form.judgmentNote || "-"],
-    ["ยอดหนี้รวม", formatMoney(form.totalDebt)],
-    ["เงินต้น", formatMoney(form.principal)],
-    ["อัตราดอกเบี้ย/ปี", formatRate(form.interestRate)],
-    ["ค่าธรรมเนียมศาล", formatMoney(form.courtFee)],
-    ["ค่าทนายความ", formatMoney(form.lawyerFee)],
-    ["ยอดหนี้ส่วนต่าง", formatMoney(calculateDiffDebt(form))],
-    ["วันครบกำหนดงวดแรก", fmtDate(form.firstDueDate)],
-    ["วันครบกำหนดงวดสุดท้าย", fmtDate(calculateLastDueDate(form, activeJudgmentType))],
-    ["จำนวนงวดผ่อน", activeJudgmentType === "พิพากษาฝ่ายเดียว" ? "1" : form.installmentCount || "-"],
-    ["ดอกเบี้ยผิดนัด", formatRate(form.defaultInterestRate)],
-    ["ค่างวดที่ 1", formatMoney(form.installment1)],
-    ["ค่างวดที่ 2", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment2)],
-    ["ค่างวดที่ 3", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment3)],
-    ["ค่างวดที่ 4", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment4)],
-  ];
+  const redCaseNo = customer?.red_case_no || normalizeCaseNo(form.redCaseNo) || form.redCaseNo || "-";
+  const judgmentTypeText = customer?.case_status === "ยื่นฟ้อง" ? activeJudgmentType || "-" : customer?.case_status || "-";
+  const reviewItem = (label: string, value: string, className = "") => (
+    <div className="confirm-review-item">
+      <p className="confirm-review-label">{label}</p>
+      <p className={`confirm-review-value break-words ${className}`}>{value}</p>
+    </div>
+  );
   return (
-    <ModalShell open={open} z="z-[210]">
+    <ModalShell open={open} z="z-[300]">
       <div className="absolute inset-0 confirm-review-backdrop" onClick={onClose}></div>
-      <div className="confirm-review-panel relative w-full max-w-5xl max-h-[88vh] rounded-[24px] overflow-hidden flex flex-col">
+      <div className="confirm-review-panel relative w-full max-w-5xl max-h-[88vh] rounded-[28px] overflow-hidden flex flex-col">
         <div className="px-6 py-5 border-b border-slate-200/80 flex items-center justify-between gap-4 bg-white/72">
           <div className="flex items-center gap-4">
-            <div className="confirm-review-icon"><span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>fact_check</span></div>
+            <div className="confirm-review-icon"><span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: '"FILL" 1' }}>fact_check</span></div>
             <div>
-              <h3 className="text-xl font-black text-slate-800">ตรวจสอบก่อนบันทึก</h3>
-              <p className="text-xs text-slate-500 mt-1">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">ตรวจสอบข้อมูลก่อนบันทึก</h3>
+              <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Review & Confirm Changes</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400"><span className="material-symbols-outlined">close</span></button>
+          <button type="button" onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"><span className="material-symbols-outlined text-[20px]">close</span></button>
         </div>
-        <div className="overflow-y-auto flex-1 px-6 py-5">
-          <div className="confirm-review-grid cols-3">
-            {items.map(([label, value]) => (
-              <div key={label} className="confirm-review-item">
-                <p className="confirm-review-label">{label}</p>
-                <p className="confirm-review-value break-words">{value}</p>
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <section className="confirm-review-section">
+            <div className="confirm-review-section-head">
+              <div className="confirm-review-section-icon"><span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>account_balance_wallet</span></div>
+              <h4 className="text-lg font-extrabold text-slate-700">รายละเอียดบัญชี</h4>
+            </div>
+            <div className="confirm-review-grid">
+              {reviewItem("หมายเลขบัญชี", fmtAccNo(customer?.account_no))}
+              {reviewItem("ชื่อ-นามสกุล", customer?.name || "-")}
+            </div>
+          </section>
+          <section className="confirm-review-section">
+            <div className="confirm-review-section-head indigo">
+              <div className="confirm-review-section-icon"><span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>gavel</span></div>
+              <h4 className="text-lg font-extrabold text-slate-700">รายละเอียดคำพิพากษา</h4>
+            </div>
+            <div className="confirm-review-grid">
+              {reviewItem("วันที่ยื่นฟ้อง", fmtDate(form.filingDate))}
+              {reviewItem("วันที่พิพากษา", fmtDate(form.judgmentDate))}
+              {reviewItem("คดีหมายเลขแดงที่", redCaseNo)}
+              {reviewItem("หมายเหตุ", form.judgmentNote || "-")}
+            </div>
+            {customer?.case_status === "ยื่นฟ้อง" ? (
+              <div className="confirm-review-highlight">
+                <p className="confirm-review-label text-indigo-500">ประเภทคำพิพากษา</p>
+                <p className="confirm-review-value primary">{judgmentTypeText}</p>
               </div>
-            ))}
-          </div>
+            ) : null}
+            <div className="confirm-review-grid cols-3">
+              {reviewItem("ยอดหนี้รวม", formatMoney(form.totalDebt), "primary")}
+              {reviewItem("เงินต้น", formatMoney(form.principal))}
+              {reviewItem("อัตราดอกเบี้ย/ปี", formatRate(form.interestRate))}
+              {reviewItem("ค่าธรรมเนียมศาล", formatMoney(form.courtFee))}
+              {reviewItem("ค่าทนายความ", formatMoney(form.lawyerFee))}
+              {reviewItem("ยอดหนี้ส่วนต่าง", formatMoney(calculateDiffDebt(form)), "primary")}
+            </div>
+          </section>
+          <section className="confirm-review-section">
+            <div className="confirm-review-section-head green">
+              <div className="confirm-review-section-icon green"><span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>payments</span></div>
+              <h4 className="text-lg font-extrabold text-slate-700">รายละเอียดการชำระเงิน</h4>
+            </div>
+            <div className="confirm-review-grid">
+              {reviewItem("วันครบกำหนดงวดแรก", fmtDate(form.firstDueDate))}
+              {reviewItem("วันครบกำหนดงวดสุดท้าย", fmtDate(calculateLastDueDate(form, activeJudgmentType)))}
+              {reviewItem("จำนวนงวดผ่อน", activeJudgmentType === "พิพากษาฝ่ายเดียว" ? "1" : form.installmentCount || "-")}
+              {reviewItem("ดอกเบี้ยเมื่อผิดนัด", formatRate(form.defaultInterestRate), "danger")}
+            </div>
+            <div className="confirm-review-grid cols-4">
+              {reviewItem("ค่างวดที่ 1", formatMoney(form.installment1))}
+              {reviewItem("ค่างวดที่ 2", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment2), "text-slate-400")}
+              {reviewItem("ค่างวดที่ 3", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment3), "text-slate-400")}
+              {reviewItem("ค่างวดที่ 4", formatMoney(activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 0 : form.installment4), "text-slate-400")}
+            </div>
+          </section>
         </div>
         <div className="confirm-review-footer px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <p className="text-xs font-semibold text-slate-400">ข้อมูลนี้จะถูกส่งไปยัง API หลังจากกดยืนยัน</p>
+          <p className="text-xs font-semibold text-slate-400">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
           <div className="flex items-center justify-end gap-2">
             <button type="button" onClick={onClose} className="confirm-review-secondary-btn min-w-[96px] h-10 px-5 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold transition-all text-sm">แก้ไข</button>
             <button type="button" onClick={onConfirm} disabled={isSubmitting} className="confirm-review-primary-btn min-w-[160px] h-10 px-5 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
@@ -1512,10 +1594,11 @@ export default function CustomerDetailPage() {
   return (
     <AppLayout activePage="customer-list">
       <div className="customer-detail-page min-h-screen bg-surface text-on-surface font-body">
-        <main className="main-content p-4 md:p-6 pb-28">
-          <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-4 md:gap-6">
+        <main className="main-content md:ml-64 pt-16 min-h-screen pb-24">
+          <HeroBar customer={customer} logs={statusLogs} />
+          <div className="px-6 md:px-8 py-6">
+          <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-4 items-stretch">
             <AccountSummaryCard customer={customer} />
-            <StatusProgressBar customer={customer} logs={statusLogs} />
             {isLoadingCustomer ? (
               <div className="col-span-12 dashboard-card p-8 text-center text-slate-500 font-bold">กำลังโหลดข้อมูล...</div>
             ) : (
@@ -1575,17 +1658,20 @@ export default function CustomerDetailPage() {
               </>
             )}
           </div>
+          </div>
         </main>
         <footer className="detail-footer">
           <div className="max-w-[1600px] mx-auto flex justify-between items-center">
-            <div className="text-xs text-slate-400 hidden md:block">{roleLabels[role]} Terminal</div>
-            <div className="flex flex-wrap justify-end gap-4">
-              <a href={getSafeReturnTo("/customer-list")} className="btn-secondary-modern">Cancel</a>
-              <button id="preview-btn" type="button" onClick={handlePreview} disabled={!canEdit || isPreviewLoading} className="btn-primary-modern disabled:opacity-40 disabled:cursor-not-allowed">
+            <div></div>
+            <div className="flex gap-4">
+              <a href={getSafeReturnTo("/customer-list")} className="px-5 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-50 transition-all text-sm border border-slate-200">
+                Cancel
+              </a>
+              <button id="preview-btn" type="button" onClick={handlePreview} disabled={!canEdit || isPreviewLoading} className="px-6 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-900/10 hover:bg-primary-dark transition-all text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                 <span className="material-symbols-outlined text-base">visibility</span>
                 {isPreviewLoading ? "กำลังพรีวิว..." : "พรีวิว"}
               </button>
-              <button id="submit-btn" type="button" disabled={!canSubmit} onClick={handleSubmitClick} className="btn-primary-modern px-6 disabled:opacity-40 disabled:cursor-not-allowed">
+              <button id="submit-btn" type="button" disabled={!canSubmit} onClick={handleSubmitClick} className="px-8 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-900/10 hover:bg-primary-dark transition-all text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                 <span className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-base">save</span>
                   {isSubmitting ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
