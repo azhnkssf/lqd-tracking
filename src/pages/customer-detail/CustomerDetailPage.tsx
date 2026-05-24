@@ -74,7 +74,36 @@ type LegacyEvent =
 function runLegacyAction(expression: string, event: LegacyEvent) {
   // Temporary bridge while the remaining DOM-based customer-detail handlers
   // are migrated to typed React state one behavior slice at a time.
-  Function("event", expression).call(event.currentTarget, event);
+  const legacyWindow = window as unknown as Window &
+    Record<string, unknown> & {
+      showAlert?: (type: string, title: string, message: string) => void;
+    };
+  const target = event.currentTarget;
+  if (target instanceof HTMLButtonElement) {
+    event.preventDefault();
+  }
+
+  try {
+    Function("event", `with (window) { ${expression} }`).call(target, event);
+  } catch (error) {
+    console.error("[CustomerDetail] legacy action failed", {
+      expression,
+      error,
+    });
+
+    const maybeShowAlert = legacyWindow.showAlert;
+    if (typeof maybeShowAlert === "function") {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "เกิดข้อผิดพลาดระหว่างทำรายการ";
+      maybeShowAlert(
+        "error",
+        "ไม่สามารถทำรายการได้",
+        message,
+      );
+    }
+  }
 }
 
 type ThaiDateUtils = {
@@ -131,6 +160,37 @@ function installCustomerDetailRuntime() {
 
   const runInGlobalScope = globalThis.eval as (source: string) => unknown;
   runInGlobalScope(customerDetailRuntimeScript);
+  runInGlobalScope(`
+    [
+      'hideError',
+      'submitEnforcement',
+      'confirmRetroJudgmentFix',
+      'jtToggle',
+      'jtSelect',
+      'dpOpen',
+      'dpNavMonth',
+      'dpToggleMyPicker',
+      'dpNavYear',
+      'dpSelectMonth',
+      'dpSelectYear',
+      'dpClear',
+      'loadPreview',
+      'switchView',
+      'closeConfirmModal',
+      'doSubmit',
+      'closeAlert',
+      'handleCancel',
+      'handleLogout',
+      'handleSubmit',
+      'closeRetroEnforcementConfirm',
+      'confirmRetroEnforcementFix',
+      'showAlert'
+    ].forEach(function(name) {
+      if (typeof globalThis[name] === 'function') {
+        window[name] = globalThis[name];
+      }
+    });
+  `);
 }
 
 function useCustomerDetailRuntime() {
@@ -2714,6 +2774,7 @@ function CustomerDetailMarkup({ runLegacyAction }: CustomerDetailMarkupProps) {
             </div>
 
             <button
+              type="button"
               onClick={(event) => runLegacyAction("closeConfirmModal()", event)}
               className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
             >
@@ -2997,6 +3058,7 @@ function CustomerDetailMarkup({ runLegacyAction }: CustomerDetailMarkupProps) {
 
             <div className="flex items-center justify-end gap-2">
               <button
+                type="button"
                 onClick={(event) =>
                   runLegacyAction("closeConfirmModal()", event)
                 }
@@ -3007,6 +3069,7 @@ function CustomerDetailMarkup({ runLegacyAction }: CustomerDetailMarkupProps) {
 
               <button
                 id="confirm-submit-btn"
+                type="button"
                 onClick={(event) => runLegacyAction("doSubmit()", event)}
                 className="confirm-review-primary-btn min-w-[160px] h-10 px-5 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
@@ -3089,6 +3152,7 @@ function CustomerDetailMarkup({ runLegacyAction }: CustomerDetailMarkupProps) {
 
             <button
               id="preview-btn"
+              type="button"
               onClick={(event) =>
                 runLegacyAction(
                   "document.getElementById('preview-btn').dataset.manual='true'; loadPreview()",
@@ -3105,6 +3169,7 @@ function CustomerDetailMarkup({ runLegacyAction }: CustomerDetailMarkupProps) {
 
             <button
               id="submit-btn"
+              type="button"
               onClick={(event) => runLegacyAction("handleSubmit()", event)}
               disabled
               className="btn-primary-modern px-6 disabled:opacity-40 disabled:cursor-not-allowed"
