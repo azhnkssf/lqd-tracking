@@ -191,8 +191,11 @@ function canEditJudgmentData(role: UserRole, caseStatus?: CaseStatus) {
 }
 
 function editPermissionMessage(caseStatus?: CaseStatus) {
+  if (caseStatus === "ปิดบัญชี") {
+    return "บัญชีนี้อยู่ในสถานะปิดบัญชีแล้ว ไม่อนุญาตให้แก้ไขข้อมูลคำพิพากษาและแผนชำระ";
+  }
   if (caseStatus === "ยื่นฟ้อง") {
-    return "สถานะยื่นฟ้องอนุญาตให้ User และ Admin แก้ไขได้เท่านั้น";
+    return "สถานะยื่นฟ้องแก้ไขได้เฉพาะ User และ Admin เท่านั้น";
   }
   return "สถานะนี้อนุญาตให้แก้ไขได้เฉพาะ Admin เท่านั้น";
 }
@@ -501,9 +504,15 @@ function isPreviewFormReady(form: CustomerDetailFormState, customer: CustomerDet
 
 function buildPreviewPayload(form: CustomerDetailFormState, activeJudgmentType: JudgmentType | CaseStatus) {
   return {
+    case_status: activeJudgmentType,
+    judgment_type: activeJudgmentType,
     filing_date: form.filingDate,
+    total_debt: parseMoney(form.totalDebt),
     principal: parseMoney(form.principal),
     interest_rate: parseRate(form.interestRate),
+    default_interest_rate: parseRate(form.defaultInterestRate),
+    court_fee: parseMoney(form.courtFee),
+    lawyer_fee: parseMoney(form.lawyerFee),
     installment_count: activeJudgmentType === "พิพากษาฝ่ายเดียว" ? 1 : Number.parseInt(form.installmentCount || "0", 10),
     diff_debt: calculateDiffDebt(form),
     first_due_date: form.firstDueDate,
@@ -668,22 +677,24 @@ function StatusProgressBar({ customer, logs }: { customer: CustomerDetailData | 
   const judgmentStatus = logStatuses.includes("พิพากษาฝ่ายเดียว") || current === "พิพากษาฝ่ายเดียว" ? "พิพากษาฝ่ายเดียว" : "พิพากษาตามยอม";
   const flow = ["ยื่นฟ้อง", judgmentStatus, "บังคับคดี", "ปิดบัญชี"];
   const visited = new Set(logStatuses);
+  if (customer) visited.add("ยื่นฟ้อง");
   if (current) visited.add(current);
-  if (logs.length === 0 && current === "ปิดบัญชี") visited.delete("บังคับคดี");
   const currentIndex = flow.indexOf(current);
-  const isStepDone = (status: string, index: number) => visited.has(status) || (currentIndex >= 0 && index <= currentIndex);
+  const isStepActive = (status: string) => current === status;
+  const isStepDone = (status: string) => visited.has(status) && !isStepActive(status);
+  const isConnectorDone = (index: number) => currentIndex >= 0 && index < currentIndex;
   return (
     <div className="pb-track min-w-[300px] min-h-[52px]">
       <div className="pb-connector" aria-hidden="true">
         {flow.slice(0, -1).map((status, index) => {
-          const done = isStepDone(status, index);
+          const done = isConnectorDone(index);
           return <span key={`line-${status}-${index}`} className={done ? "pb-connector-segment pb-connector-segment-done" : "pb-connector-segment"} />;
         })}
       </div>
       <div className="pb-steps">
         {flow.map((status, index) => {
-          const active = current === status;
-          const done = isStepDone(status, index);
+          const active = isStepActive(status);
+          const done = isStepDone(status);
           return (
             <div key={`${status}-${index}`} className="pb-step">
               <div className="pb-step-dot-wrap">
