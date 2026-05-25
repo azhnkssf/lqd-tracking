@@ -1856,16 +1856,25 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             'remark'         : _build_enforcement_remark(cus, snap, report_date_str),
         })
         if enforcement_from_status == 'พิพากษาฝ่ายเดียว':
+            default_context = _calculate_report30_default_context(
+                cus,
+                payments or [],
+                report_date_str
+            )
+
             return _apply_report30_new_fields(
                 base,
                 filing_date=filing_value,
                 filing_amount=filing_amount,
                 judgment_debt=_num(cus.get('total_debt')),
                 judgment_date=cus.get('judgment_date'),
+                first_default_date=default_context.get('first_default_due_date'),
+                dpd_days=default_context.get('current_dpd_days'),
                 remaining_debt=_calc_remaining_debt(cus, snap),
                 note='คดีแพ่ง',
                 note_2='พิพากษาฝ่ายเดียว',
                 note_3='1.5',
+                litigation_remark=base.get('remark') or '',
             )
 
         if enforcement_from_status == 'พิพากษาตามยอม' or _is_consent_enforcement_case(cus):
