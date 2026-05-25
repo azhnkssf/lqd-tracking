@@ -1820,36 +1820,30 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
 
     if case_status == 'บังคับคดี':
         enforcement_from_status = _get_enforcement_from_status(cus)
-        report30_dpd = (
-            _report30_default_judgment_dpd(cus, report_date_str)
-            if enforcement_from_status == 'พิพากษาฝ่ายเดียว'
-            else (snap.get('dpd_months') if snap else None)
+        is_consent_enforcement = (
+            enforcement_from_status == 'พิพากษาตามยอม'
+            or _is_consent_enforcement_case(cus)
         )
+        report30_dpd = snap.get('dpd_months') if (is_consent_enforcement and snap) else None
         base.update({
             'judgment_debt'  : _num(cus.get('total_debt')),
             'judgment_date'  : cus.get('judgment_date'),
-            'default_amount' : snap.get('default_amount') if snap else None,
-            'default_date'   : snap.get('default_date') if snap else None,
+            'default_amount' : snap.get('default_amount') if (is_consent_enforcement and snap) else None,
+            'default_date'   : snap.get('default_date') if (is_consent_enforcement and snap) else None,
             'dpd'            : report30_dpd,
             'dpd_months'     : report30_dpd,
             'remaining_debt' : _calc_remaining_debt(cus, snap),
             'remark'         : _build_enforcement_remark(cus, snap, report_date_str),
         })
         if enforcement_from_status == 'พิพากษาฝ่ายเดียว':
-            default_context = _calculate_report30_default_context(
-                cus,
-                payments or [],
-                report_date_str
-            )
-
             return _apply_report30_new_fields(
                 base,
                 filing_date=filing_value,
                 filing_amount=filing_amount,
                 judgment_debt=_num(cus.get('total_debt')),
                 judgment_date=cus.get('judgment_date'),
-                first_default_date=default_context.get('first_default_due_date'),
-                dpd_days=default_context.get('current_dpd_days'),
+                first_default_date='',
+                dpd_days='',
                 remaining_debt=_calc_remaining_debt(cus, snap),
                 note='คดีแพ่ง',
                 note_2='พิพากษาฝ่ายเดียว',
@@ -1857,8 +1851,8 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
                 litigation_remark=base.get('remark') or '',
             )
 
-        if enforcement_from_status == 'พิพากษาตามยอม' or _is_consent_enforcement_case(cus):
-            default_context = _calculate_report30_default_context(cus, payments, report_date_str)
+        if is_consent_enforcement:
+            default_context = _calculate_report30_default_context(cus, payments or [], report_date_str)
             return _apply_report30_new_fields(
                 base,
                 filing_date='',
