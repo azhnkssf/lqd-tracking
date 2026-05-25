@@ -437,6 +437,13 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
     if (cus.get('case_status') or '').strip() != 'บังคับคดี':
         return None
 
+    # Retroactive enforcement alert ต้องมีเฉพาะ
+    # พิพากษาตามยอม(31) -> บังคับคดี(30)
+    # พิพากษาฝ่ายเดียว(30) -> บังคับคดี(30) ไม่ต้อง alert เพราะ report group ไม่เปลี่ยน
+    from_status = _get_status_before_enforcement(cus)
+    if from_status != 'พิพากษาตามยอม':
+        return None
+
     effective_date = _get_enforcement_effective_date(cus)
     if not effective_date:
         return None
@@ -448,7 +455,6 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
     if not _is_before_month(effective_date, recorded_date):
         return None
 
-    from_status = _get_status_before_enforcement(cus)
     from_group = CASE_STATUS_REPORT_MAP.get(from_status)
     to_group = CASE_STATUS_REPORT_MAP.get('บังคับคดี')
     if from_group and to_group and from_group == to_group:
@@ -505,7 +511,10 @@ def build_retroactive_judgment_alert(cus, db=None, report_date_str=None, include
         cus = _attach_case_status_log_context(cus, db)
 
     current_status = (cus.get('case_status') or '').strip()
-    if current_status not in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
+    # Retroactive judgment alert ต้องมีเฉพาะ
+    # ยื่นฟ้อง(30) -> พิพากษาตามยอม(31)
+    # ยื่นฟ้อง(30) -> พิพากษาฝ่ายเดียว(30) ไม่ต้อง alert เพราะ report group ไม่เปลี่ยน
+    if current_status != 'พิพากษาตามยอม':
         return None
 
     effective_date = _parse_report_date(cus.get('judgment_date'))

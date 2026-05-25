@@ -111,8 +111,9 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         rows = [
             (1, 'NORMAL', 'Normal', 'ยื่นฟ้อง', '2026-04-01', 100, None, 0, 0, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
             (2, 'J-PENDING', 'Judgment Pending', 'พิพากษาตามยอม', '2026-03-10', 100, '2026-04-15', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, None, None, None, 0),
-            (3, 'J-MARKED', 'Judgment Marked', 'พิพากษาฝ่ายเดียว', '2026-03-10', 100, '2026-04-10', 100, 100, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
+            (3, 'J-MARKED', 'Judgment Marked', 'พิพากษาตามยอม', '2026-03-10', 100, '2026-04-10', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, None, None, None, 0),
             (4, 'E-PENDING', 'Enforcement Pending', 'บังคับคดี', '2026-03-01', 100, '2026-04-01', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, '2026-04-20', None, '2026-05-08', 0),
+            (5, 'J-DEFAULT', 'Default Judgment', 'พิพากษาฝ่ายเดียว', '2026-03-10', 100, '2026-04-12', 100, 100, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
         ]
         conn.executemany('''
             INSERT INTO customers
@@ -129,7 +130,8 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             VALUES (?, ?, ?, 1, ?, '')
         ''', [
             ('J-PENDING', 'ยื่นฟ้อง', 'พิพากษาตามยอม', '2026-05-08'),
-            ('J-MARKED', 'ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', '2026-05-08'),
+            ('J-MARKED', 'ยื่นฟ้อง', 'พิพากษาตามยอม', '2026-05-08'),
+            ('J-DEFAULT', 'ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', '2026-05-08'),
             ('E-PENDING', 'พิพากษาตามยอม', 'บังคับคดี', '2026-05-08'),
         ])
         conn.execute('''
@@ -176,13 +178,19 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
             j_pending = next(row for row in corrected['report_31'] if row.get('account_no') == 'J-PENDING')
             e_pending = next(row for row in corrected['report_30'] if row.get('account_no') == 'E-PENDING')
-            j_marked = next(row for row in corrected['report_30'] if row.get('account_no') == 'J-MARKED')
+            j_marked = next(row for row in corrected['report_31'] if row.get('account_no') == 'J-MARKED')
+            j_default = next(row for row in corrected['report_30'] if row.get('account_no') == 'J-DEFAULT')
 
             self.assertIn('มีคำพิพากษาย้อนหลัง', j_pending['remark'])
             self.assertEqual(e_pending['case_status'], 'บังคับคดี')
             self.assertIn('มีหมายบังคับคดีย้อนหลัง', e_pending['report30_litigation_remark'])
-            self.assertEqual(j_marked['report30_note_2'], 'พิพากษาฝ่ายเดียว')
-            self.assertNotIn('ย้อนหลัง', j_marked.get('report30_litigation_remark') or '')
+            self.assertNotIn('ย้อนหลัง', j_marked.get('remark') or '')
+            self.assertEqual(j_default['report30_note_2'], 'พิพากษาฝ่ายเดียว')
+            self.assertNotIn('ย้อนหลัง', j_default.get('report30_litigation_remark') or '')
+            self.assertFalse(any(
+                alert.get('account_no') == 'J-DEFAULT'
+                for alert in corrected['retroactive_alerts']
+            ))
         finally:
             reports.get_current_user = original_get_current_user
 
@@ -386,7 +394,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
         self.assertEqual(reason[0], 'FILING_DATE_AFTER_REPORT')
 
-    def test_retroactive_judgment_pending_normal_mode_uses_effective_status_and_adds_remark(self):
+    def test_retroactive_default_judgment_does_not_create_alert_or_remark(self):
         customer = {
             'account_no': 'J-1',
             'case_status': 'พิพากษาฝ่ายเดียว',
@@ -403,11 +411,13 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         }
         alert = build_retroactive_judgment_alert(customer)
 
+        self.assertIsNone(alert)
+
         customer_as_of = _build_customer_as_of_report_date(
             customer,
             '2026-04-30',
             report_mode=REPORT_MODE_NORMAL,
-            retroactive_alerts=[alert],
+            retroactive_alerts=[alert] if alert else [],
         )
         row = _build_report30_row_from_db(
             'J-1',
@@ -421,21 +431,51 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         )
         row = apply_correction_warning_remark(row, customer_as_of)
 
-        self.assertEqual(alert['reason_code'], RETROACTIVE_JUDGMENT_REASON_CODE)
         self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
         self.assertEqual(row['report30_note_2'], 'พิพากษาฝ่ายเดียว')
-        self.assertIn('มีคำพิพากษาย้อนหลัง', row['report30_litigation_remark'])
+        self.assertNotIn('ย้อนหลัง', row['report30_litigation_remark'])
+
+    def test_retroactive_consent_judgment_uses_effective_status_and_adds_remark(self):
+        customer = {
+            'account_no': 'J-31',
+            'case_status': 'พิพากษาตามยอม',
+            'filing_date': '2026-03-10',
+            'judgment_date': '2026-04-15',
+            'total_debt': 100,
+            '_case_status_logs': [
+                {
+                    'from_status': 'ยื่นฟ้อง',
+                    'to_status': 'พิพากษาตามยอม',
+                    'changed_at': '2026-05-08',
+                },
+            ],
+        }
+        alert = build_retroactive_judgment_alert(customer)
+
+        customer_as_of = _build_customer_as_of_report_date(
+            customer,
+            '2026-04-30',
+            report_mode=REPORT_MODE_NORMAL,
+            retroactive_alerts=[alert],
+        )
+        row = apply_correction_warning_remark({'remark': ''}, customer_as_of)
+
+        self.assertEqual(alert['reason_code'], RETROACTIVE_JUDGMENT_REASON_CODE)
+        self.assertEqual(alert['from_status'], 'ยื่นฟ้อง')
+        self.assertEqual(alert['to_status'], 'พิพากษาตามยอม')
+        self.assertEqual(customer_as_of['case_status'], 'พิพากษาตามยอม')
+        self.assertIn('มีคำพิพากษาย้อนหลัง', row['remark'])
 
     def test_retroactive_judgment_marked_alert_does_not_add_pending_remark(self):
         customer = {
             'account_no': 'J-2',
-            'case_status': 'พิพากษาฝ่ายเดียว',
+            'case_status': 'พิพากษาตามยอม',
             'filing_date': '2026-03-10',
             'judgment_date': '2026-04-15',
             '_case_status_logs': [
                 {
                     'from_status': 'ยื่นฟ้อง',
-                    'to_status': 'พิพากษาฝ่ายเดียว',
+                    'to_status': 'พิพากษาตามยอม',
                     'changed_at': '2026-05-08',
                 },
             ],
@@ -450,7 +490,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         )
         row = apply_correction_warning_remark({'remark': ''}, customer_as_of)
 
-        self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertEqual(customer_as_of['case_status'], 'พิพากษาตามยอม')
         self.assertNotIn('_pending_correction_alert', customer_as_of)
         self.assertEqual(row['remark'], '')
 
@@ -744,12 +784,12 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             conn.execute("""
                 INSERT INTO customers
                 (id, account_no, name, case_status, filing_date, judgment_date, is_deleted)
-                VALUES (1, 'J-MARK', 'Judgment Mark', 'พิพากษาฝ่ายเดียว', '2026-03-10', '2026-04-15', 0)
+                VALUES (1, 'J-MARK', 'Judgment Mark', 'พิพากษาตามยอม', '2026-03-10', '2026-04-15', 0)
             """)
             conn.execute("""
                 INSERT INTO case_status_logs
                 (account_no, from_status, to_status, changed_by, changed_at, note)
-                VALUES ('J-MARK', 'ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 1, '2026-05-08', '')
+                VALUES ('J-MARK', 'ยื่นฟ้อง', 'พิพากษาตามยอม', 1, '2026-05-08', '')
             """)
             conn.commit()
             conn.close()
