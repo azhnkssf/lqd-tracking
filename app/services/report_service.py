@@ -1797,33 +1797,41 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         )
 
     if case_status == 'พิพากษาฝ่ายเดียว':
-        is_monthly_default = bool(
-            snap
-            and snap.get('default_date')
-            and str(snap.get('ncb_months')) == '30'
+        default_context = _calculate_report30_default_context(
+            cus,
+            payments or [],
+            report_date_str
         )
+
+        first_default_date = default_context.get('first_default_due_date')
+        current_dpd_days = default_context.get('current_dpd_days')
 
         base.update({
             'judgment_debt'  : _num(cus.get('total_debt')),
             'judgment_date'  : cus.get('judgment_date'),
-            'default_amount' : snap.get('default_amount') if is_monthly_default else None,
-            'default_date'   : snap.get('default_date') if is_monthly_default else None,
+            'default_amount' : snap.get('default_amount') if snap else None,
+            'default_date'   : first_default_date,
             'dpd'            : (
-                _report30_default_judgment_dpd(cus, report_date_str)
-                if is_monthly_default else _int_num(cus.get('pre_filing_dpd_days'), 0)
+                current_dpd_days
+                if current_dpd_days is not None
+                else _int_num(cus.get('pre_filing_dpd_days'), 0)
             ),
             'dpd_months'     : (
-                _report30_default_judgment_dpd(cus, report_date_str)
-                if is_monthly_default else _int_num(cus.get('pre_filing_dpd_days'), 0)
+                current_dpd_days
+                if current_dpd_days is not None
+                else _int_num(cus.get('pre_filing_dpd_days'), 0)
             ),
             'remaining_debt' : _calc_remaining_debt(cus, snap),
         })
+
         return _apply_report30_new_fields(
             base,
             filing_date=filing_value,
             filing_amount=filing_amount,
             judgment_debt=_num(cus.get('total_debt')),
             judgment_date=cus.get('judgment_date'),
+            first_default_date=first_default_date,
+            dpd_days=current_dpd_days,
             remaining_debt=_calc_remaining_debt(cus, snap),
             note='คดีแพ่ง',
             note_2='พิพากษาฝ่ายเดียว',
