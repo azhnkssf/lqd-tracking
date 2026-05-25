@@ -83,6 +83,86 @@ class ReportEnforcementSnapshotTests(unittest.TestCase):
         self.assertIs(_build_customer_as_of_report_date(customer, '2026-03-31'), customer)
         self.assertEqual(customer['case_status'], 'บังคับคดี')
 
+    def test_future_closed_rolls_back_to_default_judgment_for_report30(self):
+        customer = {
+            'case_status': 'ปิดบัญชี',
+            'filing_date': '2026-01-01',
+            'judgment_date': '2026-02-01',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาฝ่ายเดียว',
+                    'to_status': 'ปิดบัญชี',
+                    'changed_at': '2026-04-10',
+                },
+            ],
+        }
+
+        customer_as_of = _build_customer_as_of_report_date(customer, '2026-03-31')
+
+        self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertEqual(_get_report_group(customer_as_of, {'principal_bal': 100}), '30')
+        self.assertFalse(_future_effective_reason(customer_as_of, '2026-03-31'))
+        self.assertEqual(
+            customer_as_of['_snapshot_rollback_reason'],
+            'CLOSED_AFTER_REPORT_DATE',
+        )
+
+    def test_future_closed_rolls_back_to_enforcement_for_report30(self):
+        customer = {
+            'case_status': 'ปิดบัญชี',
+            'filing_date': '2026-01-01',
+            'judgment_date': '2026-02-01',
+            'enforcement_judgment_date': '2026-03-15',
+            '_case_status_logs': [
+                {
+                    'from_status': 'บังคับคดี',
+                    'to_status': 'ปิดบัญชี',
+                    'changed_at': '2026-04-10',
+                },
+            ],
+        }
+
+        customer_as_of = _build_customer_as_of_report_date(customer, '2026-03-31')
+
+        self.assertEqual(customer_as_of['case_status'], 'บังคับคดี')
+        self.assertEqual(_get_report_group(customer_as_of, {'principal_bal': 100}), '30')
+        self.assertFalse(_future_effective_reason(customer_as_of, '2026-03-31'))
+
+    def test_future_closed_rolls_back_to_consent_judgment_for_report31(self):
+        customer = {
+            'case_status': 'ปิดบัญชี',
+            'filing_date': '2026-01-01',
+            'judgment_date': '2026-02-01',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาตามยอม',
+                    'to_status': 'ปิดบัญชี',
+                    'changed_at': '2026-04-10',
+                },
+            ],
+        }
+
+        customer_as_of = _build_customer_as_of_report_date(customer, '2026-03-31')
+
+        self.assertEqual(customer_as_of['case_status'], 'พิพากษาตามยอม')
+        self.assertEqual(_get_report_group(customer_as_of, {'principal_bal': 100}), '31')
+        self.assertFalse(_future_effective_reason(customer_as_of, '2026-03-31'))
+
+    def test_closed_effective_by_report_date_stays_report11(self):
+        customer = {
+            'case_status': 'ปิดบัญชี',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาฝ่ายเดียว',
+                    'to_status': 'ปิดบัญชี',
+                    'changed_at': '2026-04-10',
+                },
+            ],
+        }
+
+        self.assertIs(_build_customer_as_of_report_date(customer, '2026-04-30'), customer)
+        self.assertEqual(_get_report_group(customer, {'principal_bal': 100}), '11')
+
     def test_future_judgment_reason_is_preserved_after_rollback_gate(self):
         reason = _future_effective_reason(
             {

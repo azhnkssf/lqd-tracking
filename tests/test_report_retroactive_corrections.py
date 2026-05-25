@@ -11,7 +11,6 @@ from app.routes import customers
 from app.routes import reports
 from app.services.report_service import (
     REPORT30_HEADERS,
-    REPORT_MODE_CORRECTED,
     REPORT_MODE_NORMAL,
     RETROACTIVE_ENFORCEMENT_REASON_CODE,
     RETROACTIVE_JUDGMENT_REASON_CODE,
@@ -143,7 +142,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         conn.close()
         return temp_dir, db_path
 
-    def test_corrected_route_exports_pending_correction_accounts_only(self):
+    def test_corrected_mode_payload_is_ignored_and_generates_normal_report(self):
         temp_dir, db_path = self._create_report_route_db()
         self.addCleanup(temp_dir.cleanup)
         app = create_app()
@@ -170,16 +169,24 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
             self.assertIn('NORMAL', normal_accounts)
             self.assertIn('J-MARKED', normal_accounts)
-            self.assertEqual(corrected_accounts, {'J-PENDING', 'E-PENDING'})
-            self.assertEqual(len(corrected['report_31']), 1)
-            self.assertEqual(corrected['report_31'][0]['account_no'], 'J-PENDING')
-            self.assertEqual(len(corrected['report_30']), 1)
-            self.assertEqual(corrected['report_30'][0]['account_no'], 'E-PENDING')
-            self.assertEqual(corrected['summary']['generated_total'], 2)
+            self.assertEqual(corrected['report_mode'], 'normal')
+            self.assertEqual(corrected_accounts, normal_accounts)
+            self.assertIn('J-PENDING', corrected_accounts)
+            self.assertIn('E-PENDING', corrected_accounts)
+
+            j_pending = next(row for row in corrected['report_31'] if row.get('account_no') == 'J-PENDING')
+            e_pending = next(row for row in corrected['report_30'] if row.get('account_no') == 'E-PENDING')
+            j_marked = next(row for row in corrected['report_30'] if row.get('account_no') == 'J-MARKED')
+
+            self.assertIn('มีคำพิพากษาย้อนหลัง', j_pending['remark'])
+            self.assertEqual(e_pending['case_status'], 'บังคับคดี')
+            self.assertIn('มีหมายบังคับคดีย้อนหลัง', e_pending['report30_litigation_remark'])
+            self.assertEqual(j_marked['report30_note_2'], 'พิพากษาฝ่ายเดียว')
+            self.assertNotIn('ย้อนหลัง', j_marked.get('report30_litigation_remark') or '')
         finally:
             reports.get_current_user = original_get_current_user
 
-    def test_invalid_corrected_scope_returns_400(self):
+    def test_invalid_corrected_scope_is_ignored(self):
         temp_dir, db_path = self._create_report_route_db()
         self.addCleanup(temp_dir.cleanup)
         app = create_app()
@@ -194,11 +201,12 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
                 'corrected_scope': 'all_accounts',
             })
 
-            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.get_json()['report_mode'], 'normal')
         finally:
             reports.get_current_user = original_get_current_user
 
-    def test_corrected_route_with_no_pending_corrections_returns_zero_rows(self):
+    def test_corrected_mode_payload_does_not_filter_to_pending_only(self):
         temp_dir, db_path = self._create_report_route_db()
         self.addCleanup(temp_dir.cleanup)
         app = create_app()
@@ -215,11 +223,8 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             payload = response.get_json()
 
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(payload['report_30'], [])
-            self.assertEqual(payload['report_31'], [])
-            self.assertEqual(payload['report_11'], [])
-            self.assertEqual(payload['not_generated'], [])
-            self.assertEqual(payload['summary']['generated_total'], 0)
+            self.assertEqual(payload['report_mode'], 'normal')
+            self.assertGreater(payload['summary']['generated_total'], 0)
         finally:
             reports.get_current_user = original_get_current_user
 
@@ -381,7 +386,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
         self.assertEqual(reason[0], 'FILING_DATE_AFTER_REPORT')
 
-    def test_retroactive_judgment_pending_normal_mode_rolls_back_and_adds_remark(self):
+    def test_retroactive_judgment_pending_normal_mode_uses_effective_status_and_adds_remark(self):
         customer = {
             'account_no': 'J-1',
             'case_status': 'พิพากษาฝ่ายเดียว',
@@ -417,11 +422,11 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         row = apply_correction_warning_remark(row, customer_as_of)
 
         self.assertEqual(alert['reason_code'], RETROACTIVE_JUDGMENT_REASON_CODE)
-        self.assertEqual(customer_as_of['case_status'], 'ยื่นฟ้อง')
-        self.assertEqual(row['report30_note_2'], 'ฟ้องแล้ว')
+        self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertEqual(row['report30_note_2'], 'พิพากษาฝ่ายเดียว')
         self.assertIn('มีคำพิพากษาย้อนหลัง', row['report30_litigation_remark'])
 
-    def test_retroactive_judgment_corrected_mode_uses_judgment_status(self):
+    def test_retroactive_judgment_marked_alert_does_not_add_pending_remark(self):
         customer = {
             'account_no': 'J-2',
             'case_status': 'พิพากษาฝ่ายเดียว',
@@ -436,15 +441,18 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             ],
         }
         alert = build_retroactive_judgment_alert(customer)
+        alert['marked'] = True
 
         customer_as_of = _build_customer_as_of_report_date(
             customer,
             '2026-04-30',
-            report_mode=REPORT_MODE_CORRECTED,
             retroactive_alerts=[alert],
         )
+        row = apply_correction_warning_remark({'remark': ''}, customer_as_of)
 
         self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertNotIn('_pending_correction_alert', customer_as_of)
+        self.assertEqual(row['remark'], '')
 
     def test_retroactive_marked_normal_mode_uses_effective_status(self):
         customer = {
@@ -468,7 +476,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertIs(customer_as_of, customer)
         self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
 
-    def test_retroactive_enforcement_pending_normal_and_corrected_modes(self):
+    def test_retroactive_enforcement_pending_normal_mode_uses_effective_status_and_adds_remark(self):
         customer = {
             'account_no': 'E-1',
             'case_status': 'บังคับคดี',
@@ -492,17 +500,10 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             report_mode=REPORT_MODE_NORMAL,
             retroactive_alerts=[alert],
         )
-        corrected_customer = _build_customer_as_of_report_date(
-            customer,
-            '2026-04-30',
-            report_mode=REPORT_MODE_CORRECTED,
-            retroactive_alerts=[alert],
-        )
         row = apply_correction_warning_remark({'remark': 'เดิม'}, normal_customer)
 
         self.assertEqual(alert['reason_code'], RETROACTIVE_ENFORCEMENT_REASON_CODE)
-        self.assertEqual(normal_customer['case_status'], 'พิพากษาตามยอม')
-        self.assertEqual(corrected_customer['case_status'], 'บังคับคดี')
+        self.assertEqual(normal_customer['case_status'], 'บังคับคดี')
         self.assertIn('เดิม | มีหมายบังคับคดีย้อนหลัง', row['remark'])
 
     def test_retroactive_enforcement_from_default_judgment_does_not_create_alert(self):
@@ -530,7 +531,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertFalse(any(item.get('type') == 'enforcement' for item in alerts))
         self.assertEqual(summary['pending_enforcement'], 0)
 
-    def test_corrected_route_excludes_retroactive_enforcement_from_default_judgment(self):
+    def test_corrected_mode_payload_keeps_normal_generation_without_default_enforcement_alert(self):
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         db_path = os.path.join(temp_dir.name, 'default-enforcement-route.db')
@@ -647,9 +648,9 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             generated_accounts = {
                 row.get('account_no') for row in corrected['report_30'] + corrected['report_31']
             }
-            self.assertNotIn('E-DEFAULT', generated_accounts)
+            self.assertIn('E-DEFAULT', generated_accounts)
             self.assertEqual(corrected['summary']['correction_summary']['pending_enforcement'], 0)
-            self.assertEqual(corrected['summary']['generated_total'], 0)
+            self.assertEqual(corrected['report_mode'], 'normal')
         finally:
             reports.get_current_user = original_get_current_user
 

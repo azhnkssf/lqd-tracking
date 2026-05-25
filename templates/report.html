@@ -386,10 +386,6 @@ tailwind.config = {
                     </div>
 
                     <div class="md:ml-auto flex flex-col sm:flex-row gap-2">
-                    <button id="btn-export-corrected" onclick="exportCorrectedReport()" class="hidden inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm shadow-amber-100">
-                        <span class="material-symbols-outlined text-base">published_with_changes</span>
-                        Export เฉพาะรายการแก้ย้อนหลัง
-                    </button>
                     <button onclick="exportReport()" class="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-100">
                         <span class="material-symbols-outlined text-base">download</span>
                         Export Excel (All)
@@ -406,7 +402,7 @@ tailwind.config = {
                                 <div>
                                     <p class="font-bold">พบรายการที่ต้องตรวจสอบรายงานย้อนหลัง</p>
                                     <p id="correction-warning-detail" class="mt-1 text-amber-800"></p>
-                                    <p class="mt-1 text-amber-700">ระบบพบข้อมูลทางคดีที่มีผลในเดือนรายงานนี้ แต่ถูกบันทึกเข้าระบบภายหลัง กรุณาตรวจสอบและ Export ฉบับแก้ไขย้อนหลัง</p>
+                                    <p class="mt-1 text-amber-700">ระบบสร้างรายงานตามวันที่มีผลจริงแล้ว กรุณาตรวจสอบ/แก้ไขรายงานเดือนย้อนหลัง และกดยืนยันเมื่อดำเนินการเรียบร้อย</p>
                                 </div>
                             </div>
                             <button onclick="switchTab('retro')" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white border border-amber-200 text-amber-700 text-xs font-bold">
@@ -858,11 +854,9 @@ tailwind.config = {
     function updateCorrectionPanel(data) {
         const panel = document.getElementById('correction-warning-panel');
         const detail = document.getElementById('correction-warning-detail');
-        const btn = document.getElementById('btn-export-corrected');
         const summary = data.correction_summary || data.summary?.correction_summary || {};
         const hasPending = !!summary.has_pending_corrections;
         if (panel) panel.classList.toggle('hidden', !hasPending);
-        if (btn) btn.classList.toggle('hidden', !hasPending);
         if (detail) {
             detail.textContent = `คำพิพากษาข้ามเดือน: ${fmt(summary.pending_judgment || 0)} รายการ | บังคับคดีข้ามเดือน: ${fmt(summary.pending_enforcement || 0)} รายการ`;
         }
@@ -996,7 +990,7 @@ tailwind.config = {
                 alerts: reportData.alerts || [],
                 missing_db: reportData.missing_db || [],
                 not_generated: reportData.not_generated || [],
-                report_mode: reportData.report_mode || 'normal',
+                report_mode: 'normal',
             };
 
             const res = await fetch('/api/report/export-all', {
@@ -1034,77 +1028,6 @@ tailwind.config = {
             URL.revokeObjectURL(url);
 
             showToast('success', 'Export สำเร็จ', 'ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว');
-        } catch (err) {
-            showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
-        }
-    }
-
-    async function exportCorrectedReport() {
-        const reportDate = reportData?.report_date || document.getElementById('report-date').value;
-        if (!reportDate) { showToast('warning', 'ยังไม่มีวันที่รายงาน', 'กรุณาเลือกวันที่ Report'); return; }
-        showProcessingModal('กำลังสร้างฉบับแก้ไขย้อนหลัง', 'ระบบกำลังประมวลผล corrected report และสร้างไฟล์ Excel');
-        try {
-            const res = await fetch('/api/report/generate-db', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    report_date: reportDate,
-                    report_mode: 'corrected',
-                    corrected_scope: 'pending_only'
-                })
-            });
-            const corrected = await res.json();
-            if (!res.ok) throw new Error(corrected.error || 'ไม่สามารถสร้างฉบับแก้ไขย้อนหลังได้');
-
-            const correctedTotal =
-                (corrected.report_30 || []).length +
-                (corrected.report_31 || []).length +
-                (corrected.report_11 || []).length +
-                (corrected.not_generated || []).length;
-            if (correctedTotal === 0) {
-                showToast('warning', 'ไม่พบรายการ', 'ไม่พบรายการที่ต้อง Export ฉบับแก้ไขย้อนหลัง');
-                return;
-            }
-
-            const payload = {
-                report_date: corrected.report_date || reportDate,
-                report_mode: 'corrected',
-                report_30: corrected.report_30 || [],
-                report_31: corrected.report_31 || [],
-                report_11: corrected.report_11 || [],
-                alerts: corrected.alerts || [],
-                missing_db: corrected.missing_db || [],
-                not_generated: corrected.not_generated || [],
-            };
-            const exportRes = await fetch('/api/report/export-all', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!exportRes.ok) throw new Error('ไม่สามารถ Export ฉบับแก้ไขย้อนหลังได้');
-            const blob = await exportRes.blob();
-            const disposition = exportRes.headers.get('Content-Disposition') || '';
-            const filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
-            const filename = filenameMatch
-                ? decodeURIComponent(filenameMatch[1].replace(/"/g, ''))
-                : `Report_All_${reportDate}_Corrected.xlsx`;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            const report30Count = (corrected.report_30 || []).length;
-            const report31Count = (corrected.report_31 || []).length;
-            const report11Count = (corrected.report_11 || []).length;
-            const notGeneratedCount = (corrected.not_generated || []).length;
-            showToast(
-                'success',
-                'Export สำเร็จ',
-                `Report 30: ${report30Count} | Report 31: ${report31Count} | Status 11: ${report11Count} | Not Generated: ${notGeneratedCount} | รวม: ${correctedTotal}`
-            );
         } catch (err) {
             showToast('error', 'Export ไม่สำเร็จ', err.message || 'ไม่สามารถเชื่อมต่อ Server ได้');
         }

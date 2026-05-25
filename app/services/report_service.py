@@ -36,7 +36,6 @@ CASE_STATUS_REPORT_MAP = {
 RETROACTIVE_ENFORCEMENT_REASON_CODE = 'RETROACTIVE_ENFORCEMENT_REPORT_FIX'
 RETROACTIVE_JUDGMENT_REASON_CODE = 'RETROACTIVE_JUDGMENT_REPORT_FIX'
 REPORT_MODE_NORMAL = 'normal'
-REPORT_MODE_CORRECTED = 'corrected'
 
 REPORT30_HEADERS = [
     'เลขที่บัญชี',
@@ -721,7 +720,48 @@ def _get_status_before_enforcement(cus):
     return 'ยื่นฟ้อง'
 
 
-def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_MODE_NORMAL, retroactive_alerts=None):
+def _get_status_before_closed(cus):
+    if not cus:
+        return 'ยื่นฟ้อง'
+
+    valid_previous_statuses = ('ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม', 'บังคับคดี')
+    logs = cus.get('_case_status_logs') or []
+    for log in reversed(logs):
+        to_status = str(log.get('to_status') or '').strip()
+        from_status = str(log.get('from_status') or '').strip()
+        if to_status == 'ปิดบัญชี' and from_status in valid_previous_statuses:
+            return from_status
+
+    if (
+        cus.get('enforcement_judgment_date') or
+        cus.get('enforcement_received_date') or
+        cus.get('enforcement_date')
+    ):
+        return 'บังคับคดี'
+
+    if cus.get('judgment_date'):
+        candidates = [
+            cus.get('judgment_type'),
+            cus.get('judgment_kind'),
+            cus.get('judgment_result'),
+            cus.get('judgment_status'),
+            cus.get('case_judgment_type'),
+            cus.get('judgment_method'),
+            cus.get('judgment_category'),
+            cus.get('judgment_type_name'),
+            cus.get('previous_case_status'),
+            cus.get('prev_case_status'),
+            cus.get('original_case_status'),
+        ]
+        text = ' '.join(str(v or '') for v in candidates)
+        if 'ตามยอม' in text:
+            return 'พิพากษาตามยอม'
+        return 'พิพากษาฝ่ายเดียว'
+
+    return 'ยื่นฟ้อง'
+
+
+def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_MODE_NORMAL, retroactive_alerts=None, payments=None):
     """
     คืน customer dict ที่มี case_status ถูกต้อง ณ report_date
 
@@ -743,31 +783,32 @@ def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_M
     if filing_date and filing_date > report_date:
         return cus
 
-    if report_mode != REPORT_MODE_CORRECTED:
-        for alert in retroactive_alerts or []:
-            if alert.get('marked') or not _is_alert_effective_for_report(alert, report_date_str):
-                continue
+    pending_alert = None
+    for alert in retroactive_alerts or []:
+        if alert.get('marked') or not _is_alert_effective_for_report(alert, report_date_str):
+            continue
+        pending_alert = alert
+        break
 
-            if alert.get('type') == 'judgment' and current_status in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
-                cus_as_of = dict(cus)
-                cus_as_of['case_status'] = 'ยื่นฟ้อง'
-                cus_as_of['_latest_case_status'] = current_status
-                cus_as_of['_pending_correction_alert'] = alert
-                cus_as_of['_snapshot_rolled_back_from_status'] = current_status
-                cus_as_of['_snapshot_rolled_back_to_status'] = 'ยื่นฟ้อง'
-                cus_as_of['_snapshot_rollback_reason'] = 'PENDING_RETROACTIVE_JUDGMENT_CORRECTION'
-                return cus_as_of
+    if pending_alert:
+        cus = dict(cus)
+        cus['_pending_correction_alert'] = pending_alert
 
-            if alert.get('type') == 'enforcement' and current_status == 'บังคับคดี':
-                previous_status = alert.get('from_status') or _get_status_before_enforcement(cus)
-                cus_as_of = dict(cus)
-                cus_as_of['case_status'] = previous_status
-                cus_as_of['_latest_case_status'] = current_status
-                cus_as_of['_pending_correction_alert'] = alert
-                cus_as_of['_snapshot_rolled_back_from_status'] = current_status
-                cus_as_of['_snapshot_rolled_back_to_status'] = previous_status
-                cus_as_of['_snapshot_rollback_reason'] = 'PENDING_RETROACTIVE_ENFORCEMENT_CORRECTION'
-                return cus_as_of
+    if current_status == 'ปิดบัญชี':
+        closed_date = _parse_report_date(_get_closed_date(cus, payments))
+        if closed_date and closed_date > report_date:
+            previous_status = _get_status_before_closed(cus)
+
+            cus_as_of = dict(cus)
+            cus_as_of['case_status'] = previous_status
+            cus_as_of['_latest_case_status'] = current_status
+            cus_as_of['_snapshot_rolled_back_from_status'] = current_status
+            cus_as_of['_snapshot_rolled_back_to_status'] = previous_status
+            cus_as_of['_snapshot_rollback_reason'] = 'CLOSED_AFTER_REPORT_DATE'
+            cus_as_of['_snapshot_closed_effective_date'] = closed_date.isoformat()
+            return cus_as_of
+
+        return cus
 
     if current_status in ('พิพากษาฝ่ายเดียว', 'พิพากษาตามยอม'):
         judgment_date = _parse_report_date(cus.get('judgment_date'))
@@ -1214,7 +1255,11 @@ def process_registry_file(ws, db, report_date_str):
         # current DB status may already be 'บังคับคดี', but enforcement date may be after report_date.
         # In that situation the report must use the previous valid status as of report_date,
         # not move the row to Not Generated.
-        cus_for_report = _build_customer_as_of_report_date(cus, report_date_str) if cus else None
+        cus_for_report = _build_customer_as_of_report_date(
+            cus,
+            report_date_str,
+            payments=effective_payments,
+        ) if cus else None
 
         if cus_for_report and _is_customer_effective_after_report(cus_for_report, report_date_str, effective_payments):
             reason = _future_effective_reason(cus_for_report, report_date_str, effective_payments)

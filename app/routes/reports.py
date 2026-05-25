@@ -7,7 +7,6 @@ from flask import Blueprint, current_app, request, jsonify, send_file
 from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.report_service import (
-    REPORT_MODE_CORRECTED,
     REPORT_MODE_NORMAL,
     get_snapshot_at_date,
     get_report30_snapshot_at_date,
@@ -201,7 +200,7 @@ def export_all_reports():
     alerts      = data.get('alerts', []) or []
     missing_db  = data.get('missing_db', []) or []
     not_generated = data.get('not_generated', []) or []
-    report_mode = data.get('report_mode') or REPORT_MODE_NORMAL
+    report_mode = REPORT_MODE_NORMAL
 
     if not any([report_30, report_31, report_11, alerts, missing_db, not_generated]):
         return jsonify({'error': 'ไม่มีข้อมูลสำหรับ Export'}), 400
@@ -399,8 +398,7 @@ def export_all_reports():
     wb.save(buf)
     buf.seek(0)
 
-    suffix = '_Corrected' if report_mode == REPORT_MODE_CORRECTED else ''
-    filename = f'Report_All_{report_date}{suffix}.xlsx'
+    filename = f'Report_All_{report_date}.xlsx'
     return send_file(
         buf,
         as_attachment=True,
@@ -419,16 +417,11 @@ def generate_report_db():
 
 def _generate_report_db_from_data(data, user):
     report_date  = data.get('report_date')
-    report_mode  = data.get('report_mode') or REPORT_MODE_NORMAL
-    corrected_scope = data.get('corrected_scope') or 'pending_only'
+    report_mode  = REPORT_MODE_NORMAL
     status_types = ['30', '31']
 
     if not report_date:
         return jsonify({'error': 'กรุณาระบุวันที่ขอ Report'}), 400
-    if report_mode not in (REPORT_MODE_NORMAL, REPORT_MODE_CORRECTED):
-        return jsonify({'error': 'report_mode ไม่ถูกต้อง'}), 400
-    if corrected_scope != 'pending_only':
-        return jsonify({'error': 'corrected_scope ไม่ถูกต้อง'}), 400
 
     db = get_db()
 
@@ -468,31 +461,30 @@ def _generate_report_db_from_data(data, user):
             if not alert.get('marked')
         ]
 
-        if (
-            report_mode == REPORT_MODE_CORRECTED
-            and corrected_scope == 'pending_only'
-            and not pending_customer_alerts_for_report
-        ):
-            continue
-
         # Use customer status as of report_date for report classification.
         # Example: current status is บังคับคดี, but enforcement date is after report_date.
         # Then rollback to previous status, e.g. พิพากษาฝ่ายเดียว / พิพากษาตามยอม.
-        alerts_for_snapshot = (
-            pending_customer_alerts_for_report
-            if report_mode == REPORT_MODE_CORRECTED
-            else customer_alerts
-        )
+        alerts_for_snapshot = pending_customer_alerts_for_report
+        current_db_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
+        payments_for_snapshot = None
+        if current_db_status == 'ปิดบัญชี':
+            payments_for_snapshot = db.execute(
+                'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
+                (account_no,)
+            ).fetchall()
+            payments_for_snapshot = [dict(p) for p in payments_for_snapshot]
+
         cus = _build_customer_as_of_report_date(
             cus,
             report_date,
             report_mode=report_mode,
             retroactive_alerts=alerts_for_snapshot,
+            payments=payments_for_snapshot,
         )
         case_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
 
-        payments = None
-        if case_status == 'ปิดบัญชี':
+        payments = payments_for_snapshot
+        if payments is None and case_status == 'ปิดบัญชี':
             payments = db.execute(
                 'SELECT * FROM payments WHERE account_no = ? ORDER BY payment_date ASC',
                 (account_no,)
@@ -523,8 +515,7 @@ def _generate_report_db_from_data(data, user):
                     report_date,
                     payments=[]
                 )
-                if report_mode == REPORT_MODE_NORMAL:
-                    row = apply_correction_warning_remark(row, cus)
+                row = apply_correction_warning_remark(row, cus)
                 report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
@@ -559,8 +550,7 @@ def _generate_report_db_from_data(data, user):
                     report_date,
                     payments=payments
                 )
-                if report_mode == REPORT_MODE_NORMAL:
-                    row = apply_correction_warning_remark(row, cus)
+                row = apply_correction_warning_remark(row, cus)
                 report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
@@ -584,8 +574,7 @@ def _generate_report_db_from_data(data, user):
                     report_date,
                     payments=payments
                 )
-                if report_mode == REPORT_MODE_NORMAL:
-                    row = apply_correction_warning_remark(row, cus)
+                row = apply_correction_warning_remark(row, cus)
                 report_30.append(row)
             else:
                 not_generated.append(_build_not_generated_row(
@@ -621,14 +610,12 @@ def _generate_report_db_from_data(data, user):
                 report_date,
                 payments=payments
             )
-            if report_mode == REPORT_MODE_NORMAL:
-                row = apply_correction_warning_remark(row, cus)
+            row = apply_correction_warning_remark(row, cus)
             report_30.append(row)
 
         elif group == '31' and '31' in status_types:
             row = _build_report31_row(account_no, cus, snap, report_date, payments=payments)
-            if report_mode == REPORT_MODE_NORMAL:
-                row = apply_correction_warning_remark(row, cus)
+            row = apply_correction_warning_remark(row, cus)
             report_31.append(row)
         elif group in ['30', '31']:
             not_generated.append(_build_not_generated_row(
@@ -663,7 +650,7 @@ def _generate_report_db_from_data(data, user):
             count_30, count_31, count_33, count_alerts, count_missing,
             count_skipped, count_db_total, count_generated_total)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (user['id'], report_date, '[DB Corrected Report]' if report_mode == REPORT_MODE_CORRECTED else '[DB Report]', ','.join(status_types),
+        (user['id'], report_date, '[DB Report]', ','.join(status_types),
          len(report_30), len(report_31), len(report_11), len(retroactive_alerts_for_report), 0,
          len(not_generated), db_total, summary['generated_total'])
     )
@@ -687,8 +674,8 @@ def _generate_report_db_from_data(data, user):
 @bp.route('/generate-corrected', methods=['POST'])
 def generate_corrected_report_db():
     data = request.get_json() or {}
-    data['report_mode'] = REPORT_MODE_CORRECTED
-    data.setdefault('corrected_scope', 'pending_only')
+    data['report_mode'] = REPORT_MODE_NORMAL
+    data.pop('corrected_scope', None)
 
     user = get_current_user()
     if not user:
