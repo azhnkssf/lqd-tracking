@@ -146,9 +146,9 @@ def export_report(report_type):
                 cell.fill = fill_30
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
+            row[1].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
             row[3].number_format = '#,##0'  # ยอดเงินที่ศาลตัดสิน
-            row[7].number_format = '#,##0'  # ค่างวดคงเหลือ
+            row[5].number_format = '#,##0'  # ค่างวดคงเหลือ
 
     elif report_type == '31':
         ws.title = 'Report Status 31'
@@ -277,9 +277,9 @@ def export_all_reports():
             paint_row(ws, fill_30)
 
         for row in ws.iter_rows(min_row=2):
-            row[2].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
+            row[1].number_format = '#,##0'  # ยอดเงินส่งฟ้อง
             row[3].number_format = '#,##0'  # ยอดเงินที่ศาลตัดสิน
-            row[7].number_format = '#,##0'  # ค่างวดคงเหลือ
+            row[5].number_format = '#,##0'  # ค่างวดคงเหลือ
 
         autofit(ws)
 

@@ -40,13 +40,13 @@ REPORT_MODE_CORRECTED = 'corrected'
 
 REPORT30_HEADERS = [
     'เลขที่บัญชี',
-    'วันที่ส่งฟ้องศาล',
     'ยอดเงินส่งฟ้อง (เงินต้น+ดอกเบี้ย)',
+    'วันที่ส่งฟ้องศาล',
     'ยอดเงินที่ศาลตัดสิน',
     'วันที่ศาลตัดสิน',
+    'ค่างวดคงเหลือ',
     'วันที่กลับมาผิดนัดชำระ',
     'จำนวนวันผิดนัดชำระ',
-    'ค่างวดคงเหลือ',
     'หมายเหตุ',
     'หมายเหตุ 2',
     'หมายเหตุ 3',
@@ -1590,13 +1590,13 @@ def build_report30_export_values(row, fmt_acc, fmt_date_excel, fmt_num):
 
     return [
         fmt_acc(_first_present(row, 'report30_account_no', 'account_no')),
-        fmt_date_excel(_first_present(row, 'report30_filing_date', 'filing_date')),
         fmt_num(filing_amount, 2) if filing_amount != '' else '',
+        fmt_date_excel(_first_present(row, 'report30_filing_date', 'filing_date')),
         fmt_num(judgment_debt, 2) if judgment_debt != '' else '',
         fmt_date_excel(_first_present(row, 'report30_judgment_date', 'judgment_date')),
+        fmt_num(remaining_debt, 2) if remaining_debt != '' else '',
         fmt_date_excel(_first_present(row, 'report30_first_default_date')),
         _first_present(row, 'report30_dpd_days'),
-        fmt_num(remaining_debt, 2) if remaining_debt != '' else '',
         _first_present(row, 'report30_note'),
         _first_present(row, 'report30_note_2'),
         _first_present(row, 'report30_note_3'),
@@ -1797,30 +1797,10 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
         )
 
     if case_status == 'พิพากษาฝ่ายเดียว':
-        default_context = _calculate_report30_default_context(
-            cus,
-            payments or [],
-            report_date_str
-        )
-
-        first_default_date = default_context.get('first_default_due_date')
-        current_dpd_days = default_context.get('current_dpd_days')
-
         base.update({
             'judgment_debt'  : _num(cus.get('total_debt')),
             'judgment_date'  : cus.get('judgment_date'),
             'default_amount' : snap.get('default_amount') if snap else None,
-            'default_date'   : first_default_date,
-            'dpd'            : (
-                current_dpd_days
-                if current_dpd_days is not None
-                else _int_num(cus.get('pre_filing_dpd_days'), 0)
-            ),
-            'dpd_months'     : (
-                current_dpd_days
-                if current_dpd_days is not None
-                else _int_num(cus.get('pre_filing_dpd_days'), 0)
-            ),
             'remaining_debt' : _calc_remaining_debt(cus, snap),
         })
 
@@ -1830,8 +1810,8 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
             filing_amount=filing_amount,
             judgment_debt=_num(cus.get('total_debt')),
             judgment_date=cus.get('judgment_date'),
-            first_default_date=first_default_date,
-            dpd_days=current_dpd_days,
+            first_default_date='',
+            dpd_days='',
             remaining_debt=_calc_remaining_debt(cus, snap),
             note='คดีแพ่ง',
             note_2='พิพากษาฝ่ายเดียว',
