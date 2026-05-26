@@ -311,10 +311,12 @@ function calculateLastDueDate(form: CustomerDetailFormState, activeJudgmentType:
 }
 
 function calculateDiffDebt(form: CustomerDetailFormState) {
-  return Math.max(
-    0,
-    parseMoney(form.totalDebt) - parseMoney(form.principal) - parseMoney(form.courtFee) - parseMoney(form.lawyerFee),
-  );
+  const totalDebt = parseMoney(form.totalDebt);
+  const principal = parseMoney(form.principal);
+  const courtFee = parseMoney(form.courtFee);
+  const lawyerFee = parseMoney(form.lawyerFee);
+
+  return Math.round((courtFee + lawyerFee + totalDebt - principal) * 100) / 100;
 }
 
 function customerToForm(customer: CustomerDetailData): CustomerDetailFormState {
