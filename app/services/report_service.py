@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import json
 from dateutil.relativedelta import relativedelta
@@ -1528,65 +1528,14 @@ def _calculate_report30_default_context(cus, payments, report_date_str):
     - DPD ปัจจุบันของยอดค้าง ณ วัน report
     - ล้างได้เมื่อจ่ายครบ และนับใหม่เมื่อกลับมาค้างใหม่
     """
-    report_date = _parse_report_date(report_date_str)
-    if not report_date or payments is None:
-        return {
-            'first_default_due_date': None,
-            'current_due_for_dpd': None,
-            'current_dpd_days': None,
-        }
-
-    try:
-        daily_rows = generate_full_daily_schedule(cus, payments or [], end_date=report_date)
-    except Exception:
-        return {
-            'first_default_due_date': None,
-            'current_due_for_dpd': None,
-            'current_dpd_days': None,
-        }
-
-    if not daily_rows:
-        return {
-            'first_default_due_date': None,
-            'current_due_for_dpd': None,
-            'current_dpd_days': None,
-        }
-
-    first_default_due = None
-    target_row = None
-
-    for row in daily_rows:
-        row_date = _safe_iso_date(row.get('date'))
-        if not row_date or row_date > report_date:
-            continue
-
-        target_row = row
-
-        if first_default_due:
-            continue
-
-        oldest_due = _safe_iso_date(row.get('oldest_due'))
-        outstanding = _num(row.get('outstanding'), 0)
-        grace_end = _report30_grace_end(oldest_due)
-
-        if oldest_due and grace_end and row_date >= grace_end and outstanding > 0:
-            first_default_due = oldest_due
-
-    if not target_row:
-        target_row = daily_rows[-1]
-
-    current_due = _safe_iso_date(target_row.get('oldest_due'))
-    current_outstanding = _num(target_row.get('outstanding'), 0)
-    current_grace_end = _report30_grace_end(current_due)
-    current_dpd_days = None
-
-    if current_due and current_grace_end and report_date >= current_grace_end and current_outstanding > 0:
-        current_dpd_days = max(0, (report_date - current_due).days)
-
+    context = _calculate_current_installment_default_context(cus, payments or [], report_date_str)
     return {
-        'first_default_due_date': first_default_due.isoformat() if first_default_due else None,
-        'current_due_for_dpd': current_due.isoformat() if current_due else None,
-        'current_dpd_days': current_dpd_days,
+        'default_date': context.get('default_date'),
+        'first_default_due_date': context.get('current_oldest_default_due_date'),
+        'current_due_for_dpd': context.get('current_oldest_default_due_date'),
+        'current_dpd_days': context.get('dpd') if context.get('default_date') else None,
+        'current_oldest_default_due_date': context.get('current_oldest_default_due_date'),
+        'amount_past_due': context.get('amount_past_due', 0.0),
     }
 
 
@@ -1745,6 +1694,58 @@ def _report31_default_check_date(due_date):
     return _end_of_month(due_date)
 
 
+def _default_start_date_from_due(due_date):
+    due_date = _parse_report_date(due_date)
+    return due_date + timedelta(days=1) if due_date else None
+
+
+def _dpd_days_from_default_start(report_date, default_start_date):
+    report_date = _parse_report_date(report_date)
+    default_start_date = _parse_report_date(default_start_date)
+    if not report_date or not default_start_date or default_start_date > report_date:
+        return 0
+    return (report_date - default_start_date).days + 1
+
+
+def _calculate_current_installment_default_context(cus, payments, report_date_str):
+    report_date = _parse_report_date(report_date_str)
+    if not report_date:
+        return {
+            'amount_past_due': 0.0,
+            'dpd': 0,
+            'default_date': None,
+            'current_oldest_default_due_date': None,
+            'current_oldest_unpaid_due_date': None,
+            'amount_due_total': 0.0,
+            'default_bucket_count': 0,
+        }
+
+    current_buckets = _report31_allocate_payments(cus, payments or [], report_date)
+    amount_due_buckets = [
+        bucket for bucket in current_buckets
+        if bucket['due_date'] <= report_date and bucket['remaining'] > 0
+    ]
+    default_buckets = [
+        bucket for bucket in amount_due_buckets
+        if _default_start_date_from_due(bucket['due_date']) <= report_date
+    ]
+
+    amount_due_total = sum((bucket['remaining'] for bucket in amount_due_buckets), Decimal('0'))
+    amount_past_due = amount_due_total if default_buckets else Decimal('0')
+    oldest_default_due = default_buckets[0]['due_date'] if default_buckets else None
+    default_date = _default_start_date_from_due(oldest_default_due) if oldest_default_due else None
+
+    return {
+        'amount_past_due': float(amount_past_due),
+        'dpd': _dpd_days_from_default_start(report_date, default_date) if default_date else 0,
+        'default_date': default_date.isoformat() if default_date else None,
+        'current_oldest_default_due_date': oldest_default_due.isoformat() if oldest_default_due else None,
+        'current_oldest_unpaid_due_date': amount_due_buckets[0]['due_date'].isoformat() if amount_due_buckets else None,
+        'amount_due_total': float(amount_due_total),
+        'default_bucket_count': len(default_buckets),
+    }
+
+
 def _calculate_report31_default_context(cus, payments, report_date_str):
     """
     Report 31-specific FIFO installment view.
@@ -1752,49 +1753,10 @@ def _calculate_report31_default_context(cus, payments, report_date_str):
     This keeps Report 31 daily DPD/amount-past-due independent from
     get_snapshot_at_date(), whose monthly behavior is shared by other reports.
     """
-    report_date = _parse_report_date(report_date_str)
-    if not report_date:
-        return {
-            'amount_past_due': 0.0,
-            'dpd': 0,
-            'default_date': None,
-            'current_oldest_unpaid_due_date': None,
-            'first_default_due_date': None,
-        }
-
-    current_buckets = _report31_allocate_payments(cus, payments or [], report_date)
-    overdue_buckets = [
-        bucket for bucket in current_buckets
-        if bucket['due_date'] < report_date and bucket['remaining'] > 0
-    ]
-    amount_past_due = sum((bucket['remaining'] for bucket in overdue_buckets), Decimal('0'))
-    current_oldest_due = overdue_buckets[0]['due_date'] if overdue_buckets else None
-
-    first_default_due = None
-    all_report_buckets = _report31_installment_buckets(cus, report_date)
-    for bucket in all_report_buckets:
-        default_check_date = _report31_default_check_date(bucket['due_date'])
-        if not default_check_date or default_check_date > report_date:
-            continue
-
-        buckets_at_default_check = _report31_allocate_payments(cus, payments or [], default_check_date)
-        match = next(
-            (
-                candidate for candidate in buckets_at_default_check
-                if candidate['due_date'] == bucket['due_date']
-            ),
-            None,
-        )
-        if match and match['remaining'] > 0:
-            first_default_due = bucket['due_date']
-            break
-
+    context = _calculate_current_installment_default_context(cus, payments or [], report_date_str)
     return {
-        'amount_past_due': float(amount_past_due),
-        'dpd': (report_date - current_oldest_due).days if current_oldest_due else 0,
-        'default_date': first_default_due.isoformat() if first_default_due else None,
-        'current_oldest_unpaid_due_date': current_oldest_due.isoformat() if current_oldest_due else None,
-        'first_default_due_date': first_default_due.isoformat() if first_default_due else None,
+        **context,
+        'first_default_due_date': context.get('current_oldest_default_due_date'),
     }
 
 
@@ -1911,7 +1873,7 @@ def _build_report30_row_from_db(account_no, status, filing_date, principal_sued,
                 base,
                 filing_date='',
                 filing_amount=filing_amount,
-                first_default_date=default_context.get('first_default_due_date'),
+                first_default_date=default_context.get('default_date'),
                 dpd_days=default_context.get('current_dpd_days'),
                 remaining_debt=_calc_remaining_debt(cus, snap),
                 note='คดีแพ่ง',

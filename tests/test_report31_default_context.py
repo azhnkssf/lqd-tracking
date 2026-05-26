@@ -4,6 +4,7 @@ from app.services.report_service import (
     REPORT31_HEADERS,
     build_report31_export_values,
     _build_report31_row,
+    _calculate_report30_default_context,
     _calculate_report31_default_context,
 )
 
@@ -39,7 +40,7 @@ class Report31DefaultContextTests(unittest.TestCase):
 
         self.assertEqual(context['amount_past_due'], 5000)
         self.assertEqual(context['dpd'], 16)
-        self.assertEqual(context['default_date'], '2026-03-15')
+        self.assertEqual(context['default_date'], '2026-03-16')
 
     def test_mid_month_due_paid_before_month_end(self):
         context = _calculate_report31_default_context(
@@ -81,11 +82,11 @@ class Report31DefaultContextTests(unittest.TestCase):
             '2026-05-31',
         )
 
-        self.assertEqual(context['amount_past_due'], 10000)
+        self.assertEqual(context['amount_past_due'], 15000)
         self.assertEqual(context['dpd'], 61)
-        self.assertEqual(context['default_date'], '2026-03-31')
+        self.assertEqual(context['default_date'], '2026-04-01')
 
-    def test_historical_default_remains_after_all_overdue_is_paid(self):
+    def test_historical_default_clears_after_all_default_buckets_are_paid(self):
         context = _calculate_report31_default_context(
             make_customer('2026-06-30', installment_count=3),
             [{'payment_date': '2026-08-31', 'amount': 10000}],
@@ -94,18 +95,76 @@ class Report31DefaultContextTests(unittest.TestCase):
 
         self.assertEqual(context['amount_past_due'], 0)
         self.assertEqual(context['dpd'], 0)
-        self.assertEqual(context['default_date'], '2026-06-30')
+        self.assertIsNone(context['default_date'])
 
-    def test_historical_default_remains_while_current_dpd_moves_forward(self):
+    def test_new_default_uses_current_oldest_default_bucket_after_payment(self):
         context = _calculate_report31_default_context(
             make_customer('2026-06-30', installment_count=3),
             [{'payment_date': '2026-08-31', 'amount': 5000}],
             '2026-08-31',
         )
 
-        self.assertEqual(context['amount_past_due'], 5000)
+        self.assertEqual(context['amount_past_due'], 10000)
         self.assertEqual(context['dpd'], 31)
-        self.assertEqual(context['default_date'], '2026-06-30')
+        self.assertEqual(context['default_date'], '2026-08-01')
+
+    def test_end_month_sequence_resets_default_after_fifo_clearing_payment(self):
+        cus = make_customer('2026-01-31', installment_count=7, installment_amount=1000)
+
+        scenarios = [
+            ('2026-01-31', [], 0, 0, None),
+            ('2026-02-28', [{'payment_date': '2026-02-28', 'amount': 2000}], 0, 0, None),
+            ('2026-03-31', [{'payment_date': '2026-02-28', 'amount': 2000}], 0, 0, None),
+            ('2026-04-30', [{'payment_date': '2026-02-28', 'amount': 2000}], 2000, 30, '2026-04-01'),
+            (
+                '2026-05-31',
+                [
+                    {'payment_date': '2026-02-28', 'amount': 2000},
+                    {'payment_date': '2026-05-31', 'amount': 2000},
+                ],
+                0,
+                0,
+                None,
+            ),
+            (
+                '2026-06-30',
+                [
+                    {'payment_date': '2026-02-28', 'amount': 2000},
+                    {'payment_date': '2026-05-31', 'amount': 2000},
+                ],
+                2000,
+                30,
+                '2026-06-01',
+            ),
+            (
+                '2026-07-31',
+                [
+                    {'payment_date': '2026-02-28', 'amount': 2000},
+                    {'payment_date': '2026-05-31', 'amount': 2000},
+                ],
+                3000,
+                61,
+                '2026-06-01',
+            ),
+        ]
+
+        for report_date, payments, amount_past_due, dpd, default_date in scenarios:
+            with self.subTest(report_date=report_date):
+                context = _calculate_report31_default_context(cus, payments, report_date)
+                self.assertEqual(context['amount_past_due'], amount_past_due)
+                self.assertEqual(context['dpd'], dpd)
+                self.assertEqual(context['default_date'], default_date)
+
+    def test_report30_consent_context_uses_same_current_installment_default(self):
+        context = _calculate_report30_default_context(
+            make_customer('2026-01-31', installment_count=7, installment_amount=1000),
+            [{'payment_date': '2026-02-28', 'amount': 2000}],
+            '2026-04-30',
+        )
+
+        self.assertEqual(context['default_date'], '2026-04-01')
+        self.assertEqual(context['current_dpd_days'], 30)
+        self.assertEqual(context['current_oldest_default_due_date'], '2026-03-31')
 
     def test_report31_row_uses_new_frequency_and_fields(self):
         row = _build_report31_row(
@@ -121,7 +180,7 @@ class Report31DefaultContextTests(unittest.TestCase):
         self.assertEqual(row['debt_of_last_debt_restructuring'], '2026-02-01')
         self.assertEqual(row['amount_past_due'], 5000)
         self.assertEqual(row['dpd'], 16)
-        self.assertEqual(row['default_date'], '2026-03-15')
+        self.assertEqual(row['default_date'], '2026-03-16')
 
     def test_report31_export_values_use_required_column_positions(self):
         row = {
@@ -229,6 +288,18 @@ class Report31DefaultContextTests(unittest.TestCase):
         self.assertEqual(values[36], '20260201')
         self.assertEqual(values[42], '20280215')
         self.assertEqual(values[-1], 'retroactive litigation correction')
+
+    def test_report31_export_default_date_falls_back_when_no_default(self):
+        values = build_report31_export_values(
+            {'account_no': 'ABC-123', 'amount_owed': 10000, 'amount_past_due': 0, 'dpd': 0},
+            lambda v: ''.join(ch for ch in str(v) if ch.isdigit()) or '-',
+            lambda v, default='': str(v).replace('-', '') if v else default,
+            lambda v, decimals=0: int(float(v or 0)),
+        )
+
+        self.assertEqual(values[27], 0)
+        self.assertEqual(values[28], 0)
+        self.assertEqual(values[29], '19000101')
 
 
 if __name__ == '__main__':
