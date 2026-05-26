@@ -478,13 +478,13 @@ def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, incl
     source_label = _month_label(source_report_month)
     message = (
         f'วันที่ของหมายบังคับคดีอยู่ในเดือน {affected_label} '
-        f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
     )
     if source_label and source_label != affected_label:
         message = (
             f'วันที่ของหมายบังคับคดีอยู่ในเดือน {affected_label} '
             f'แต่กำลังตรวจรายงานเดือน {source_label} '
-            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
         )
 
     return {
@@ -519,10 +519,11 @@ def build_retroactive_judgment_alert(cus, db=None, report_date_str=None, include
         cus = _attach_case_status_log_context(cus, db)
 
     current_status = (cus.get('case_status') or '').strip()
-    # Retroactive judgment alert ต้องมีเฉพาะ
-    # ยื่นฟ้อง(30) -> พิพากษาตามยอม(31)
-    # ยื่นฟ้อง(30) -> พิพากษาฝ่ายเดียว(30) ไม่ต้อง alert เพราะ report group ไม่เปลี่ยน
-    if current_status != 'พิพากษาตามยอม':
+    # Retroactive judgment alert only creates warning metadata.
+    # It must not change report grouping or calculation logic.
+    # ยื่นฟ้อง(30) -> พิพากษาตามยอม(31) may need report review.
+    # ยื่นฟ้อง(30) -> พิพากษาฝ่ายเดียว(30) stays in Report 30, but judgment columns may need review.
+    if current_status not in ('พิพากษาตามยอม', 'พิพากษาฝ่ายเดียว'):
         return None
 
     effective_date = _parse_report_date(cus.get('judgment_date'))
@@ -549,13 +550,13 @@ def build_retroactive_judgment_alert(cus, db=None, report_date_str=None, include
     source_label = _month_label(source_report_month)
     message = (
         f'วันที่พิพากษาอยู่ในเดือน {affected_label} '
-        f'แต่บันทึกเข้าระบบภายหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        f'แต่บันทึกเข้าระบบภายหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
     )
     if source_label and source_label != affected_label:
         message = (
             f'วันที่พิพากษาอยู่ในเดือน {affected_label} '
             f'แต่บันทึกเข้าระบบเดือน {source_label} '
-            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+            f'กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
         )
 
     return {
@@ -876,9 +877,9 @@ def _correction_warning_text(alert):
         return ''
     affected_label = alert.get('affected_month_label') or _month_label(alert.get('affected_report_month'))
     if alert.get('type') == 'judgment':
-        return f'มีคำพิพากษาย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        return f'มีคำพิพากษาย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
     if alert.get('type') == 'enforcement':
-        return f'มีหมายบังคับคดีย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label}'
+        return f'มีหมายบังคับคดีย้อนหลัง กรุณาตรวจสอบ/แก้รายงานเดือน {affected_label} เป็นต้นไป'
     return ''
 
 

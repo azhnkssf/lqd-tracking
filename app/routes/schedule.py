@@ -44,20 +44,41 @@ def preview_schedule():
 
     def _actual_preview_row(row):
         principal_bal = float(row.get('T') or 0)
-        principal_paid = float(row.get('R') or 0)
+        principal_paid_actual = float(row.get('R') or 0)
+        acc_interest = float(row.get('O') or 0)
+        daily_interest = float(row.get('N') or 0)
+        pay_amount = float(row.get('pay_amount') or 0)
+        outstanding = float(row.get('outstanding') or 0)
+        is_pay_date = bool(row.get('is_pay_date'))
+        is_due_date = bool(row.get('is_due_date'))
+
+        if is_due_date and not is_pay_date:
+            other_due = max(0.0, outstanding - principal_bal - acc_interest)
+            payment = outstanding
+            interest_paid = acc_interest
+            principal_paid = principal_bal
+            other_paid = other_due
+            principal_bf = principal_bal
+        else:
+            payment = pay_amount
+            interest_paid = float(row.get('P') or 0)
+            principal_paid = principal_paid_actual
+            other_paid = float(row.get('S') or 0)
+            principal_bf = principal_bal + principal_paid_actual
+
         return {
             **row,
             'date': row.get('date'),
             'term': row.get('term'),
-            'principal_bf': round(principal_bal + principal_paid, 2),
-            'payment': round(float(row.get('pay_amount') or 0), 2),
-            'interest_paid': round(float(row.get('P') or 0), 2),
+            'principal_bf': round(principal_bf, 2),
+            'payment': round(payment, 2),
+            'interest_paid': round(interest_paid, 2),
             'principal_paid': round(principal_paid, 2),
-            'other_paid': round(float(row.get('S') or 0), 2),
+            'other_paid': round(other_paid, 2),
             'principal_bal': round(principal_bal, 2),
-            'daily_interest': round(float(row.get('N') or 0), 6),
-            'acc_interest': round(float(row.get('O') or 0), 2),
-            'is_payment_date': bool(row.get('is_pay_date') or row.get('is_due_date')),
+            'daily_interest': round(daily_interest, 6),
+            'acc_interest': round(acc_interest, 2),
+            'is_payment_date': bool(is_pay_date or is_due_date),
             'is_actual_preview': True,
         }
 

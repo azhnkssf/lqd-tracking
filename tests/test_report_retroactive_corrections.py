@@ -195,13 +195,11 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             source_j_marked = next(row for row in source_month['report_31'] if row.get('account_no') == 'J-MARKED')
             self.assertIn('มีคำพิพากษาย้อนหลัง', source_j_pending['remark'])
             self.assertIn('04/2026', source_j_pending['remark'])
+            self.assertIn('เป็นต้นไป', source_j_pending['remark'])
             self.assertIn('มีหมายบังคับคดีย้อนหลัง', source_e_pending['report30_litigation_remark'])
             self.assertIn('04/2026', source_e_pending['report30_litigation_remark'])
+            self.assertIn('เป็นต้นไป', source_e_pending['report30_litigation_remark'])
             self.assertNotIn('ย้อนหลัง', source_j_marked.get('remark') or '')
-            self.assertFalse(any(
-                alert.get('account_no') == 'J-DEFAULT'
-                for alert in corrected['retroactive_alerts']
-            ))
         finally:
             reports.get_current_user = original_get_current_user
 
@@ -260,8 +258,8 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
                 'report_date': '2026-04-30',
             }).get_json()
 
-            self.assertEqual(payload['correction_summary']['total'], 3)
-            self.assertEqual(payload['correction_summary']['pending_total'], 2)
+            self.assertEqual(payload['correction_summary']['total'], 4)
+            self.assertEqual(payload['correction_summary']['pending_total'], 3)
         finally:
             reports.get_current_user = original_get_current_user
 
@@ -405,7 +403,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
 
         self.assertEqual(reason[0], 'FILING_DATE_AFTER_REPORT')
 
-    def test_retroactive_default_judgment_does_not_create_alert_or_remark(self):
+    def test_retroactive_default_judgment_creates_alert_and_source_month_remark_only(self):
         customer = {
             'account_no': 'J-1',
             'case_status': 'พิพากษาฝ่ายเดียว',
@@ -422,29 +420,57 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         }
         alert = build_retroactive_judgment_alert(customer)
 
-        self.assertIsNone(alert)
+        self.assertIsNotNone(alert)
+        self.assertEqual(alert['reason_code'], RETROACTIVE_JUDGMENT_REASON_CODE)
+        self.assertEqual(alert['type'], 'judgment')
+        self.assertEqual(alert['from_status'], 'ยื่นฟ้อง')
+        self.assertEqual(alert['to_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertEqual(alert['affected_report_month'], '2026-04')
+        self.assertEqual(alert['source_report_month'], '2026-05')
+        self.assertEqual(alert['recorded_date'], '2026-05-08')
 
-        customer_as_of = _build_customer_as_of_report_date(
+        affected_customer_as_of = _build_customer_as_of_report_date(
             customer,
             '2026-04-30',
             report_mode=REPORT_MODE_NORMAL,
-            retroactive_alerts=[alert] if alert else [],
+            retroactive_alerts=[alert],
         )
-        row = _build_report30_row_from_db(
+        affected_row = _build_report30_row_from_db(
             'J-1',
-            customer_as_of['case_status'],
-            customer_as_of['filing_date'],
+            affected_customer_as_of['case_status'],
+            affected_customer_as_of['filing_date'],
             100,
-            customer_as_of,
+            affected_customer_as_of,
             None,
             '2026-04-30',
             payments=[],
         )
-        row = apply_correction_warning_remark(row, customer_as_of)
+        affected_row = apply_correction_warning_remark(affected_row, affected_customer_as_of)
 
-        self.assertEqual(customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
-        self.assertEqual(row['report30_note_2'], 'พิพากษาฝ่ายเดียว')
-        self.assertNotIn('ย้อนหลัง', row['report30_litigation_remark'])
+        source_customer_as_of = _build_customer_as_of_report_date(
+            customer,
+            '2026-05-31',
+            report_mode=REPORT_MODE_NORMAL,
+            retroactive_alerts=[alert],
+        )
+        source_row = _build_report30_row_from_db(
+            'J-1',
+            source_customer_as_of['case_status'],
+            source_customer_as_of['filing_date'],
+            100,
+            source_customer_as_of,
+            None,
+            '2026-05-31',
+            payments=[],
+        )
+        source_row = apply_correction_warning_remark(source_row, source_customer_as_of)
+
+        self.assertEqual(affected_customer_as_of['case_status'], 'พิพากษาฝ่ายเดียว')
+        self.assertEqual(affected_row['report30_note_2'], 'พิพากษาฝ่ายเดียว')
+        self.assertNotIn('ย้อนหลัง', affected_row['report30_litigation_remark'])
+        self.assertIn('มีคำพิพากษาย้อนหลัง', source_row['report30_litigation_remark'])
+        self.assertIn('04/2026', source_row['report30_litigation_remark'])
+        self.assertIn('เป็นต้นไป', source_row['report30_litigation_remark'])
 
     def test_retroactive_consent_judgment_shows_remark_in_source_month_only(self):
         customer = {
@@ -489,6 +515,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertNotIn('ย้อนหลัง', affected_row['remark'])
         self.assertIn('มีคำพิพากษาย้อนหลัง', source_row['remark'])
         self.assertIn('04/2026', source_row['remark'])
+        self.assertIn('เป็นต้นไป', source_row['remark'])
 
     def test_retroactive_judgment_marked_alert_does_not_add_pending_remark(self):
         customer = {
@@ -582,6 +609,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertNotIn('ย้อนหลัง', affected_row['remark'])
         self.assertIn('เดิม | มีหมายบังคับคดีย้อนหลัง', source_row['remark'])
         self.assertIn('04/2026', source_row['remark'])
+        self.assertIn('เป็นต้นไป', source_row['remark'])
 
     def test_retroactive_enforcement_from_default_judgment_does_not_create_alert(self):
         customer = {
