@@ -423,6 +423,14 @@ def _is_alert_effective_for_report(alert, report_date_str):
     return bool(report_month and affected_month and report_month == affected_month)
 
 
+def _is_alert_remark_effective_for_report(alert, report_date_str):
+    # affected_report_month = historical report month to correct.
+    # source_report_month = report month where the warning remark should appear.
+    report_month = _month_key(report_date_str)
+    source_month = alert.get('source_report_month') if alert else None
+    return bool(report_month and source_month and report_month == source_month)
+
+
 def build_retroactive_enforcement_alert(cus, db=None, report_date_str=None, include_marked=True):
     """
     ตรวจเคสบังคับคดีที่วันที่หมายมีผลอยู่ก่อนเดือนที่บันทึกเข้าระบบ
@@ -794,7 +802,7 @@ def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_M
 
     pending_alert = None
     for alert in retroactive_alerts or []:
-        if alert.get('marked') or not _is_alert_effective_for_report(alert, report_date_str):
+        if alert.get('marked') or not _is_alert_remark_effective_for_report(alert, report_date_str):
             continue
         pending_alert = alert
         break
