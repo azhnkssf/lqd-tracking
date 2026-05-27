@@ -464,7 +464,7 @@ def _generate_report_db_from_data(data, user):
         # Use customer status as of report_date for report classification.
         # Example: current status is บังคับคดี, but enforcement date is after report_date.
         # Then rollback to previous status, e.g. พิพากษาฝ่ายเดียว / พิพากษาตามยอม.
-        alerts_for_snapshot = pending_customer_alerts_for_remark
+        alerts_for_snapshot = customer_alerts_for_remark
         current_db_status = (cus.get('case_status') or 'ยื่นฟ้อง').strip()
         payments_for_snapshot = None
         if current_db_status == 'ปิดบัญชี':

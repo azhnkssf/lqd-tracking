@@ -802,15 +802,22 @@ def _build_customer_as_of_report_date(cus, report_date_str, report_mode=REPORT_M
         return cus
 
     pending_alert = None
+    marked_alerts = []
     for alert in retroactive_alerts or []:
-        if alert.get('marked') or not _is_alert_remark_effective_for_report(alert, report_date_str):
+        if not _is_alert_remark_effective_for_report(alert, report_date_str):
             continue
-        pending_alert = alert
-        break
+        if alert.get('marked'):
+            marked_alerts.append(alert)
+            continue
+        if pending_alert is None:
+            pending_alert = alert
 
-    if pending_alert:
+    if pending_alert or marked_alerts:
         cus = dict(cus)
-        cus['_pending_correction_alert'] = pending_alert
+        if pending_alert:
+            cus['_pending_correction_alert'] = pending_alert
+        if marked_alerts:
+            cus['_marked_correction_alerts'] = marked_alerts
 
     if current_status == 'ปิดบัญชี':
         closed_date = _parse_report_date(_get_closed_date(cus, payments))
@@ -1062,15 +1069,32 @@ def _get_enforcement_from_status(cus):
 def _build_enforcement_remark(cus, snap, report_date_str):
     """
     Remark สำหรับเคสพิพากษาตามยอมที่เปลี่ยนเป็นบังคับคดี
-    แสดงเฉพาะเดือนที่เคสควรเริ่มเข้า Report 30 จากวันที่มีคำพิพากษา/หมายบังคับคดี
-    เดือนถัดไปไม่แสดงซ้ำ
+    แสดงเฉพาะเดือนที่บันทึกหมายบังคับคดีเข้าระบบ เมื่อวันที่ของหมายอยู่ก่อนเดือนที่บันทึก
     """
     if not _is_consent_enforcement_case(cus):
         return ''
 
-    effective_date = _get_case_effective_date(cus)
-    report_date = _parse_report_date(report_date_str)
-    if not effective_date or not report_date or not _same_month(effective_date, report_date):
+    for alert in cus.get('_marked_correction_alerts') or []:
+        if (
+            alert.get('type') == 'enforcement'
+            and _is_alert_remark_effective_for_report(alert, report_date_str)
+        ):
+            return ''
+
+    effective_date = (
+        _parse_report_date(cus.get('enforcement_judgment_date')) or
+        _parse_report_date(cus.get('enforcement_effective_date')) or
+        _parse_report_date(cus.get('enforcement_received_date')) or
+        _parse_report_date(cus.get('enforcement_date'))
+    )
+    recorded_date = _get_enforcement_recorded_date(cus)
+    if not effective_date or not recorded_date:
+        return ''
+
+    if not _is_before_month(effective_date, recorded_date):
+        return ''
+
+    if report_date_str and _month_key(report_date_str) != _month_key(recorded_date):
         return ''
 
     enforcement_yyyymmdd = _fmt_date_yyyymmdd(effective_date)

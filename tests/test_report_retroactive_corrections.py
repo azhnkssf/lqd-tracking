@@ -15,6 +15,7 @@ from app.services.report_service import (
     RETROACTIVE_ENFORCEMENT_REASON_CODE,
     RETROACTIVE_JUDGMENT_REASON_CODE,
     _build_customer_as_of_report_date,
+    _build_enforcement_remark,
     _build_report30_row_from_db,
     _future_effective_reason,
     apply_correction_warning_remark,
@@ -114,6 +115,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             (3, 'J-MARKED', 'Judgment Marked', 'พิพากษาตามยอม', '2026-03-10', 100, '2026-04-10', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, None, None, None, 0),
             (4, 'E-PENDING', 'Enforcement Pending', 'บังคับคดี', '2026-03-01', 100, '2026-04-01', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, '2026-04-20', None, '2026-05-08', 0),
             (5, 'J-DEFAULT', 'Default Judgment', 'พิพากษาฝ่ายเดียว', '2026-03-10', 100, '2026-04-12', 100, 100, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, None, None, None, 0),
+            (6, 'E-MARKED', 'Enforcement Marked', 'บังคับคดี', '2026-03-01', 100, '2026-04-01', 100, 100, 0, 0, 0, 0, 2, '2026-05-30', 10, 0, 0, 0, '2026-04-18', None, '2026-05-08', 0),
         ]
         conn.executemany('''
             INSERT INTO customers
@@ -133,6 +135,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             ('J-MARKED', 'ยื่นฟ้อง', 'พิพากษาตามยอม', '2026-05-08'),
             ('J-DEFAULT', 'ยื่นฟ้อง', 'พิพากษาฝ่ายเดียว', '2026-05-08'),
             ('E-PENDING', 'พิพากษาตามยอม', 'บังคับคดี', '2026-05-08'),
+            ('E-MARKED', 'พิพากษาตามยอม', 'บังคับคดี', '2026-05-08'),
         ])
         conn.execute('''
             INSERT INTO report_retroactive_fix_marks
@@ -140,6 +143,12 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
              source_report_month, marked_by, note)
             VALUES ('J-MARKED', '2026-04', '2026-04-10', ?, '2026-05', 1, 'done')
         ''', (RETROACTIVE_JUDGMENT_REASON_CODE,))
+        conn.execute('''
+            INSERT INTO report_retroactive_fix_marks
+            (account_no, affected_report_month, effective_date, reason_code,
+             source_report_month, marked_by, note)
+            VALUES ('E-MARKED', '2026-04', '2026-04-18', ?, '2026-05', 1, 'done')
+        ''', (RETROACTIVE_ENFORCEMENT_REASON_CODE,))
         conn.commit()
         conn.close()
         return temp_dir, db_path
@@ -192,6 +201,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             self.assertNotIn('ย้อนหลัง', j_default.get('report30_litigation_remark') or '')
             source_j_pending = next(row for row in source_month['report_31'] if row.get('account_no') == 'J-PENDING')
             source_e_pending = next(row for row in source_month['report_30'] if row.get('account_no') == 'E-PENDING')
+            source_e_marked = next(row for row in source_month['report_30'] if row.get('account_no') == 'E-MARKED')
             source_j_marked = next(row for row in source_month['report_31'] if row.get('account_no') == 'J-MARKED')
             self.assertIn('มีคำพิพากษาย้อนหลัง', source_j_pending['remark'])
             self.assertIn('04/2026', source_j_pending['remark'])
@@ -199,6 +209,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
             self.assertIn('มีหมายบังคับคดีย้อนหลัง', source_e_pending['report30_litigation_remark'])
             self.assertIn('04/2026', source_e_pending['report30_litigation_remark'])
             self.assertIn('เป็นต้นไป', source_e_pending['report30_litigation_remark'])
+            self.assertNotIn('ย้อนหลัง', source_e_marked.get('report30_litigation_remark') or '')
             self.assertNotIn('ย้อนหลัง', source_j_marked.get('remark') or '')
         finally:
             reports.get_current_user = original_get_current_user
@@ -258,7 +269,7 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
                 'report_date': '2026-04-30',
             }).get_json()
 
-            self.assertEqual(payload['correction_summary']['total'], 4)
+            self.assertEqual(payload['correction_summary']['total'], 5)
             self.assertEqual(payload['correction_summary']['pending_total'], 3)
         finally:
             reports.get_current_user = original_get_current_user
@@ -610,6 +621,115 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         self.assertIn('เดิม | มีหมายบังคับคดีย้อนหลัง', source_row['remark'])
         self.assertIn('04/2026', source_row['remark'])
         self.assertIn('เป็นต้นไป', source_row['remark'])
+
+    def test_enforcement_remark_same_month_order_and_recorded_date_is_empty(self):
+        customer = {
+            'account_no': 'E-SAME-MONTH',
+            'case_status': 'บังคับคดี',
+            'filing_date': '2026-03-01',
+            'judgment_date': '2026-04-01',
+            'enforcement_judgment_date': '2026-05-06',
+            'enforcement_recorded_at': '2026-05-27',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาตามยอม',
+                    'to_status': 'บังคับคดี',
+                    'changed_at': '2026-05-27',
+                },
+            ],
+            '_has_consent_to_enforcement_log': True,
+        }
+
+        remark = _build_enforcement_remark(customer, {}, '2026-05-31')
+        row = _build_report30_row_from_db(
+            customer['account_no'],
+            customer['case_status'],
+            customer['filing_date'],
+            100,
+            customer,
+            {'principal_bal': 100, 'remaining_debt_raw': 100},
+            '2026-05-31',
+            payments=[],
+        )
+
+        self.assertEqual(remark, '')
+        self.assertEqual(row['report30_litigation_remark'], '')
+
+    def test_enforcement_remark_uses_enforcement_dates_only_in_recorded_month(self):
+        customer = {
+            'account_no': 'E-RETRO',
+            'case_status': 'บังคับคดี',
+            'filing_date': '2026-03-01',
+            'judgment_date': '2026-05-06',
+            'enforcement_judgment_date': '2026-04-25',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาตามยอม',
+                    'to_status': 'บังคับคดี',
+                    'changed_at': '2026-05-27',
+                },
+            ],
+            '_has_consent_to_enforcement_log': True,
+        }
+
+        source_remark = _build_enforcement_remark(customer, {}, '2026-05-31')
+        affected_remark = _build_enforcement_remark(customer, {}, '2026-04-30')
+
+        self.assertIn('2026-04-25', source_remark)
+        self.assertIn('ตั้งแต่เดือน 2026-04', source_remark)
+        self.assertEqual(affected_remark, '')
+
+    def test_enforcement_remark_marked_alert_is_empty_after_fix(self):
+        customer = {
+            'account_no': 'E-MARKED',
+            'case_status': 'บังคับคดี',
+            'filing_date': '2026-03-01',
+            'judgment_date': '2026-04-01',
+            'enforcement_judgment_date': '2026-04-25',
+            'enforcement_recorded_at': '2026-05-27',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาตามยอม',
+                    'to_status': 'บังคับคดี',
+                    'changed_at': '2026-05-27',
+                },
+            ],
+            '_has_consent_to_enforcement_log': True,
+        }
+        marked_alert = {
+            'type': 'enforcement',
+            'marked': True,
+            'source_report_month': '2026-05',
+            'affected_report_month': '2026-04',
+        }
+
+        customer_as_of = _build_customer_as_of_report_date(
+            customer,
+            '2026-05-31',
+            report_mode=REPORT_MODE_NORMAL,
+            retroactive_alerts=[marked_alert],
+        )
+
+        self.assertEqual(_build_enforcement_remark(customer_as_of, {}, '2026-05-31'), '')
+
+    def test_enforcement_remark_does_not_fallback_to_judgment_or_filing_dates(self):
+        customer = {
+            'account_no': 'E-NO-ENFORCEMENT-DATE',
+            'case_status': 'บังคับคดี',
+            'filing_date': '2026-04-01',
+            'judgment_date': '2026-04-25',
+            'enforcement_recorded_at': '2026-05-27',
+            '_case_status_logs': [
+                {
+                    'from_status': 'พิพากษาตามยอม',
+                    'to_status': 'บังคับคดี',
+                    'changed_at': '2026-05-27',
+                },
+            ],
+            '_has_consent_to_enforcement_log': True,
+        }
+
+        self.assertEqual(_build_enforcement_remark(customer, {}, '2026-05-31'), '')
 
     def test_retroactive_enforcement_from_default_judgment_does_not_create_alert(self):
         customer = {
