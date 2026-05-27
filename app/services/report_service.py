@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import json
 from dateutil.relativedelta import relativedelta
 from app.services.closure_service import get_actual_closed_date
+from app.services.judgment_service import calculate_judgment_difference
 from app.services.schedule_service import generate_full_daily_schedule, get_due_date
 
 
@@ -1472,12 +1473,7 @@ def _get_principal_sued(cus, fallback=None):
 
 
 def _calc_diff_debt(cus):
-    return (
-        _num(cus.get('court_fee')) +
-        _num(cus.get('lawyer_fee')) +
-        _num(cus.get('total_debt')) -
-        _num(cus.get('principal'))
-    )
+    return calculate_judgment_difference(cus)
 
 
 def _calc_remaining_from_values(cus, principal_bal=0, acc_interest=0):

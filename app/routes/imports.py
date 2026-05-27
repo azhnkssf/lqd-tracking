@@ -8,6 +8,7 @@ from app.database import get_db
 from app.services.auth_service import get_user_by_token
 from app.services.status_service import refresh_customer_status
 from app.services.report_service import get_snapshot_at_date
+from app.services.judgment_service import calculate_judgment_difference
 from app.services.customer_list_cache_service import refresh_customer_list_cache
 from dateutil.relativedelta import relativedelta
 
@@ -777,12 +778,6 @@ def import_judgment():
                     f'ต้องไม่มากกว่าทุนทรัพย์ที่ฟ้อง ({filing_capital:,.2f})'
                 )
 
-            if principal > total_debt:
-                raise ValueError(
-                    f'เงินต้นตามคำพิพากษา ({principal:,.2f}) '
-                    f'ต้องไม่มากกว่ายอดหนี้รวมตามคำพิพากษา ({total_debt:,.2f})'
-                )
-
             if principal > filing_capital:
                 raise ValueError(
                     f'เงินต้นตามคำพิพากษา ({principal:,.2f}) '
@@ -807,6 +802,12 @@ def import_judgment():
             judgment_note  = str(row[16]).strip() if len(row) > 16 and row[16] not in (None, '') else ''
             if len(judgment_note) > 100:
                 raise ValueError('หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร')
+            judgment_difference = calculate_judgment_difference({
+                'court_fee': court_fee,
+                'lawyer_fee': lawyer_fee,
+                'total_debt': total_debt,
+                'principal': principal,
+            })
 
             if not last_due_date and first_due_date and inst_count > 0:
                 from datetime import date as _date
@@ -822,6 +823,7 @@ def import_judgment():
                     judgment_note         = ?,
                     total_debt            = ?,
                     principal             = ?,
+                    judgment_difference   = ?,
                     interest_rate         = ?,
                     court_fee             = ?,
                     lawyer_fee            = ?,
@@ -837,6 +839,7 @@ def import_judgment():
                 WHERE account_no = ? AND is_deleted = 0
             ''', (
                 judgment_type, red_case_no, judgment_date, judgment_note or None, total_debt, principal,
+                judgment_difference,
                 interest_rate, court_fee, lawyer_fee, inst_count, default_rate,
                 first_due_date, last_due_date, inst1, inst2, inst3, inst4,
                 account_no

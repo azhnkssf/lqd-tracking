@@ -1,5 +1,6 @@
 import sqlite3
 from flask import g, current_app
+from app.services.judgment_service import calculate_judgment_difference
 
 
 def get_db():
@@ -382,23 +383,19 @@ def init_db(app):
             pass
 
         try:
-            db.execute('''
-                UPDATE customers
-                SET judgment_difference = ROUND(
-                        COALESCE(court_fee, 0) +
-                        COALESCE(lawyer_fee, 0) +
-                        COALESCE(total_debt, 0) -
-                        COALESCE(principal, 0),
-                        2
+            rows = db.execute('''
+                SELECT id, total_debt, principal, court_fee, lawyer_fee, judgment_difference
+                FROM customers
+                WHERE COALESCE(is_deleted, 0) = 0
+            ''').fetchall()
+            for row in rows:
+                expected = calculate_judgment_difference(dict(row))
+                current = round(float(row['judgment_difference'] or 0), 2)
+                if current != expected:
+                    db.execute(
+                        'UPDATE customers SET judgment_difference = ? WHERE id = ?',
+                        (expected, row['id']),
                     )
-                WHERE ROUND(COALESCE(judgment_difference, 0), 2) != ROUND(
-                        COALESCE(court_fee, 0) +
-                        COALESCE(lawyer_fee, 0) +
-                        COALESCE(total_debt, 0) -
-                        COALESCE(principal, 0),
-                        2
-                    )
-            ''')
         except Exception:
             pass
 

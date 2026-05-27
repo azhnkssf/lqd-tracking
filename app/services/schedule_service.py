@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
+from app.services.judgment_service import calculate_judgment_difference
 
 
 # ============================================================
@@ -570,10 +571,7 @@ def generate_full_daily_schedule(cus, payments, end_date=None):
     inst2          = float(cus.get('installment_2') or 0)
     inst3          = float(cus.get('installment_3') or 0)
     inst4          = float(cus.get('installment_4') or 0)
-    diff_debt      = (float(cus.get('court_fee') or 0) +
-                      float(cus.get('lawyer_fee') or 0) +
-                      float(cus.get('total_debt') or 0) -
-                      float(cus.get('principal') or 0))
+    diff_debt      = calculate_judgment_difference(cus)
 
     pay_by_date    = {}
     for p in payments:

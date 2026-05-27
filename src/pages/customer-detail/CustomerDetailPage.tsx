@@ -315,8 +315,9 @@ function calculateDiffDebt(form: CustomerDetailFormState) {
   const principal = parseMoney(form.principal);
   const courtFee = parseMoney(form.courtFee);
   const lawyerFee = parseMoney(form.lawyerFee);
+  const judgmentExcess = Math.max(totalDebt - principal, 0);
 
-  return Math.round((courtFee + lawyerFee + totalDebt - principal) * 100) / 100;
+  return Math.round((judgmentExcess + courtFee + lawyerFee) * 100) / 100;
 }
 
 function customerToForm(customer: CustomerDetailData): CustomerDetailFormState {

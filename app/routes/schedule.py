@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, request, jsonify
 from app.services.auth_service import get_user_by_token
+from app.services.judgment_service import calculate_judgment_difference
 from app.services.schedule_service import generate_schedule, generate_monthly_summary, generate_full_daily_schedule, is_single_default_judgment
 
 bp = Blueprint('schedule', __name__, url_prefix='/api/schedule')
@@ -116,12 +117,14 @@ def preview_schedule():
                 'total': len(daily),
             }), 200
 
+        diff_debt = calculate_judgment_difference(preview_customer)
+
         rows = generate_schedule(
             filing_date    = data['filing_date'],
             principal      = data['principal'],
             interest_rate  = data['interest_rate'],
             term_months    = data['installment_count'],
-            diff_debt      = data.get('diff_debt', 0),
+            diff_debt      = diff_debt,
             first_pay_date = data['first_due_date'],
             installment_1  = data['installment_1'],
             installment_2  = data.get('installment_2', 0),

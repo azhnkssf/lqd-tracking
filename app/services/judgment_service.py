@@ -6,13 +6,12 @@ def to_float(value):
 
 
 def calculate_judgment_difference(customer):
-    return round(
-        to_float(customer.get('court_fee')) +
-        to_float(customer.get('lawyer_fee')) +
-        to_float(customer.get('total_debt')) -
-        to_float(customer.get('principal')),
-        2
-    )
+    total_debt = to_float(customer.get('total_debt'))
+    principal = to_float(customer.get('principal'))
+    court_fee = to_float(customer.get('court_fee'))
+    lawyer_fee = to_float(customer.get('lawyer_fee'))
+    judgment_excess = max(total_debt - principal, 0)
+    return round(judgment_excess + court_fee + lawyer_fee, 2)
 
 
 def with_judgment_difference(customer):
