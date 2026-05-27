@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Reset test data while keeping login users.
+Reset customer test data while keeping login users and active sessions.
 
-This script deletes rows from every SQLite table except `users`, then resets
-AUTOINCREMENT counters for the deleted tables. It keeps the database schema.
+This script deletes rows only from customer/business-data tables, then resets
+AUTOINCREMENT counters for the deleted tables. Auth/security tables such as
+`users`, `auth_events`, and `sessions` are left untouched. It keeps the
+database schema.
 
 Usage:
   python3 scripts/reset_db_keep_users.py --yes
@@ -20,7 +22,16 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = ROOT_DIR / "instance" / "lqd.db"
-KEEP_TABLES = {"users"}
+DELETE_TABLES = {
+    "case_status_logs",
+    "customer_edits",
+    "customers",
+    "import_logs",
+    "payment_deletions",
+    "payments",
+    "report_logs",
+    "report_retroactive_fix_marks",
+}
 INTERNAL_TABLES = {"sqlite_sequence"}
 
 
@@ -53,13 +64,15 @@ def reset_database(db_path: Path, dry_run: bool) -> int:
     conn = sqlite3.connect(str(db_path))
     try:
         tables = get_tables(conn)
-        delete_tables = [table for table in tables if table not in KEEP_TABLES]
+        delete_tables = [table for table in tables if table in DELETE_TABLES]
+        keep_tables = [table for table in tables if table not in DELETE_TABLES]
         if not tables:
             print("No tables found.")
             return 0
 
         print(f"DB: {db_path}")
-        print(f"Keeping tables: {', '.join(sorted(KEEP_TABLES))}")
+        print(f"Deleting customer tables: {', '.join(delete_tables) if delete_tables else '(none)'}")
+        print(f"Keeping tables: {', '.join(keep_tables) if keep_tables else '(none)'}")
         print("Rows before reset:")
         for table in tables:
             print(f"  {table}: {count_rows(conn, table)}")
@@ -98,14 +111,16 @@ def reset_database(db_path: Path, dry_run: bool) -> int:
         print("\nRows after reset:")
         for table in tables:
             print(f"  {table}: {count_rows(conn, table)}")
-        print("\nDone. Login users were kept.")
+        print("\nDone. Customer data was reset; auth/security tables were kept.")
         return 0
     finally:
         conn.close()
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Delete all DB rows except users.")
+    parser = argparse.ArgumentParser(
+        description="Delete customer data while keeping users, auth events, and sessions."
+    )
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="Path to SQLite DB file.")
     parser.add_argument("--yes", action="store_true", help="Required to actually delete rows.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting.")
