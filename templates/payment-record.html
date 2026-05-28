@@ -1753,6 +1753,23 @@
         return Math.max(1, diffMonths + 1);
     }
 
+    function getDefaultJudgmentDisplayTermForPaymentDate(paymentDateStr, firstDueDateStr) {
+        const paymentDate = parseIsoDateLocal(paymentDateStr);
+        if (!paymentDate) return 1;
+
+        let term = getVirtualTermForDate(paymentDateStr, firstDueDateStr);
+        const currentDueDate = parseIsoDateLocal(addMonthsIso(firstDueDateStr, term - 1));
+        if (currentDueDate && paymentDate > currentDueDate) {
+            term += 1;
+        }
+
+        return Math.max(1, term);
+    }
+
+    function getDefaultJudgmentDisplayTermForDate(dateStr, firstDueDateStr) {
+        return getDefaultJudgmentDisplayTermForPaymentDate(dateStr, firstDueDateStr);
+    }
+
     function findPaymentDisplayTerm(payment, planRows, assignedTerms) {
         const paymentDate = String(payment?.payment_date || '');
         const orderedPlans = [...(planRows || [])]
@@ -1862,7 +1879,7 @@
 
         [...(payments || [])].sort(sortByDateThenId).forEach(payment => {
             const paymentDate = String(payment.payment_date || '');
-            const term = getVirtualTermForDate(paymentDate, cus?.first_due_date);
+            const term = getDefaultJudgmentDisplayTermForPaymentDate(paymentDate, cus?.first_due_date);
             const matchedPayRow = findMatchingPayRowForPayment(payment, payRows, usedPayRowIndexes);
             const plan = planByTerm[term] || {};
             const amount = Number(payment.amount || payment.pay_amount || matchedPayRow?.pay_amount || 0);
@@ -1977,13 +1994,8 @@
         payments.forEach((payment, idx) => {
             const matchedPayRow = findMatchingPayRowForPayment(payment, payRows, usedPayRowIndexes);
 
-            let term = Number(matchedPayRow?.term || 0);
-            if (!term) term = getVirtualTermForDate(payment.payment_date, cus.first_due_date);
+            let term = getDefaultJudgmentDisplayTermForPaymentDate(payment.payment_date, cus.first_due_date);
             if (!term) term = idx + 1;
-
-            while (rowsByTerm[term] && rowsByTerm[term]._actual_payment) {
-                term += 1;
-            }
 
             const dueDate = addMonthsIso(cus.first_due_date, term - 1) || payment.payment_date || firstPlan.date;
             const projectedRow = getProjectedRowForTerm(cus, dailyRows, term);
@@ -2001,20 +2013,47 @@
                 expectedAmount = actualAmount;
             }
 
+            const existingRow = rowsByTerm[term] || {};
+            const actualPayments = [...(existingRow._actual_payments || []), payment];
+            const actualPayRows = [...(existingRow._actual_pay_rows || []), matchedPayRow].filter(Boolean);
+
             rowsByTerm[term] = {
-                ...(rowsByTerm[term] || firstPlan),
+                ...(existingRow.term ? existingRow : firstPlan),
                 term,
-                date: dueDate,
-                payment: expectedAmount,
+                date: existingRow.date || dueDate,
+                payment: Number(existingRow.payment || 0) > 0 ? existingRow.payment : expectedAmount,
                 _is_virtual_followup: term > 1,
                 _is_actual_followup: term > 1,
                 _actual_payment: payment,
+                _actual_payments: actualPayments,
                 _actual_pay_row: matchedPayRow,
-                _projected_row: analysisRow
+                _actual_pay_rows: actualPayRows,
+                _actual_payment_amount: Number(existingRow._actual_payment_amount || 0) + actualAmount,
+                _projected_row: analysisRow || existingRow._projected_row || null
             };
         });
 
         // 4) fallback เฉพาะกรณี backend ยังไม่ได้ส่ง due ถัดไปมา
+        const orderedDailyRows = [...(dailyRows || [])]
+            .filter(r => r.date)
+            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        const lastDailyRow = orderedDailyRows[orderedDailyRows.length - 1] || null;
+        const todayStr = toIsoDateLocal(new Date());
+        const referenceDate = [lastDailyRow?.date, todayStr].filter(Boolean).sort().slice(-1)[0];
+        const currentDisplayTerm = getDefaultJudgmentDisplayTermForDate(referenceDate, cus.first_due_date);
+        if (currentDisplayTerm && !rowsByTerm[currentDisplayTerm]) {
+            const dueDate = addMonthsIso(cus.first_due_date, currentDisplayTerm - 1);
+            const projectedRow = getProjectedRowForTerm(cus, dailyRows, currentDisplayTerm);
+            rowsByTerm[currentDisplayTerm] = {
+                ...firstPlan,
+                term: currentDisplayTerm,
+                date: dueDate,
+                payment: Number(projectedRow?.outstanding || projectedRow?.T || 0),
+                _is_virtual_followup: currentDisplayTerm > 1,
+                _projected_row: projectedRow || null
+            };
+        }
+
         const currentRows = Object.values(rowsByTerm);
         const maxTerm = currentRows.reduce((max, r) => Math.max(max, Number(r.term || 0)), 0);
         const fallbackRow = buildDefaultJudgmentFallbackRow(cus, dailyRows, currentRows);
