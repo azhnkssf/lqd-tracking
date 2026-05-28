@@ -677,7 +677,9 @@ function AccountSummaryCard({ customer }: { customer: CustomerDetailData | null 
 function StatusProgressBar({ customer, logs }: { customer: CustomerDetailData | null; logs: StatusLog[] }) {
   const current = customer?.case_status || "";
   const logStatuses = logs.flatMap((log) => [log.from_status || "", log.to_status || ""]).filter(Boolean);
-  const judgmentStatus = logStatuses.includes("พิพากษาฝ่ายเดียว") || current === "พิพากษาฝ่ายเดียว" ? "พิพากษาฝ่ายเดียว" : "พิพากษาตามยอม";
+  const hasConsentJudgment = logStatuses.includes("พิพากษาตามยอม") || current === "พิพากษาตามยอม";
+  const hasExParteJudgment = logStatuses.includes("พิพากษาฝ่ายเดียว") || current === "พิพากษาฝ่ายเดียว";
+  const judgmentStatus = hasExParteJudgment ? "พิพากษาฝ่ายเดียว" : hasConsentJudgment ? "พิพากษาตามยอม" : "พิพากษา...";
   const flow = ["ยื่นฟ้อง", judgmentStatus, "บังคับคดี", "ปิดบัญชี"];
   const visited = new Set(logStatuses);
   if (customer) visited.add("ยื่นฟ้อง");
