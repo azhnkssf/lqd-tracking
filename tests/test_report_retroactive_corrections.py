@@ -266,11 +266,52 @@ class ReportRetroactiveCorrectionTests(unittest.TestCase):
         try:
             client = app.test_client()
             payload = client.post('/api/report/generate-db', json={
-                'report_date': '2026-04-30',
+                'report_date': '2026-05-31',
             }).get_json()
 
             self.assertEqual(payload['correction_summary']['total'], 5)
             self.assertEqual(payload['correction_summary']['pending_total'], 3)
+        finally:
+            reports.get_current_user = original_get_current_user
+
+    def test_report_retroactive_alert_panel_uses_source_report_month(self):
+        temp_dir, db_path = self._create_report_route_db()
+        self.addCleanup(temp_dir.cleanup)
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM customers WHERE account_no != 'J-PENDING'")
+        conn.execute("DELETE FROM case_status_logs WHERE account_no != 'J-PENDING'")
+        conn.execute("DELETE FROM report_retroactive_fix_marks")
+        conn.execute(
+            "UPDATE customers SET judgment_date = '2026-04-03' WHERE account_no = 'J-PENDING'"
+        )
+        conn.execute(
+            "UPDATE case_status_logs SET changed_at = '2026-05-01' WHERE account_no = 'J-PENDING'"
+        )
+        conn.commit()
+        conn.close()
+
+        app = create_app()
+        app.config.update(TESTING=True, DATABASE=db_path)
+        original_get_current_user = reports.get_current_user
+        reports.get_current_user = lambda: {'id': 1, 'role': 'admin'}
+        try:
+            client = app.test_client()
+            source_payload = client.post('/api/report/generate-db', json={
+                'report_date': '2026-05-31',
+            }).get_json()
+            affected_payload = client.post('/api/report/generate-db', json={
+                'report_date': '2026-04-30',
+            }).get_json()
+
+            self.assertEqual(len(source_payload['retroactive_alerts']), 1)
+            alert = source_payload['retroactive_alerts'][0]
+            self.assertEqual(alert['source_report_month'], '2026-05')
+            self.assertEqual(alert['affected_report_month'], '2026-04')
+            self.assertTrue(source_payload['correction_summary']['has_pending_corrections'])
+            self.assertEqual(source_payload['correction_summary']['pending_judgment'], 1)
+
+            self.assertEqual(affected_payload['retroactive_alerts'], [])
+            self.assertFalse(affected_payload['correction_summary']['has_pending_corrections'])
         finally:
             reports.get_current_user = original_get_current_user
 

@@ -618,6 +618,24 @@ def build_correction_summary(retroactive_alerts, report_date_str=None):
     }
 
 
+def build_correction_summary_by_source_month(retroactive_alerts, report_date_str=None):
+    report_month = _month_key(report_date_str)
+    relevant_alerts = [
+        alert for alert in (retroactive_alerts or [])
+        if str(alert.get('source_report_month') or '') == report_month
+    ]
+    pending = [alert for alert in relevant_alerts if not alert.get('marked')]
+    return {
+        'has_pending_corrections': bool(pending),
+        'pending_total': len(pending),
+        'pending_judgment': sum(1 for alert in pending if alert.get('type') == 'judgment'),
+        'pending_enforcement': sum(1 for alert in pending if alert.get('type') == 'enforcement'),
+        'total': len(relevant_alerts),
+        'judgment_total': sum(1 for alert in relevant_alerts if alert.get('type') == 'judgment'),
+        'enforcement_total': sum(1 for alert in relevant_alerts if alert.get('type') == 'enforcement'),
+    }
+
+
 def _is_customer_effective_after_report(cus, report_date_str, payments=None):
     effective_date = _get_case_effective_date(cus, payments)
     report_date = _parse_report_date(report_date_str)

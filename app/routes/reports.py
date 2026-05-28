@@ -20,7 +20,7 @@ from app.services.report_service import (
     _build_not_generated_row,
     _build_customer_as_of_report_date,
     apply_correction_warning_remark,
-    build_correction_summary,
+    build_correction_summary_by_source_month,
     build_retroactive_alerts,
     REPORT30_HEADERS,
     REPORT31_HEADERS,
@@ -628,9 +628,9 @@ def _generate_report_db_from_data(data, user):
     report_month = str(report_date or '')[:7]
     retroactive_alerts_for_report = [
         alert for alert in retroactive_alerts
-        if str(alert.get('affected_report_month') or '') == report_month
+        if str(alert.get('source_report_month') or '') == report_month
     ]
-    correction_summary = build_correction_summary(retroactive_alerts_for_report, report_date)
+    correction_summary = build_correction_summary_by_source_month(retroactive_alerts_for_report, report_date)
 
     summary = build_reconcile_summary(
         db_total,
