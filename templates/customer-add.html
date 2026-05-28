@@ -381,7 +381,7 @@
                         </div>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="form-label-styled">วันที่ผิดนัดชำระก่อนฟ้อง <span class="text-red-500">*</span></label>
+                                <label class="form-label-styled">วันที่ผิดนัดชำระก่อนฟ้อง <span class="text-slate-400 font-normal">(Optional)</span></label>
                                 <div class="dp-wrap" id="dp-wrap-default-date">
                                     <div class="dp-input-row relative">
                                         <input type="hidden" id="default-date">
@@ -419,7 +419,7 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="form-label-styled">DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน <span class="text-red-500">*</span></label>
+                                <label class="form-label-styled">DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน <span class="text-slate-400 font-normal">(Optional)</span></label>
                                 <input id="pre-filing-dpd-days" class="form-input-styled" type="text" placeholder="กรอกจำนวนวัน" inputmode="numeric" autocomplete="off">
                                 <p id="warn-pre-filing-dpd-days" class="hidden text-[10px] text-red-500 mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-sm" style='font-variation-settings:"FILL" 1'>warning</span><span id="warn-pre-filing-dpd-days-msg">กรุณากรอกจำนวนเต็มมากกว่า 0</span></p>
                             </div>
@@ -860,11 +860,7 @@
         const el = document.getElementById('pre-filing-dpd-days');
         const cleaned = el.value.replace(/\D/g, '');
         el.value = cleaned;
-        if (!cleaned || Number(cleaned) <= 0) {
-            showFieldWarn('pre-filing-dpd-days', 'กรุณากรอกจำนวนเต็มมากกว่า 0');
-        } else {
-            hideFieldWarn('pre-filing-dpd-days');
-        }
+        hideFieldWarn('pre-filing-dpd-days');
     }
 
     // ---- calculateDiff ----
@@ -900,8 +896,6 @@
             { id: 'black-case-no', label: 'คดีหมายเลขดำที่' },
             { id: 'filing-capital', label: 'ทุนทรัพย์ที่ฟ้อง' },
             { id: 'filing-date',   label: 'วันที่ยื่นฟ้อง' },
-            { id: 'default-date',   label: 'วันที่ผิดนัดชำระก่อนฟ้อง' },
-            { id: 'pre-filing-dpd-days', label: 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน' },
         ];
 
         document.querySelectorAll('.form-input-styled').forEach(el => el.classList.remove('error'));
@@ -949,26 +943,27 @@
             return false;
         }
 
+        const defaultDateValue = document.getElementById('default-date').value;
         const filingDate = new Date(dpGetValue('filing-date') + 'T00:00:00');
-        const defaultDate = new Date(document.getElementById('default-date').value + 'T00:00:00');
+        const defaultDate = defaultDateValue ? new Date(defaultDateValue + 'T00:00:00') : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (filingDate > today) {
             showError('วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต');
             return false;
         }
-        if (defaultDate > today) {
+        if (defaultDate && defaultDate > today) {
             showError('วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต');
             return false;
         }
-        if (defaultDate > filingDate) {
+        if (defaultDate && defaultDate > filingDate) {
             showError('วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง');
             return false;
         }
 
         const dpdVal = document.getElementById('pre-filing-dpd-days').value.trim();
-        if (!/^\d+$/.test(dpdVal) || Number(dpdVal) <= 0) {
-            showError('DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มมากกว่า 0');
+        if (dpdVal && (!/^\d+$/.test(dpdVal) || Number(dpdVal) < 0)) {
+            showError('DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็ม และต้องไม่น้อยกว่า 0');
             document.getElementById('pre-filing-dpd-days').classList.add('error');
             return false;
         }
@@ -1004,7 +999,8 @@
         document.getElementById('rv-filing-capital').textContent = fmtReview(document.getElementById('filing-capital').value);
         document.getElementById('rv-filing-date').textContent   = fmtDateReview('filing-date');
         document.getElementById('rv-default-date').textContent  = document.getElementById('default-date').value ? document.getElementById('default-date').value.split('-').reverse().join('/') : '-';
-        document.getElementById('rv-pre-filing-dpd-days').textContent = document.getElementById('pre-filing-dpd-days').value.trim() + ' วัน';
+        const reviewDpd = document.getElementById('pre-filing-dpd-days').value.trim();
+        document.getElementById('rv-pre-filing-dpd-days').textContent = reviewDpd ? reviewDpd + ' วัน' : '-';
         document.getElementById('rv-filing-note').textContent = document.getElementById('filing-note').value.trim() || '-';
 
         document.getElementById('confirm-modal').classList.remove('hidden');
@@ -1027,8 +1023,8 @@
             name             : document.getElementById('customer-name').value.trim(),
             filing_date      : dpGetValue('filing-date') || null,
             filing_capital   : parseNumber(document.getElementById('filing-capital').value),
-            default_date     : document.getElementById('default-date').value,
-            pre_filing_dpd_days: Number(document.getElementById('pre-filing-dpd-days').value.trim()),
+            default_date     : document.getElementById('default-date').value || null,
+            pre_filing_dpd_days: document.getElementById('pre-filing-dpd-days').value.trim() ? Number(document.getElementById('pre-filing-dpd-days').value.trim()) : null,
             filing_note      : document.getElementById('filing-note').value.trim(),
         };
 

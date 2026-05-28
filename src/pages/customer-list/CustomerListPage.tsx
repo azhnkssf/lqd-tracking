@@ -331,9 +331,7 @@ function validateAddFields(form: AddForm, includeRequired: boolean): AddFieldErr
     errors.filing_date = 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต';
   }
 
-  if (!form.default_date) {
-    if (includeRequired) errors.default_date = 'กรุณาเลือกวันที่ผิดนัดชำระก่อนฟ้อง';
-  } else if (!form.filing_date) {
+  if (form.default_date && !form.filing_date) {
     errors.default_date = 'กรุณาเลือกวันที่ยื่นฟ้องก่อน';
   } else if (form.default_date && form.filing_date && form.default_date > form.filing_date) {
     errors.default_date = 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เกินวันที่ยื่นฟ้อง';
@@ -359,9 +357,7 @@ function validateAddFields(form: AddForm, includeRequired: boolean): AddFieldErr
     errors.name = 'ชื่อ-นามสกุลใช้ได้เฉพาะภาษาไทย ภาษาอังกฤษ เว้นวรรค จุด และขีดกลาง';
   }
 
-  if (!dpd) {
-    if (includeRequired) errors.pre_filing_dpd_days = 'กรุณากรอก DPD';
-  } else if (!/^\d+$/.test(dpd)) {
+  if (dpd && !/^\d+$/.test(dpd)) {
     errors.pre_filing_dpd_days = 'กรุณากรอก DPD เป็นตัวเลขเท่านั้น';
   } else if (Number(dpd) < 0) {
     errors.pre_filing_dpd_days = 'DPD ต้องไม่น้อยกว่า 0';
@@ -740,8 +736,8 @@ export default function CustomerListPage() {
           name: addForm.name.trim(),
           filing_date: addForm.filing_date,
           filing_capital: addForm.filing_capital.replace(/,/g, '').trim(),
-          default_date: addForm.default_date,
-          pre_filing_dpd_days: Number(addForm.pre_filing_dpd_days),
+          default_date: addForm.default_date || null,
+          pre_filing_dpd_days: addForm.pre_filing_dpd_days.trim() ? Number(addForm.pre_filing_dpd_days) : null,
           filing_note: addForm.filing_note.trim(),
         }),
       }));
@@ -1625,10 +1621,10 @@ function AddCustomerModal({ form, setForm, fieldErrors, error, onSubmit, onClose
               <AddInput id={fieldDomId('account_no')} label="หมายเลขบัญชี *" value={form.account_no} onChange={v => updateForm('account_no', v.slice(0, 12))} icon="badge" placeholder="กรอกหมายเลขบัญชี 12 หลัก" helper="กรอกเลขบัญชีจำนวน 12 หลัก" error={fieldErrors.account_no} maxLength={12} inputMode="numeric" inputClassName="pr-16" rightSlot={<span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none font-mono ${fieldErrors.account_no ? 'text-red-400' : 'text-slate-300'}`}>{form.account_no.length}/12</span>} />
               <AddInput id={fieldDomId('black_case_no')} label="คดีหมายเลขดำที่ *" value={form.black_case_no} onChange={v => updateForm('black_case_no', v)} icon="article" placeholder="กรอกคดีหมายเลขดำที่" helper="เช่น ผบE1234/2568 หรือ ผบ1234/2568" error={fieldErrors.black_case_no} />
               <AddDateInput id={fieldDomId('filing_date')} label="วันที่ยื่นฟ้อง *" value={form.filing_date} onChange={v => updateForm('filing_date', v)} icon="calendar_today" placeholder="เลือกวันที่ยื่นฟ้อง" helper="เลือกได้ถึงวันที่ปัจจุบัน" error={fieldErrors.filing_date} maxDate={todayIsoDate()} />
-              <AddDateInput id={fieldDomId('default_date')} label="วันที่ผิดนัดชำระก่อนฟ้อง *" value={form.default_date} onChange={v => updateForm('default_date', v)} icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="ต้องไม่เกินวันที่ยื่นฟ้อง" error={fieldErrors.default_date} maxDate={form.filing_date || todayIsoDate()} />
+              <AddDateInput id={fieldDomId('default_date')} label="วันที่ผิดนัดชำระก่อนฟ้อง (Optional)" value={form.default_date} onChange={v => updateForm('default_date', v)} icon="calendar_today" placeholder="เลือกวันที่ผิดนัดชำระก่อนฟ้อง" helper="ถ้ากรอก ต้องไม่เกินวันที่ยื่นฟ้อง" error={fieldErrors.default_date} maxDate={form.filing_date || todayIsoDate()} />
               <AddInput id={fieldDomId('filing_capital')} label="ทุนทรัพย์ที่ฟ้อง *" value={form.filing_capital} onChange={updateMoney} icon="payments" placeholder="กรอกทุนทรัพย์ที่ฟ้อง" helper="ระบบจะแสดง comma อัตโนมัติ และส่งค่าแบบไม่มี comma" error={fieldErrors.filing_capital} inputMode="decimal" />
               <AddInput id={fieldDomId('name')} label="ชื่อ-นามสกุล *" value={form.name} onChange={v => updateForm('name', v)} icon="person" placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" helper="ใช้ได้เฉพาะภาษาไทย ภาษาอังกฤษ เว้นวรรค จุด (.) และขีดกลาง (-)" error={fieldErrors.name} />
-              <AddInput id={fieldDomId('pre_filing_dpd_days')} label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *" value={form.pre_filing_dpd_days} onChange={v => updateForm('pre_filing_dpd_days', v)} icon="pin" placeholder="กรอกจำนวนวัน" helper="กรอกจำนวนเต็มตั้งแต่ 0 ขึ้นไป" error={fieldErrors.pre_filing_dpd_days} inputMode="numeric" />
+              <AddInput id={fieldDomId('pre_filing_dpd_days')} label="DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน (Optional)" value={form.pre_filing_dpd_days} onChange={v => updateForm('pre_filing_dpd_days', v)} icon="pin" placeholder="กรอกจำนวนวัน" helper="ถ้ากรอก ต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป" error={fieldErrors.pre_filing_dpd_days} inputMode="numeric" />
               <div className="add-field md:col-span-6"><label className="add-label" htmlFor={fieldDomId('filing_note')}>หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม</label><textarea id={fieldDomId('filing_note')} value={form.filing_note} onChange={e => updateForm('filing_note', e.target.value.slice(0, 100))} className={`add-input add-note-input h-[58px] min-h-[58px] resize-none ${fieldErrors.filing_note ? 'border-red-300 bg-red-50/40 text-red-700 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="กรอกหมายเหตุเพิ่มเติม (ถ้ามี)" maxLength={100} aria-invalid={fieldErrors.filing_note ? 'true' : undefined} aria-describedby={`${fieldDomId('filing_note')}-error`} /><p id={`${fieldDomId('filing_note')}-error`} className={`add-helper !mt-1 !min-h-0 ${fieldErrors.filing_note ? '!text-red-500' : ''}`}>{fieldErrors.filing_note || `${form.filing_note.length}/100 ตัวอักษร`}</p></div>
             </div>
             <div className="modal-footer -mx-5 md:-mx-6 -mb-5 mt-5"><p className="text-[11px] text-slate-400 leading-relaxed">ฟิลด์ที่มีเครื่องหมาย * จำเป็นต้องกรอก</p><div className="flex items-center justify-end gap-2"><button type="button" onClick={close} className="btn-secondary-modern">ยกเลิก</button><button type="submit" className="btn-primary-modern"><span className="material-symbols-outlined text-base">fact_check</span>ตรวจสอบข้อมูล</button></div></div>
@@ -1691,7 +1687,7 @@ function AddReviewModal({ form, saving, onBack, onSubmit }: { form: AddForm; sav
       {close => (
         <>
           <div className="modal-header"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3 min-w-0"><div className="modal-icon"><span className="material-symbols-outlined text-[21px]" style={{ fontVariationSettings: '"FILL" 1' }}>fact_check</span></div><div className="min-w-0"><h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight">ตรวจสอบข้อมูลก่อนบันทึก</h3><p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">ยืนยันรายละเอียดลูกหนี้ก่อนเพิ่มเข้าสู่ระบบ</p></div></div><button onClick={close} className="modal-close"><span className="material-symbols-outlined text-[20px]">close</span></button></div></div>
-          <div className="modal-body"><div className="review-panel"><div className="review-account"><div className="min-w-0"><p className="review-label">หมายเลขบัญชี</p><p className="mt-1 text-xl font-extrabold text-primary tracking-wide break-all">{fmtAccNo(form.account_no)}</p></div><div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 self-start sm:self-center"><span className="material-symbols-outlined text-[15px]">verified</span>พร้อมบันทึก</div></div><div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-blue-100">{[['ชื่อ-นามสกุล', form.name], ['คดีหมายเลขดำที่', form.black_case_no], ['วันที่ยื่นฟ้อง', fmtDate(form.filing_date)], ['วันที่ผิดนัดชำระก่อนฟ้อง', fmtDate(form.default_date)], ['ทุนทรัพย์ที่ฟ้อง', fmtMoney(form.filing_capital)], ['DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน', form.pre_filing_dpd_days], ['หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม', form.filing_note || '-']].map(([label, value]) => <div key={label} className="review-item"><p className="review-label">{label}</p><p className="review-value break-words">{value}</p></div>)}</div></div></div>
+          <div className="modal-body"><div className="review-panel"><div className="review-account"><div className="min-w-0"><p className="review-label">หมายเลขบัญชี</p><p className="mt-1 text-xl font-extrabold text-primary tracking-wide break-all">{fmtAccNo(form.account_no)}</p></div><div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 self-start sm:self-center"><span className="material-symbols-outlined text-[15px]">verified</span>พร้อมบันทึก</div></div><div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-blue-100">{[['ชื่อ-นามสกุล', form.name], ['คดีหมายเลขดำที่', form.black_case_no], ['วันที่ยื่นฟ้อง', fmtDate(form.filing_date)], ['วันที่ผิดนัดชำระก่อนฟ้อง', fmtDate(form.default_date)], ['ทุนทรัพย์ที่ฟ้อง', fmtMoney(form.filing_capital)], ['DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน', form.pre_filing_dpd_days || '-'], ['หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม', form.filing_note || '-']].map(([label, value]) => <div key={label} className="review-item"><p className="review-label">{label}</p><p className="review-value break-words">{value}</p></div>)}</div></div></div>
           <div className="modal-footer"><p className="text-[11px] text-slate-400 leading-relaxed">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยันบันทึก</p><div className="flex items-center justify-end gap-2"><button onClick={close} className="btn-secondary-modern">แก้ไขข้อมูล</button><button disabled={saving} onClick={onSubmit} className="btn-primary-modern"><span className="material-symbols-outlined text-base">save</span>{saving ? 'กำลังบันทึก...' : 'ยืนยันบันทึก'}</button></div></div>
         </>
       )}

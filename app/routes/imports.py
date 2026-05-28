@@ -207,6 +207,25 @@ def parse_required_positive_int(val):
     return value
 
 
+def parse_optional_non_negative_int(val):
+    if val in (None, ''):
+        return None
+    if isinstance(val, int):
+        value = val
+    elif isinstance(val, float) and val.is_integer():
+        value = int(val)
+    else:
+        text = str(val).replace(',', '').strip()
+        if not text:
+            return None
+        if not re.fullmatch(r'\d+', text):
+            raise ValueError('ต้องเป็นจำนวนเต็มเท่านั้น')
+        value = int(text)
+    if value < 0:
+        raise ValueError('ต้องไม่น้อยกว่า 0')
+    return value
+
+
 # ============================================================
 # Template Download
 # ============================================================
@@ -237,11 +256,11 @@ def download_customer_template():
         'คดีหมายเลขดำที่ *',
         'วันที่ยื่นฟ้อง * (YYYY-MM-DD)',
         'ทุนทรัพย์ที่ฟ้อง *',
-        'วันที่ผิดนัดชำระก่อนฟ้อง * (YYYY-MM-DD)',
-        'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน *',
+        'วันที่ผิดนัดชำระก่อนฟ้อง (Optional, YYYY-MM-DD)',
+        'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน (Optional)',
         'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติม (ไม่เกิน 100 ตัวอักษร)'
     ]
-    example = ['700004761131', 'มานิตย์ บุญรอด', 'ผบE814/2569', '2026-03-12', 250000, '2026-02-10', 30, '']
+    example = ['700004761131', 'มานิตย์ บุญรอด', 'ผบE814/2569', '2026-03-12', 250000, '', '', '']
 
     ws.append(keys)
     ws.append(labels)
@@ -536,17 +555,9 @@ def import_customers():
             continue
 
         default_date_raw = row[5] if len(row) > 5 else None
-        default_date = parse_date(default_date_raw)
-        if not default_date_raw:
-            results.append({
-                'row': row_idx,
-                'account_no': account_no,
-                'status': 'error',
-                'message': 'วันที่ผิดนัดชำระก่อนฟ้องว่างเปล่า'
-            })
-            error += 1
-            continue
-        if not default_date:
+        default_date_blank = default_date_raw is None or str(default_date_raw).strip() == ''
+        default_date = parse_date(default_date_raw) if not default_date_blank else None
+        if not default_date_blank and not default_date:
             results.append({
                 'row': row_idx,
                 'account_no': account_no,
@@ -557,26 +568,26 @@ def import_customers():
             continue
 
         filing_date_obj = date.fromisoformat(filing_date)
-        default_date_obj = date.fromisoformat(default_date)
+        default_date_obj = date.fromisoformat(default_date) if default_date else None
         today = date.today()
         if filing_date_obj > today:
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
                             'message': 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต'})
             error += 1
             continue
-        if default_date_obj > today:
+        if default_date_obj and default_date_obj > today:
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
                             'message': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต'})
             error += 1
             continue
-        if default_date_obj > filing_date_obj:
+        if default_date_obj and default_date_obj > filing_date_obj:
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
                             'message': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง'})
             error += 1
             continue
 
         try:
-            pre_filing_dpd_days = parse_required_positive_int(row[6] if len(row) > 6 else None)
+            pre_filing_dpd_days = parse_optional_non_negative_int(row[6] if len(row) > 6 else None)
         except ValueError as e:
             results.append({'row': row_idx, 'account_no': account_no, 'status': 'error',
                             'message': f'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน{str(e)}'})

@@ -857,7 +857,6 @@ def create_customer():
 
     required = [
         'account_no', 'name', 'black_case_no', 'filing_date', 'filing_capital',
-        'default_date', 'pre_filing_dpd_days',
     ]
     missing = [f for f in required if data.get(f) is None or data.get(f) == '']
     if missing:
@@ -867,8 +866,6 @@ def create_customer():
             'black_case_no': 'คดีหมายเลขดำที่',
             'filing_date': 'วันที่ยื่นฟ้อง',
             'filing_capital': 'ทุนทรัพย์ที่ฟ้อง',
-            'default_date': 'วันที่ผิดนัดชำระก่อนฟ้อง',
-            'pre_filing_dpd_days': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วัน',
         }
         missing_labels = [field_labels.get(f, f) for f in missing]
         return jsonify({'error': f'กรุณากรอกข้อมูลให้ครบ: {", ".join(missing_labels)}'}), 400
@@ -893,24 +890,30 @@ def create_customer():
     if not black_case_no:
         return jsonify({'error': 'คดีหมายเลขดำที่ต้องอยู่ในรูปแบบ: ตัวย่อประเภทคดีติดเลขที่ฟ้อง/ปี พ.ศ. เช่น ผบ1234/2567, ผบE814/2569 หรือ พE325/2568'}), 400
 
-    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', default_date):
+    if default_date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', default_date):
         return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องเป็นรูปแบบ YYYY-MM-DD'}), 400
 
     filing_date_obj = _parse_iso_date(filing_date)
-    default_date_obj = _parse_iso_date(default_date)
+    default_date_obj = _parse_iso_date(default_date) if default_date else None
     today = date.today()
     if not filing_date_obj or filing_date_obj > today:
         return jsonify({'error': 'วันที่ยื่นฟ้องต้องไม่เป็นวันที่ในอนาคต'}), 400
-    if not default_date_obj or default_date_obj > today:
-        return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต'}), 400
-    if default_date_obj > filing_date_obj:
-        return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง'}), 400
+    if default_date:
+        if not default_date_obj or default_date_obj > today:
+            return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่เป็นวันที่ในอนาคต'}), 400
+        if default_date_obj > filing_date_obj:
+            return jsonify({'error': 'วันที่ผิดนัดชำระก่อนฟ้องต้องไม่มากกว่าวันที่ยื่นฟ้อง'}), 400
+    else:
+        default_date = None
 
-    pre_filing_dpd_days = _parse_positive_int(data.get('pre_filing_dpd_days'))
-    if pre_filing_dpd_days is None:
-        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มเท่านั้น'}), 400
-    if pre_filing_dpd_days < 0:
-        return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องไม่น้อยกว่า 0'}), 400
+    pre_filing_dpd_raw = data.get('pre_filing_dpd_days')
+    pre_filing_dpd_days = None
+    if pre_filing_dpd_raw not in (None, ''):
+        pre_filing_dpd_days = _parse_positive_int(pre_filing_dpd_raw)
+        if pre_filing_dpd_days is None:
+            return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องเป็นจำนวนเต็มเท่านั้น'}), 400
+        if pre_filing_dpd_days < 0:
+            return jsonify({'error': 'DPD ณ วันที่ก่อนส่งฟ้องศาล 1 วันต้องไม่น้อยกว่า 0'}), 400
 
     if len(filing_note) > 100:
         return jsonify({'error': 'หมายเหตุ / เงื่อนไขพิเศษเพิ่มเติมต้องไม่เกิน 100 ตัวอักษร'}), 400
