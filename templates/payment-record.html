@@ -1840,6 +1840,80 @@
         return displayByTerm;
     }
 
+    function buildDefaultSingleJudgmentAllocationByTerm(cus, planRows, payments, dailyRows) {
+        const planByTerm = {};
+        (planRows || []).forEach((row, idx) => {
+            const term = Number(row.term || idx + 1);
+            if (term) planByTerm[term] = row;
+        });
+
+        const payRows = (dailyRows || [])
+            .filter(r => r.is_pay_date)
+            .sort((a, b) => {
+                const da = String(a.date || '');
+                const db = String(b.date || '');
+                if (da < db) return -1;
+                if (da > db) return 1;
+                return Number(a._payment_id || 0) - Number(b._payment_id || 0);
+            });
+
+        const usedPayRowIndexes = new Set();
+        const allocationByTerm = {};
+
+        [...(payments || [])].sort(sortByDateThenId).forEach(payment => {
+            const paymentDate = String(payment.payment_date || '');
+            const term = getVirtualTermForDate(paymentDate, cus?.first_due_date);
+            const matchedPayRow = findMatchingPayRowForPayment(payment, payRows, usedPayRowIndexes);
+            const plan = planByTerm[term] || {};
+            const amount = Number(payment.amount || payment.pay_amount || matchedPayRow?.pay_amount || 0);
+            const expected = Number(plan.payment ?? matchedPayRow?.outstanding ?? amount ?? 0);
+            const interestPaid = Number(matchedPayRow?.P || 0);
+            const principalPaid = Number(matchedPayRow?.R || 0);
+            const principalBal = matchedPayRow ? Number(matchedPayRow.T || 0) : null;
+            const dpdMonths = matchedPayRow ? Number(matchedPayRow.dpd_months || 0) : 0;
+            const ncbStatus = matchedPayRow ? (matchedPayRow.ncb_months || matchedPayRow.ncb_code || '31') : '31';
+
+            if (!allocationByTerm[term]) {
+                allocationByTerm[term] = {
+                    term,
+                    expected,
+                    paid_total: 0,
+                    remaining: expected,
+                    interest_paid: 0,
+                    principal_paid: 0,
+                    payment_dates: [],
+                    allocations: [],
+                    status: 'unpaid',
+                    _analysis_row: null
+                };
+            }
+
+            const allocation = allocationByTerm[term];
+            allocation.expected = Number(allocation.expected || expected || 0);
+            allocation.paid_total += amount;
+            allocation.remaining = Math.max(0, Number(allocation.expected || 0) - allocation.paid_total);
+            allocation.interest_paid += interestPaid;
+            allocation.principal_paid += principalPaid;
+            allocation.status = allocation.remaining <= 0.009 ? 'paid' : 'partial';
+            if (paymentDate && !allocation.payment_dates.includes(paymentDate)) {
+                allocation.payment_dates.push(paymentDate);
+            }
+            if (matchedPayRow) allocation._analysis_row = matchedPayRow;
+
+            allocation.allocations.push({
+                payment_date: paymentDate,
+                amount,
+                interest_paid: interestPaid,
+                principal_paid: principalPaid,
+                principal_bal: principalBal,
+                dpd_months: dpdMonths,
+                ncb_status: ncbStatus
+            });
+        });
+
+        return allocationByTerm;
+    }
+
     function buildMonthlyRowsForDisplay(cus, planMonthly, dailyRows) {
         const baseRows = (planMonthly || []).map((r, idx) => ({
             ...r,
@@ -2086,6 +2160,8 @@
     }
 
     function findDailyAnalysisRowForAllocation(allocation, plan, dailyRows) {
+        if (allocation?._analysis_row) return allocation._analysis_row;
+
         const dates = allocation?.payment_dates || [];
         for (let i = dates.length - 1; i >= 0; i -= 1) {
             const row = dailyRows.find(r => r.date === dates[i]);
@@ -2103,11 +2179,17 @@
             return;
         }
 
-        const allocationByTerm = {};
-        (paymentAllocationRows || []).forEach(row => {
-            const term = Number(row.term || 0);
-            if (term) allocationByTerm[term] = row;
-        });
+        const useDefaultSingleAllocation = isDefaultSingleJudgment(customerData);
+        const allocationByTerm = useDefaultSingleAllocation
+            ? buildDefaultSingleJudgmentAllocationByTerm(customerData, planRows, payments, dailyAll)
+            : {};
+
+        if (!useDefaultSingleAllocation) {
+            (paymentAllocationRows || []).forEach(row => {
+                const term = Number(row.term || 0);
+                if (term) allocationByTerm[term] = row;
+            });
+        }
 
         tbody.innerHTML = planRows.map((plan, i) => {
             const termNum = Number(plan.term || i + 1);
@@ -2148,8 +2230,9 @@
             </tr>${renderPaymentDetailRows(allocation, termNum)}`;
         }).join('');
 
+        const paidAllocationRows = Object.values(allocationByTerm);
         document.getElementById('table-info').textContent =
-            `แสดง ${planRows.length} งวด | ชำระแล้ว ${(window._payments||[]).length} ครั้ง | ปิดครบ ${(paymentAllocationRows || []).filter(r => r.status === 'paid').length} งวด`;
+            `แสดง ${planRows.length} งวด | ชำระแล้ว ${(window._payments||[]).length} ครั้ง | ปิดครบ ${paidAllocationRows.filter(r => r.status === 'paid').length} งวด`;
         document.getElementById('table-pagination').innerHTML = '';
     }
 
