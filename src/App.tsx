@@ -137,16 +137,20 @@ function RightPanel() {
     <aside className="rp" aria-hidden="true">
       <div className="rp-inner">
         <div className="rp-top">
+          {/* คืนค่าโค้ด Secured workspace กลับเป็นเวอร์ชันเดิมที่คุณใช้เป๊ะๆ */}
           <Chip
             color="accent"
-            size="sm"
+            size="lg" 
             variant="soft"
-            className="mb-3 gap-1.5 rounded-full px-3 text-[10px] font-extrabold uppercase tracking-[.08em]"
+            className="mb-3 inline-flex min-w-max items-center gap-2 rounded-full !px-4 !py-0.5 text-[10px] font-extrabold uppercase tracking-[.08em]"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+            <span className="h-2 w-2 rounded-full bg-green-600" />
             Secured workspace
           </Chip>
-          <h2 className="rp-headline">LQD Management System</h2>
+
+          <h2 className="rp-headline" style={{ marginTop: '5px' }}>
+            LQD Management System
+          </h2>
           <p className="rp-sub">ศูนย์กลางสำหรับจัดการข้อมูลลูกหนี้ บันทึกการชำระเงิน และติดตามพอร์ตงานคดี</p>
         </div>
 
