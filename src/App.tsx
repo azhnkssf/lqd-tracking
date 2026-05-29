@@ -224,10 +224,16 @@ function LeftPanel() {
   const [password, setPassword]= useState('');
   const [showPw,   setShowPw]  = useState(false);
   const [error,    setError]   = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [loading,  setLoading] = useState(false);
   const [shake,    setShake]   = useState(false);
 
-  const clearErr = () => setError('');
+  const clearErr = () => {
+    setError('');
+    setUsernameError('');
+    setPasswordError('');
+  };
 
   const triggerErr = (msg: string) => {
     setError(msg);
@@ -235,10 +241,29 @@ function LeftPanel() {
     setTimeout(() => setShake(false), 420);
   };
 
+  const validateLoginForm = () => {
+    const nextUsernameError = !username.trim() ? 'Please enter your username.' : '';
+    const nextPasswordError = !password ? 'Please enter your password.' : '';
+
+    setUsernameError(nextUsernameError);
+    setPasswordError(nextPasswordError);
+
+    if (nextUsernameError || nextPasswordError) {
+      triggerErr('Please complete the required fields.');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     clearErr();
-    if (!username.trim() || !password) { triggerErr('Please enter your username and password.'); return; }
+
+    if (!validateLoginForm()) {
+      return;
+    }
+
     setLoading(true);
     try {
       const res  = await fetch('/api/auth/login', {
@@ -259,6 +284,8 @@ function LeftPanel() {
         }
         window.location.href = data.redirect_to || '/inventory';
       } else {
+        setUsernameError(' ');
+        setPasswordError(' ');
         triggerErr(data.error || 'Incorrect username or password.');
       }
     } catch {
@@ -267,8 +294,6 @@ function LeftPanel() {
       setLoading(false);
     }
   };
-
-  const hasErr = !!error;
 
   return (
     <main className="lp">
@@ -324,27 +349,38 @@ function LeftPanel() {
                 id="username"
                 name="username"
                 isRequired
-                isInvalid={hasErr}
+                isInvalid={!!usernameError}
                 type="text"
                 autoFocus
                 value={username}
                 onChange={(value) => {
                   setUsername(value);
-                  clearErr();
+                  setUsernameError('');
+                  setError('');
                 }}
-                className="flex w-full flex-col gap-2"
+                className="mb-4 flex w-full flex-col gap-2"
               >
                 <Label className="text-xs font-semibold uppercase tracking-[.03em] text-slate-700">Username</Label>
-                <InputGroup variant="secondary" className={`h-12 rounded-[14px] border bg-slate-50 shadow-none ${hasErr ? 'border-red-400' : 'border-slate-200'}`}>
+                <InputGroup
+                  variant="secondary"
+                  className={[
+                    'h-12 w-full rounded-[14px] border bg-slate-50 shadow-none transition',
+                    'focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-600/10',
+                    usernameError ? 'border-red-400 bg-red-50/40' : 'border-slate-200',
+                  ].join(' ')}
+                >
                   <InputGroup.Prefix className="text-slate-400">
                     <IcoUser />
                   </InputGroup.Prefix>
                   <InputGroup.Input
                     autoComplete="username"
                     placeholder="Enter your username"
-                    className="text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
+                    className="w-full text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
                   />
                 </InputGroup>
+                {usernameError.trim() && (
+                  <p className="text-xs font-medium text-red-600">{usernameError}</p>
+                )}
               </TextField>
             </div>
 
@@ -352,17 +388,25 @@ function LeftPanel() {
               <TextField
                 id="password"
                 name="password"
-                isInvalid={hasErr}
                 isRequired
+                isInvalid={!!passwordError}
                 value={password}
                 onChange={(value) => {
                   setPassword(value);
-                  clearErr();
+                  setPasswordError('');
+                  setError('');
                 }}
-                className="flex w-full flex-col gap-2"
+                className="mb-4 flex w-full flex-col gap-2"
               >
                 <Label className="text-xs font-semibold uppercase tracking-[.03em] text-slate-700">Password</Label>
-                <InputGroup variant="secondary" className={`h-12 rounded-[14px] border bg-slate-50 shadow-none ${hasErr ? 'border-red-400' : 'border-slate-200'}`}>
+                <InputGroup
+                  variant="secondary"
+                  className={[
+                    'h-12 w-full rounded-[14px] border bg-slate-50 shadow-none transition',
+                    'focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-600/10',
+                    passwordError ? 'border-red-400 bg-red-50/40' : 'border-slate-200',
+                  ].join(' ')}
+                >
                   <InputGroup.Prefix className="text-slate-400">
                     <IcoLock />
                   </InputGroup.Prefix>
@@ -370,7 +414,7 @@ function LeftPanel() {
                     type={showPw ? 'text' : 'password'}
                     autoComplete="current-password"
                     placeholder="Enter your password"
-                    className="text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
+                    className="w-full text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
                   />
                   <InputGroup.Suffix>
                     <Button
@@ -386,6 +430,9 @@ function LeftPanel() {
                     </Button>
                   </InputGroup.Suffix>
                 </InputGroup>
+                {passwordError.trim() && (
+                  <p className="text-xs font-medium text-red-600">{passwordError}</p>
+                )}
               </TextField>
             </div>
 
