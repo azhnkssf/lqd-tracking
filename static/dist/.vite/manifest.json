@@ -1,11 +1,34 @@
 {
+  "_heroui-BHkS7Plx.js": {
+    "file": "assets/heroui-BHkS7Plx.js",
+    "name": "heroui",
+    "dynamicImports": [
+      "node_modules/@heroui/dom-animation/dist/index.mjs"
+    ]
+  },
+  "_react-l0sNRNKZ.js": {
+    "file": "assets/react-l0sNRNKZ.js",
+    "name": "react"
+  },
+  "node_modules/@heroui/dom-animation/dist/index.mjs": {
+    "file": "assets/index-5VEdHJbp.js",
+    "name": "index",
+    "src": "node_modules/@heroui/dom-animation/dist/index.mjs",
+    "isDynamicEntry": true,
+    "imports": [
+      "_heroui-BHkS7Plx.js"
+    ]
+  },
   "src/main.tsx": {
-    "file": "assets/main-M1B7FrHl.js",
+    "file": "assets/main-BOF_BK1K.js",
     "name": "main",
     "src": "src/main.tsx",
     "isEntry": true,
+    "imports": [
+      "_heroui-BHkS7Plx.js"
+    ],
     "css": [
-      "assets/main-BK9uMlcy.css"
+      "assets/main-BaUmHSQ9.css"
     ]
   }
 }

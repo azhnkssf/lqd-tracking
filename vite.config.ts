@@ -8,7 +8,13 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: true,
     rollupOptions: {
-      input: 'src/main.tsx'
-    }
-  }
+      input: 'src/main.tsx',
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          heroui: ['@heroui/react', 'framer-motion'],
+        },
+      },
+    },
+  },
 });

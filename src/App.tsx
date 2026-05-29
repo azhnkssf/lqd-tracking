@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { Button, Input } from '@heroui/react';
 
 /* ─── Icons ──────────────────────────────────────────────────────────────── */
 function IcoShield({ size = 20 }: { size?: number }) {
@@ -202,8 +203,6 @@ function LeftPanel() {
   const [error,    setError]   = useState('');
   const [loading,  setLoading] = useState(false);
   const [shake,    setShake]   = useState(false);
-  const [uFocus,   setUFocus]  = useState(false);
-  const [pFocus,   setPFocus]  = useState(false);
 
   const clearErr = () => setError('');
 
@@ -283,46 +282,90 @@ function LeftPanel() {
 
           <form onSubmit={handleSubmit} className={shake ? 'shake' : ''}>
             <div className="lp-field">
-              <label className="lp-label" htmlFor="username">Username</label>
-              <div className={`lp-input-wrap${hasErr ? ' errored' : uFocus ? ' focused' : ''}`}>
-                <span className="lp-ico"><IcoUser /></span>
-                <input
-                  id="username" className="lp-inp" type="text"
-                  autoComplete="username" autoFocus
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={e => { setUsername(e.target.value); clearErr(); }}
-                  onFocus={() => setUFocus(true)}
-                  onBlur={() => setUFocus(false)}
-                />
-              </div>
+              <Input
+                id="username"
+                label="Username"
+                labelPlacement="outside"
+                type="text"
+                autoComplete="username"
+                autoFocus
+                placeholder="Enter your username"
+                value={username}
+                isInvalid={hasErr}
+                startContent={<IcoUser />}
+                onValueChange={(value) => {
+                  setUsername(value);
+                  clearErr();
+                }}
+                classNames={{
+                  label: 'lp-label',
+                  inputWrapper: [
+                    'h-12',
+                    'rounded-[14px]',
+                    'bg-slate-50',
+                    'border',
+                    'border-slate-200',
+                    'shadow-none',
+                    'data-[hover=true]:bg-white',
+                    'group-data-[focus=true]:bg-white',
+                    'group-data-[focus=true]:border-blue-600',
+                  ],
+                  input: 'text-[14px] font-semibold text-slate-900 placeholder:text-slate-400',
+                }}
+              />
             </div>
 
             <div className="lp-field">
-              <label className="lp-label" htmlFor="password">Password</label>
-              <div className={`lp-input-wrap${hasErr ? ' errored' : pFocus ? ' focused' : ''}`}>
-                <span className="lp-ico"><IcoLock /></span>
-                <input
-                  id="password" className="lp-inp"
-                  type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); clearErr(); }}
-                  onFocus={() => setPFocus(true)}
-                  onBlur={() => setPFocus(false)}
-                />
-                <button type="button" className="lp-eye" onClick={() => setShowPw(v => !v)}>
-                  {showPw ? <IcoEye /> : <IcoEyeOff />}
-                </button>
-              </div>
+              <Input
+                id="password"
+                label="Password"
+                labelPlacement="outside"
+                type={showPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={password}
+                isInvalid={hasErr}
+                startContent={<IcoLock />}
+                endContent={
+                  <button
+                    type="button"
+                    className="text-slate-400 hover:text-slate-600 transition"
+                    onClick={() => setShowPw((value) => !value)}
+                    aria-label={showPw ? 'Hide password' : 'Show password'}
+                  >
+                    {showPw ? <IcoEye /> : <IcoEyeOff />}
+                  </button>
+                }
+                onValueChange={(value) => {
+                  setPassword(value);
+                  clearErr();
+                }}
+                classNames={{
+                  label: 'lp-label',
+                  inputWrapper: [
+                    'h-12',
+                    'rounded-[14px]',
+                    'bg-slate-50',
+                    'border',
+                    'border-slate-200',
+                    'shadow-none',
+                    'data-[hover=true]:bg-white',
+                    'group-data-[focus=true]:bg-white',
+                    'group-data-[focus=true]:border-blue-600',
+                  ],
+                  input: 'text-[14px] font-semibold text-slate-900 placeholder:text-slate-400',
+                }}
+              />
             </div>
 
-            <button type="submit" disabled={loading} className="lp-btn">
-              {loading
-                ? <><span className="lp-spin" />Signing in...</>
-                : <>Sign in<IcoArrow /></>}
-            </button>
+            <Button
+              type="submit"
+              isLoading={loading}
+              isDisabled={loading}
+              className="lp-btn"
+            >
+              {loading ? 'Signing in...' : <>Sign in<IcoArrow /></>}
+            </Button>
 
             <p className="lp-forgot">หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบ</p>
           </form>
