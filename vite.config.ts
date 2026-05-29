@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   build: {
     outDir: 'static/dist',
     emptyOutDir: true,
@@ -10,9 +11,13 @@ export default defineConfig({
     rollupOptions: {
       input: 'src/main.tsx',
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          heroui: ['@heroui/react', 'framer-motion'],
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react';
+          }
+          if (id.includes('node_modules/@heroui')) {
+            return 'heroui';
+          }
         },
       },
     },

@@ -1,34 +1,35 @@
 {
-  "_heroui-BHkS7Plx.js": {
-    "file": "assets/heroui-BHkS7Plx.js",
+  "_heroui-DyMuqkUf.js": {
+    "file": "assets/heroui-DyMuqkUf.js",
     "name": "heroui",
-    "dynamicImports": [
-      "node_modules/@heroui/dom-animation/dist/index.mjs"
-    ]
-  },
-  "_react-l0sNRNKZ.js": {
-    "file": "assets/react-l0sNRNKZ.js",
-    "name": "react"
-  },
-  "node_modules/@heroui/dom-animation/dist/index.mjs": {
-    "file": "assets/index-5VEdHJbp.js",
-    "name": "index",
-    "src": "node_modules/@heroui/dom-animation/dist/index.mjs",
-    "isDynamicEntry": true,
     "imports": [
-      "_heroui-BHkS7Plx.js"
+      "_rolldown-runtime-Bh1tDfsg.js"
     ]
+  },
+  "_react-DWpAs9sO.js": {
+    "file": "assets/react-DWpAs9sO.js",
+    "name": "react",
+    "imports": [
+      "_rolldown-runtime-Bh1tDfsg.js",
+      "_heroui-DyMuqkUf.js"
+    ]
+  },
+  "_rolldown-runtime-Bh1tDfsg.js": {
+    "file": "assets/rolldown-runtime-Bh1tDfsg.js",
+    "name": "rolldown-runtime"
   },
   "src/main.tsx": {
-    "file": "assets/main-BOF_BK1K.js",
+    "file": "assets/main-mI1fG21k.js",
     "name": "main",
     "src": "src/main.tsx",
     "isEntry": true,
     "imports": [
-      "_heroui-BHkS7Plx.js"
+      "_rolldown-runtime-Bh1tDfsg.js",
+      "_heroui-DyMuqkUf.js",
+      "_react-DWpAs9sO.js"
     ],
     "css": [
-      "assets/main-BaUmHSQ9.css"
+      "assets/main-rkFxT3sI.css"
     ]
   }
 }

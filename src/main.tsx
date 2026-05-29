@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HeroUIProvider } from '@heroui/react';
 import App from './App';
 import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import CustomerListPage from './pages/customer-list/CustomerListPage';
@@ -25,8 +24,6 @@ function renderPage() {
 
 root.render(
   <StrictMode>
-    <HeroUIProvider>
-      {renderPage()}
-    </HeroUIProvider>
+    {renderPage()}
   </StrictMode>
 );

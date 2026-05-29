@@ -1,7 +1,16 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Button, Input } from '@heroui/react';
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  CloseButton,
+  InputGroup,
+  Label,
+  TextField,
+} from '@heroui/react';
 
-/* ─── Icons ──────────────────────────────────────────────────────────────── */
 function IcoShield({ size = 20 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size}>
@@ -80,7 +89,6 @@ function IcoArrow() {
   );
 }
 
-/* ─── Sparkline ──────────────────────────────────────────────────────────── */
 function Sparkline({ data, color, glow }: { data: number[]; color: string; glow: string }) {
   const W = 190, H = 50;
   const min = Math.min(...data), max = Math.max(...data);
@@ -110,7 +118,6 @@ function Sparkline({ data, color, glow }: { data: number[]; color: string; glow:
   );
 }
 
-/* ─── Data ───────────────────────────────────────────────────────────────── */
 const CHART = [42, 58, 51, 73, 65, 88, 76, 92, 84, 97, 89, 108];
 
 const ACTIVITY = [
@@ -125,77 +132,93 @@ const STATUS_META: Record<string, { color: string; icon: ReactNode; label: strin
   judged: { color: '#7c3aed', icon: <IcoClock />, label: 'Judged' },
 };
 
-/* ─── Right Panel ────────────────────────────────────────────────────────── */
 function RightPanel() {
   return (
     <aside className="rp" aria-hidden="true">
       <div className="rp-inner">
         <div className="rp-top">
-          <div className="rp-tag">
-            <span className="rp-tag-dot" />
+          <Chip
+            color="accent"
+            size="sm"
+            variant="soft"
+            className="mb-3 gap-1.5 rounded-full px-3 text-[10px] font-extrabold uppercase tracking-[.08em]"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
             Secured workspace
-          </div>
+          </Chip>
           <h2 className="rp-headline">LQD Management System</h2>
           <p className="rp-sub">ศูนย์กลางสำหรับจัดการข้อมูลลูกหนี้ บันทึกการชำระเงิน และติดตามพอร์ตงานคดี</p>
         </div>
 
-        <div className="rp-card hero-card">
-          <div>
-            <p className="hero-eyebrow">PORTFOLIO SNAPSHOT</p>
-            <p className="hero-num">฿284,920</p>
-            <p className="hero-caption">Outstanding balance under active monitoring</p>
-          </div>
-          <div className="hero-chart">
-            <Sparkline data={CHART} color="#2563eb" glow="rgba(37,99,235,.6)" />
-          </div>
-        </div>
+        <Card className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
+          <Card.Content className="flex flex-row items-center justify-between gap-3 px-5 py-[18px]">
+            <div>
+              <p className="hero-eyebrow">PORTFOLIO SNAPSHOT</p>
+              <p className="hero-num">฿284,920</p>
+              <p className="hero-caption">Outstanding balance under active monitoring</p>
+            </div>
+            <div className="hero-chart">
+              <Sparkline data={CHART} color="#2563eb" glow="rgba(37,99,235,.6)" />
+            </div>
+          </Card.Content>
+        </Card>
 
         <div className="pills">
           {[
             { label: 'Active cases', val: '2,418', color: '#2563eb' },
             { label: 'Filing', val: '684', color: '#4f46e5' },
             { label: 'Judged', val: '86', color: '#0f766e' },
-          ].map((s, i) => (
-            <div key={s.label} className="rp-card pill">
-              <p className="pill-label">{s.label}</p>
-              <p className="pill-val" style={{ color: s.color }}>{s.val}</p>
-            </div>
+          ].map((s) => (
+            <Card key={s.label} className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
+              <Card.Content className="px-3.5 py-[13px]">
+                <p className="pill-label">{s.label}</p>
+                <p className="pill-val" style={{ color: s.color }}>{s.val}</p>
+              </Card.Content>
+            </Card>
           ))}
         </div>
 
-        <div className="rp-card feed">
-          <div className="feed-head">
-            <p className="feed-title">Today&apos;s queue</p>
-            <span className="feed-live"><span className="live-dot" />Updated</span>
-          </div>
-          <div className="feed-rows">
-            {ACTIVITY.map((a, i) => {
-              const m = STATUS_META[a.status];
-              return (
-                <div key={i} className="feed-row" style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
-                  <div className="avatar" style={{ background: a.color }}>{a.init}</div>
-                  <div className="feed-info">
-                    <p className="feed-name">{a.name}</p>
-                    <p className="feed-action">{a.action}</p>
+        <Card className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
+          <Card.Content className="px-[18px] py-4">
+            <div className="feed-head">
+              <p className="feed-title">Today&apos;s queue</p>
+              <span className="feed-live"><span className="live-dot" />Updated</span>
+            </div>
+            <div className="feed-rows">
+              {ACTIVITY.map((a, i) => {
+                const m = STATUS_META[a.status];
+                return (
+                  <div key={i} className="feed-row" style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
+                    <Avatar className="h-8 w-8 shrink-0 rounded-[10px]" style={{ background: a.color }}>
+                      <Avatar.Fallback className="text-[10.5px] font-extrabold text-white">{a.init}</Avatar.Fallback>
+                    </Avatar>
+                    <div className="feed-info">
+                      <p className="feed-name">{a.name}</p>
+                      <p className="feed-action">{a.action}</p>
+                    </div>
+                    <div className="feed-right">
+                      <p className="feed-amount">{a.amount}</p>
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        className="h-[18px] gap-1 border px-1.5 text-[9px] font-extrabold"
+                        style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}12` }}
+                      >
+                        {m.icon}
+                        {m.label}
+                      </Chip>
+                    </div>
                   </div>
-                  <div className="feed-right">
-                    <p className="feed-amount">{a.amount}</p>
-                    <span className="feed-badge"
-                      style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}12` }}>
-                      {m.icon}{m.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                );
+              })}
+            </div>
+          </Card.Content>
+        </Card>
       </div>
     </aside>
   );
 }
 
-/* ─── Left Panel ─────────────────────────────────────────────────────────── */
 function LeftPanel() {
   const [username, setUsername] = useState('');
   const [password, setPassword]= useState('');
@@ -273,96 +296,105 @@ function LeftPanel() {
           </p>
 
           {error && (
-            <div className={`lp-err${shake ? ' shake' : ''}`}>
-              <span className="lp-err-ico"><IcoAlert /></span>
-              <p className="lp-err-msg">{error}</p>
-              <button type="button" onClick={clearErr} className="lp-err-x"><IcoClose /></button>
-            </div>
+            <Alert
+              status="danger"
+              className={`mb-5${shake ? ' shake' : ''}`}
+            >
+              <Alert.Indicator>
+                <IcoAlert />
+              </Alert.Indicator>
+              <Alert.Content>
+                <Alert.Description className="text-[13px] font-medium leading-6">
+                  {error}
+                </Alert.Description>
+              </Alert.Content>
+              <CloseButton
+                aria-label="Dismiss error"
+                className="ml-auto"
+                onPress={clearErr}
+              >
+                <IcoClose />
+              </CloseButton>
+            </Alert>
           )}
 
           <form onSubmit={handleSubmit} className={shake ? 'shake' : ''}>
             <div className="lp-field">
-              <Input
+              <TextField
                 id="username"
-                label="Username"
-                labelPlacement="outside"
-                type="text"
-                autoComplete="username"
-                autoFocus
-                placeholder="Enter your username"
-                value={username}
+                name="username"
+                isRequired
                 isInvalid={hasErr}
-                startContent={<IcoUser />}
-                onValueChange={(value) => {
+                type="text"
+                autoFocus
+                value={username}
+                onChange={(value) => {
                   setUsername(value);
                   clearErr();
                 }}
-                classNames={{
-                  label: 'lp-label',
-                  inputWrapper: [
-                    'h-12',
-                    'rounded-[14px]',
-                    'bg-slate-50',
-                    'border',
-                    'border-slate-200',
-                    'shadow-none',
-                    'data-[hover=true]:bg-white',
-                    'group-data-[focus=true]:bg-white',
-                    'group-data-[focus=true]:border-blue-600',
-                  ],
-                  input: 'text-[14px] font-semibold text-slate-900 placeholder:text-slate-400',
-                }}
-              />
+                className="flex w-full flex-col gap-2"
+              >
+                <Label className="text-xs font-semibold uppercase tracking-[.03em] text-slate-700">Username</Label>
+                <InputGroup variant="secondary" className={`h-12 rounded-[14px] border bg-slate-50 shadow-none ${hasErr ? 'border-red-400' : 'border-slate-200'}`}>
+                  <InputGroup.Prefix className="text-slate-400">
+                    <IcoUser />
+                  </InputGroup.Prefix>
+                  <InputGroup.Input
+                    autoComplete="username"
+                    placeholder="Enter your username"
+                    className="text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
+                  />
+                </InputGroup>
+              </TextField>
             </div>
 
             <div className="lp-field">
-              <Input
+              <TextField
                 id="password"
-                label="Password"
-                labelPlacement="outside"
-                type={showPw ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                value={password}
+                name="password"
                 isInvalid={hasErr}
-                startContent={<IcoLock />}
-                endContent={
-                  <button
-                    type="button"
-                    className="text-slate-400 hover:text-slate-600 transition"
-                    onClick={() => setShowPw((value) => !value)}
-                    aria-label={showPw ? 'Hide password' : 'Show password'}
-                  >
-                    {showPw ? <IcoEye /> : <IcoEyeOff />}
-                  </button>
-                }
-                onValueChange={(value) => {
+                isRequired
+                value={password}
+                onChange={(value) => {
                   setPassword(value);
                   clearErr();
                 }}
-                classNames={{
-                  label: 'lp-label',
-                  inputWrapper: [
-                    'h-12',
-                    'rounded-[14px]',
-                    'bg-slate-50',
-                    'border',
-                    'border-slate-200',
-                    'shadow-none',
-                    'data-[hover=true]:bg-white',
-                    'group-data-[focus=true]:bg-white',
-                    'group-data-[focus=true]:border-blue-600',
-                  ],
-                  input: 'text-[14px] font-semibold text-slate-900 placeholder:text-slate-400',
-                }}
-              />
+                className="flex w-full flex-col gap-2"
+              >
+                <Label className="text-xs font-semibold uppercase tracking-[.03em] text-slate-700">Password</Label>
+                <InputGroup variant="secondary" className={`h-12 rounded-[14px] border bg-slate-50 shadow-none ${hasErr ? 'border-red-400' : 'border-slate-200'}`}>
+                  <InputGroup.Prefix className="text-slate-400">
+                    <IcoLock />
+                  </InputGroup.Prefix>
+                  <InputGroup.Input
+                    type={showPw ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    className="text-[14px] font-semibold text-slate-900 placeholder:text-slate-400"
+                  />
+                  <InputGroup.Suffix>
+                    <Button
+                      type="button"
+                      isIconOnly
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      size="sm"
+                      variant="ghost"
+                      className="min-w-8 rounded-full text-slate-400 hover:text-slate-600"
+                      onPress={() => setShowPw((value) => !value)}
+                    >
+                      {showPw ? <IcoEye /> : <IcoEyeOff />}
+                    </Button>
+                  </InputGroup.Suffix>
+                </InputGroup>
+              </TextField>
             </div>
 
             <Button
               type="submit"
-              isLoading={loading}
+              size="lg"
+              fullWidth
               isDisabled={loading}
-              className="lp-btn"
+              className="mt-2 h-12 gap-2 rounded-[14px] bg-primary text-white font-bold shadow-[0_8px_24px_rgba(37,99,235,.28),0_2px_6px_rgba(37,99,235,.18)]"
             >
               {loading ? 'Signing in...' : <>Sign in<IcoArrow /></>}
             </Button>
@@ -383,7 +415,6 @@ function LeftPanel() {
   );
 }
 
-/* ─── App ────────────────────────────────────────────────────────────────── */
 export default function App() {
   return (
     <div className="shell">
