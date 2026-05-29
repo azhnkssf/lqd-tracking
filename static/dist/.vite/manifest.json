@@ -19,7 +19,7 @@
     "name": "rolldown-runtime"
   },
   "src/main.tsx": {
-    "file": "assets/main-hg-52r-k.js",
+    "file": "assets/main-6aevTyKl.js",
     "name": "main",
     "src": "src/main.tsx",
     "isEntry": true,
@@ -29,7 +29,7 @@
       "_react-DWpAs9sO.js"
     ],
     "css": [
-      "assets/main-B8ML_X4m.css"
+      "assets/main-C85yf5vz.css"
     ]
   }
 }

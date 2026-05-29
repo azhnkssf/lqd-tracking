@@ -137,7 +137,6 @@ function RightPanel() {
     <aside className="rp" aria-hidden="true">
       <div className="rp-inner">
         <div className="rp-top">
-          {/* คืนค่าโค้ด Secured workspace กลับเป็นเวอร์ชันเดิมที่คุณใช้เป๊ะๆ */}
           <Chip
             color="accent"
             size="lg" 
@@ -148,20 +147,20 @@ function RightPanel() {
             Secured workspace
           </Chip>
 
-          <h2 className="rp-headline" style={{ marginTop: '5px' }}>
+          <h2 className="rp-headline" style={{ marginTop: '10px' }}>
             LQD Management System
           </h2>
           <p className="rp-sub">ศูนย์กลางสำหรับจัดการข้อมูลลูกหนี้ บันทึกการชำระเงิน และติดตามพอร์ตงานคดี</p>
         </div>
 
         <Card className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
-          <Card.Content className="flex flex-row items-center justify-between gap-3 px-5 py-[18px]">
-            <div>
+          <Card.Content className="flex flex-row items-center justify-between gap-5 px-6 py-5">
+            <div className="min-w-0 pr-2">
               <p className="hero-eyebrow">PORTFOLIO SNAPSHOT</p>
               <p className="hero-num">฿284,920</p>
               <p className="hero-caption">Outstanding balance under active monitoring</p>
             </div>
-            <div className="hero-chart">
+            <div className="hero-chart shrink-0 pr-1">
               <Sparkline data={CHART} color="#2563eb" glow="rgba(37,99,235,.6)" />
             </div>
           </Card.Content>
