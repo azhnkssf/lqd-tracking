@@ -323,19 +323,36 @@ function LeftPanel() {
           {error && (
             <Alert
               status="danger"
-              className={`mb-5${shake ? ' shake' : ''}`}
+              className={[
+                'mb-5',
+                'items-start',
+                'rounded-[16px]',
+                'border',
+                'border-red-200',
+                'bg-red-50/80',
+                'px-4',
+                'py-3.5',
+                'shadow-sm',
+                'shadow-red-900/5',
+                shake ? 'shake' : '',
+              ].join(' ')}
             >
-              <Alert.Indicator>
+              <Alert.Indicator className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
                 <IcoAlert />
               </Alert.Indicator>
-              <Alert.Content>
-                <Alert.Description className="text-[13px] font-medium leading-6">
+
+              <Alert.Content className="min-w-0 flex-1 gap-0.5">
+                <Alert.Title className="text-sm font-bold leading-5 text-red-800">
+                  ไม่สามารถเข้าสู่ระบบได้
+                </Alert.Title>
+                <Alert.Description className="text-[13px] font-medium leading-5 text-red-700">
                   {error}
                 </Alert.Description>
               </Alert.Content>
+
               <CloseButton
                 aria-label="Dismiss error"
-                className="ml-auto"
+                className="ml-2 h-7 w-7 shrink-0 rounded-full text-red-500 transition hover:bg-red-100 hover:text-red-700"
                 onPress={clearErr}
               >
                 <IcoClose />
@@ -369,7 +386,7 @@ function LeftPanel() {
                     usernameError ? 'border-red-400 bg-red-50/40' : 'border-slate-200',
                   ].join(' ')}
                 >
-                  <InputGroup.Prefix className="text-slate-400">
+                  <InputGroup.Prefix className="flex min-w-10 items-center justify-center pl-3 pr-2 text-slate-400">
                     <IcoUser />
                   </InputGroup.Prefix>
                   <InputGroup.Input
@@ -407,7 +424,7 @@ function LeftPanel() {
                     passwordError ? 'border-red-400 bg-red-50/40' : 'border-slate-200',
                   ].join(' ')}
                 >
-                  <InputGroup.Prefix className="text-slate-400">
+                  <InputGroup.Prefix className="flex min-w-10 items-center justify-center pl-3 pr-2 text-slate-400">
                     <IcoLock />
                   </InputGroup.Prefix>
                   <InputGroup.Input
@@ -423,7 +440,7 @@ function LeftPanel() {
                       aria-label={showPw ? 'Hide password' : 'Show password'}
                       size="sm"
                       variant="ghost"
-                      className="min-w-8 rounded-full text-slate-400 hover:text-slate-600"
+                      className="min-w-10 rounded-full text-slate-400 hover:text-slate-600"
                       onPress={() => setShowPw((value) => !value)}
                     >
                       {showPw ? <IcoEye /> : <IcoEyeOff />}
