@@ -90,17 +90,28 @@ function IcoArrow() {
 }
 
 function Sparkline({ data, color, glow }: { data: number[]; color: string; glow: string }) {
-  const W = 190, H = 50;
+  const W = 170;
+  const H = 50;
+  const PAD_X = 6;
+  const PAD_Y = 5;
+
   const min = Math.min(...data), max = Math.max(...data);
+  const usableW = W - PAD_X * 2;
+  const usableH = H - PAD_Y * 2;
+
   const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * W;
-    const y = H - ((v - min) / (max - min || 1)) * (H - 8) - 4;
+    const x = PAD_X + (i / (data.length - 1)) * usableW;
+    const y = H - PAD_Y - ((v - min) / (max - min || 1)) * usableH;
     return `${x},${y}`;
   });
+
   const line = `M${pts.join(' L')}`;
-  const area = `M0,${H} L${pts.join(' L')} L${W},${H} Z`;
+  const area = `M${PAD_X},${H - PAD_Y} L${pts.join(' L')} L${W - PAD_X},${H - PAD_Y} Z`;
   const gId = `g${color.replace('#', '')}`;
-  const lastX = W, lastY = H - ((data[data.length - 1] - min) / (max - min || 1)) * (H - 8) - 4;
+  const lastValue = data[data.length - 1];
+  const lastX = W - PAD_X;
+  const lastY = H - PAD_Y - ((lastValue - min) / (max - min || 1)) * usableH;
+
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', overflow: 'visible' }}>
       <defs>
@@ -153,15 +164,17 @@ function RightPanel() {
           <p className="rp-sub">ศูนย์กลางสำหรับจัดการข้อมูลลูกหนี้ บันทึกการชำระเงิน และติดตามพอร์ตงานคดี</p>
         </div>
 
-        <Card className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
-          <Card.Content className="flex flex-row items-center justify-between gap-5 px-6 py-5">
-            <div className="min-w-0 pr-2">
-              <p className="hero-eyebrow">PORTFOLIO SNAPSHOT</p>
-              <p className="hero-num">฿284,920</p>
-              <p className="hero-caption">Outstanding balance under active monitoring</p>
-            </div>
-            <div className="hero-chart shrink-0 pr-1">
-              <Sparkline data={CHART} color="#2563eb" glow="rgba(37,99,235,.6)" />
+        <Card className="portfolio-snapshot-card rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
+          <Card.Content className="!p-0">
+            <div className="portfolio-snapshot-content">
+              <div className="portfolio-snapshot-copy">
+                <p className="hero-eyebrow">PORTFOLIO SNAPSHOT</p>
+                <p className="hero-num">฿284,920</p>
+                <p className="hero-caption">Outstanding balance under active monitoring</p>
+              </div>
+              <div className="portfolio-snapshot-chart">
+                <Sparkline data={CHART} color="#2563eb" glow="rgba(37,99,235,.6)" />
+              </div>
             </div>
           </Card.Content>
         </Card>
