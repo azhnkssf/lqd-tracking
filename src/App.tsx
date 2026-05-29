@@ -324,35 +324,67 @@ function LeftPanel() {
             <Alert
               status="danger"
               className={[
-                'mb-5',
-                'items-start',
-                'rounded-[16px]',
-                'border',
-                'border-red-200',
-                'bg-red-50/80',
-                'px-4',
-                'py-3.5',
-                'shadow-sm',
-                'shadow-red-900/5',
+                '!mb-8',
+                '!flex',
+                '!w-full',
+                '!min-h-[52px]',
+                '!items-center',
+                '!gap-3',
+                '!rounded-[14px]',
+                '!border',
+                '!border-red-200',
+                '!bg-red-50/90',
+                '!px-4',
+                '!py-3',
+                '!shadow-sm',
+                '!shadow-red-900/5',
                 shake ? 'shake' : '',
               ].join(' ')}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                gap: 12,
+                alignItems: 'center',
+              }}
             >
-              <Alert.Indicator className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <Alert.Indicator
+                className="!m-0 !grid !h-7 !w-7 !shrink-0 !place-items-center !rounded-full !bg-red-100 !p-0 !text-red-600 [&>svg]:!block"
+                style={{
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 28,
+                  height: 28,
+                  minWidth: 28,
+                  margin: 0,
+                  padding: 0,
+                }}
+              >
                 <IcoAlert />
               </Alert.Indicator>
 
-              <Alert.Content className="min-w-0 flex-1 gap-0.5">
-                <Alert.Title className="text-sm font-bold leading-5 text-red-800">
+              <Alert.Content className="!min-w-0 !flex-1 !gap-1">
+                <Alert.Title className="text-[12px] font-bold leading-[17px] text-red-800">
                   ไม่สามารถเข้าสู่ระบบได้
                 </Alert.Title>
-                <Alert.Description className="text-[13px] font-medium leading-5 text-red-700">
+                <Alert.Description className="text-[12px] font-medium leading-[17px] text-red-700">
                   {error}
                 </Alert.Description>
               </Alert.Content>
 
               <CloseButton
                 aria-label="Dismiss error"
-                className="ml-2 h-7 w-7 shrink-0 rounded-full text-red-500 transition hover:bg-red-100 hover:text-red-700"
+                className="!static !m-0 !ml-auto !grid !h-7 !w-7 !shrink-0 !place-items-center !rounded-full !p-0 !text-red-500 !transition hover:!bg-red-100 hover:!text-red-700 [&>svg]:!block"
+                style={{
+                  position: 'static',
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 28,
+                  height: 28,
+                  minWidth: 28,
+                  margin: 0,
+                  marginLeft: 'auto',
+                  padding: 0,
+                }}
                 onPress={clearErr}
               >
                 <IcoClose />
@@ -472,7 +504,7 @@ function LeftPanel() {
       <div className="lp-foot">
         <div className="lp-foot-stat">
           <span className="lp-foot-dot" />
-          All systems operational
+          Systems is Operating
         </div>
       </div>
     </main>
