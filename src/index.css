@@ -971,22 +971,45 @@ body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
 }
 .pills {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
+
+.pill-card {
+  overflow: hidden;
+}
+
+.pill-card-content {
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 14px 13px;
+}
+
 .pill-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
+  line-height: 1.2;
   font-weight: 700;
   color: #64748b;
-  margin-bottom: 7px;
-  white-space: nowrap;
+  margin-bottom: 8px;
 }
+
 .pill-val {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 21px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.15;
   letter-spacing: -.03em;
 }
+
 .feed-head {
   display: flex;
   align-items: center;

@@ -185,10 +185,15 @@ function RightPanel() {
             { label: 'Filing', val: '684', color: '#4f46e5' },
             { label: 'Judged', val: '86', color: '#0f766e' },
           ].map((s) => (
-            <Card key={s.label} className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
-              <Card.Content className="px-3.5 py-[13px]">
-                <p className="pill-label">{s.label}</p>
-                <p className="pill-val" style={{ color: s.color }}>{s.val}</p>
+            <Card
+              key={s.label}
+              className="pill-card rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]"
+            >
+              <Card.Content className="!p-0">
+                <div className="pill-card-content">
+                  <p className="pill-label">{s.label}</p>
+                  <p className="pill-val" style={{ color: s.color }}>{s.val}</p>
+                </div>
               </Card.Content>
             </Card>
           ))}
