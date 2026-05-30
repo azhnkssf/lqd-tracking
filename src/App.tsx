@@ -199,39 +199,45 @@ function RightPanel() {
           ))}
         </div>
 
-        <Card className="rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
-          <Card.Content className="px-[18px] py-4">
-            <div className="feed-head">
-              <p className="feed-title">Today&apos;s queue</p>
-              <span className="feed-live"><span className="live-dot" />Updated</span>
-            </div>
-            <div className="feed-rows">
-              {ACTIVITY.map((a, i) => {
-                const m = STATUS_META[a.status];
-                return (
-                  <div key={i} className="feed-row" style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
-                    <Avatar className="h-8 w-8 shrink-0 rounded-[10px]" style={{ background: a.color }}>
-                      <Avatar.Fallback className="text-[10.5px] font-extrabold text-white">{a.init}</Avatar.Fallback>
-                    </Avatar>
-                    <div className="feed-info">
-                      <p className="feed-name">{a.name}</p>
-                      <p className="feed-action">{a.action}</p>
+        <Card className="feed-card rounded-2xl border border-[#dbe7f7] bg-white/85 shadow-[0_12px_32px_rgba(15,23,42,.06)]">
+          <Card.Content className="!p-0">
+            <div className="feed-card-content">
+              <div className="feed-head">
+                <p className="feed-title">Today&apos;s queue</p>
+                <span className="feed-live"><span className="live-dot" />Updated</span>
+              </div>
+
+              <div className="feed-rows">
+                {ACTIVITY.map((a, i) => {
+                  const m = STATUS_META[a.status];
+
+                  return (
+                    <div key={i} className="feed-row" style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
+                      <Avatar className="feed-avatar" style={{ background: a.color }}>
+                        <Avatar.Fallback className="feed-avatar-text">{a.init}</Avatar.Fallback>
+                      </Avatar>
+
+                      <div className="feed-info">
+                        <p className="feed-name">{a.name}</p>
+                        <p className="feed-action">{a.action}</p>
+                      </div>
+
+                      <div className="feed-right">
+                        <p className="feed-amount">{a.amount}</p>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          className="feed-status-chip"
+                          style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}12` }}
+                        >
+                          {m.icon}
+                          {m.label}
+                        </Chip>
+                      </div>
                     </div>
-                    <div className="feed-right">
-                      <p className="feed-amount">{a.amount}</p>
-                      <Chip
-                        size="sm"
-                        variant="soft"
-                        className="h-[18px] gap-1 border px-1.5 text-[9px] font-extrabold"
-                        style={{ color: m.color, borderColor: `${m.color}40`, background: `${m.color}12` }}
-                      >
-                        {m.icon}
-                        {m.label}
-                      </Chip>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </Card.Content>
         </Card>
