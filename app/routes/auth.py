@@ -57,7 +57,6 @@ def login():
     auth_service.log_auth_event('login_succeeded', user=user, remote_addr=request.remote_addr)
 
     response = jsonify({
-        'token': token,
         'user': {
             'id': user['id'],
             'username': user['username'],

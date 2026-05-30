@@ -19,6 +19,8 @@ class Config:
     AUTH_COOKIE_NAME = os.environ.get('AUTH_COOKIE_NAME', 'token')
     AUTH_COOKIE_HTTPONLY = os.environ.get('AUTH_COOKIE_HTTPONLY', '1') != '0'
     AUTH_COOKIE_SAMESITE = os.environ.get('AUTH_COOKIE_SAMESITE', 'Strict')
+    # Production deployments should set APP_ENV=production, a strong SECRET_KEY,
+    # and AUTH_COOKIE_SECURE=1 so auth cookies are sent only over HTTPS.
     AUTH_COOKIE_SECURE = os.environ.get('AUTH_COOKIE_SECURE', '0') == '1'
     TOKEN_EXPIRE_HOURS = 8
     PASSWORD_MIN_LENGTH = int(os.environ.get('PASSWORD_MIN_LENGTH', '12'))

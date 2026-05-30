@@ -73,13 +73,21 @@ def create_app():
             return redirect('/setup-superadmin')
         return redirect('/login')
 
+    def render_react_page(page, page_title):
+        from flask import render_template
+        return render_template(
+            'react-app.html',
+            page=page,
+            page_title=page_title,
+        )
+
     @app.route('/login')
     def login_page():
-        from flask import render_template, redirect
+        from flask import redirect
         from app.services.auth_service import users_exist
         if not users_exist():
             return redirect('/setup-superadmin')
-        return render_template('login.html')
+        return render_react_page('login', 'LQD Tracking | Login')
 
     @app.route('/setup-superadmin')
     def setup_superadmin_page():
@@ -161,11 +169,13 @@ def create_app():
 
     @app.route('/customer-detail')
     def customer_detail_page():
-        from flask import render_template
         _, redirect_response = _guard_page()
         if redirect_response:
             return redirect_response
-        return render_template('customer-detail-react.html')
+        return render_react_page(
+            'customer-detail',
+            'Customer Detail | LQD Tracking Management System',
+        )
 
     @app.route('/customer-add')
     def customer_add_page():
@@ -177,11 +187,13 @@ def create_app():
 
     @app.route('/customer-list')
     def customer_list_page():
-        from flask import render_template
         _, redirect_response = _guard_page()
         if redirect_response:
             return redirect_response
-        return render_template('customer-list-react.html')
+        return render_react_page(
+            'customer-list',
+            'Customer List | LQD Tracking Management System',
+        )
 
     @app.route('/report')
     def report_page():

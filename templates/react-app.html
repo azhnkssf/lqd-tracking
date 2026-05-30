@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ page_title or 'LQD Tracking' }}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Sarabun:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+
+    {% if not vite_dev_server_url %}
+      {% for css_file in vite_css('src/main.tsx') %}
+      <link rel="stylesheet" href="{{ url_for('static', filename=css_file) }}" />
+      {% endfor %}
+    {% endif %}
+  </head>
+
+  <body>
+    <div id="root" data-page="{{ page }}"></div>
+
+    {% if vite_dev_server_url %}
+    <script type="module" src="{{ vite_dev_server_url }}/@vite/client"></script>
+    <script type="module" src="{{ vite_dev_server_url }}/src/main.tsx"></script>
+    {% else %}
+    <script type="module" src="{{ url_for('static', filename=vite_asset('src/main.tsx')) }}"></script>
+    {% endif %}
+  </body>
+</html>
