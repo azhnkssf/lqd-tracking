@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider as HeroUIProvider } from 'react-aria-components';
-import App from './App';
 import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import CustomerListPage from './pages/customer-list/CustomerListPage';
+import LoginPage from './pages/login/LoginPage';
 import './index.css';
 
 const rootEl = document.getElementById('root');
@@ -15,19 +15,19 @@ if (!rootEl) {
 const page = rootEl.dataset.page;
 
 function renderPage() {
-  if (page === 'login') {
-    return <App />;
-  }
+  switch (page) {
+    case 'login':
+      return <LoginPage />;
 
-  if (page === 'customer-detail') {
-    return <CustomerDetailPage />;
-  }
+    case 'customer-list':
+      return <CustomerListPage />;
 
-  if (page === 'customer-list') {
-    return <CustomerListPage />;
-  }
+    case 'customer-detail':
+      return <CustomerDetailPage />;
 
-  return <App />;
+    default:
+      throw new Error(`Unknown React page: ${page || '(missing data-page)'}`);
+  }
 }
 
 createRoot(rootEl).render(
