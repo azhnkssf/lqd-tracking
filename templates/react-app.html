@@ -23,6 +23,14 @@
     <div id="root" data-page="{{ page }}"></div>
 
     {% if vite_dev_server_url %}
+    <script type="module">
+      import RefreshRuntime from '{{ vite_dev_server_url }}/@react-refresh';
+
+      RefreshRuntime.injectIntoGlobalHook(window);
+      window.$RefreshReg$ = () => {};
+      window.$RefreshSig$ = () => (type) => type;
+      window.__vite_plugin_react_preamble_installed__ = true;
+    </script>
     <script type="module" src="{{ vite_dev_server_url }}/@vite/client"></script>
     <script type="module" src="{{ vite_dev_server_url }}/src/main.tsx"></script>
     {% else %}

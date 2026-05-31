@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ThemedDatePicker from '../../components/ui/ThemedDatePicker';
+import './customer-list.css';
 
 type Role = 'user' | 'admin' | 'superadmin' | '';
 

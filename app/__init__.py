@@ -185,11 +185,10 @@ def create_app():
 
     @app.route('/customer-list')
     def customer_list_page():
-        from flask import render_template
         _, redirect_response = _guard_page()
         if redirect_response:
             return redirect_response
-        return render_template('customer-list-react.html')
+        return render_react_page('customer-list', 'Customer List | LQD Tracking Management System')
 
     @app.route('/report')
     def report_page():
