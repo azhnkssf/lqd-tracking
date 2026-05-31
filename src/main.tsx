@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Provider as HeroUIProvider } from 'react-aria-components';
+import { I18nProvider as HeroUIProvider } from '@heroui/react';
 import CustomerDetailPage from './pages/customer-detail/CustomerDetailPage';
 import CustomerListPage from './pages/customer-list/CustomerListPage';
 import LoginPage from './pages/login/LoginPage';
